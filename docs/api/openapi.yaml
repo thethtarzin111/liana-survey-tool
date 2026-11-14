@@ -1,0 +1,53 @@
+openapi: 3.1.0
+info:
+  title: LianaSurvey API
+  version: 0.1.0
+  description: |
+    The contract between the admin app and the backend. Update it in the same
+    pull request as any endpoint change. FastAPI also serves its generated
+    version at /openapi.json; this file is the reviewed, hand-kept contract.
+servers:
+  - url: http://localhost:8000
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Liveness (process is up)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Readiness (database reachable)
+      responses:
+        '200': { description: Ready }
+        '503': { description: Database unreachable }
+  /api/v1/me:
+    get:
+      tags: [auth]
+      summary: The signed-in user (demo user in dev mode)
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUser' }
+        '501': { description: AUTH_MODE is not dev and real auth is not built }
+components:
+  schemas:
+    CurrentUser:
+      type: object
+      required: [user_id, tenant_id, tenant_name, name, email]
+      properties:
+        user_id: { type: string, format: uuid }
+        tenant_id: { type: string, format: uuid }
+        tenant_name: { type: string, example: Example Members Association }
+        name: { type: string, example: Anna Virtanen }
+        email: { type: string, format: email }

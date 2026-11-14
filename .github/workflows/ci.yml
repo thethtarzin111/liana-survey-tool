@@ -1,0 +1,115 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      web: ${{ steps.filter.outputs.web }}
+      db: ${{ steps.filter.outputs.db }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            python:
+              - 'packages/**'
+              - 'services/**'
+              - 'ruff.toml'
+              - 'Makefile'
+            web:
+              - 'apps/admin-web/**'
+            db:
+              - 'db/**'
+              - 'infra/postgres/**'
+
+  python:
+    needs: changes
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: make install-py
+      - run: make lint-py
+      - run: make test-py
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/admin-web/package-lock.json
+      - run: make install-web
+      - run: make lint-web
+      - run: make test-web
+      - run: cd apps/admin-web && npm run build
+
+  # Applies the migrations and seed data to a real Postgres and checks that
+  # row-level security hides other tenants' rows.
+  db:
+    needs: changes
+    if: needs.changes.outputs.db == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: survey
+          POSTGRES_USER: survey_owner
+          POSTGRES_PASSWORD: ci-owner
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U survey_owner -d survey"
+          --health-interval 5s --health-retries 20
+    env:
+      PGHOST: localhost
+      PGUSER: survey_owner
+      PGPASSWORD: ci-owner
+      PGDATABASE: survey
+      POSTGRES_USER: survey_owner
+      POSTGRES_DB: survey
+      APP_DB_USER: survey_app
+      APP_DB_PASSWORD: ci-app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create app role
+        run: sh infra/postgres/init/01-app-role.sh
+      - name: Install dbmate
+        run: |
+          sudo curl -fsSL -o /usr/local/bin/dbmate https://github.com/amacneil/dbmate/releases/download/v2.21.0/dbmate-linux-amd64
+          sudo chmod +x /usr/local/bin/dbmate
+      - name: Migrate up, down, up
+        env:
+          DATABASE_URL: postgres://survey_owner:ci-owner@localhost:5432/survey?sslmode=disable
+        run: |
+          dbmate --migrations-dir db/migrations --no-dump-schema up
+          dbmate --migrations-dir db/migrations --no-dump-schema rollback
+          dbmate --migrations-dir db/migrations --no-dump-schema up
+      - name: Seed twice (must be repeatable)
+        run: |
+          psql -v ON_ERROR_STOP=1 -f db/seed/seed.sql
+          psql -v ON_ERROR_STOP=1 -f db/seed/seed.sql
+      - name: Row-level security check
+        env:
+          PGUSER: survey_app
+          PGPASSWORD: ci-app
+        run: psql -v ON_ERROR_STOP=1 -f db/tests/rls_check.sql

@@ -1,0 +1,49 @@
+/* Liana design tokens, measured from the Liana test account.
+   Source: design/prototype/DesignSystem.dc.html and design/tokens.json. */
+:root {
+  --font-body: 'Inter', Helvetica, Arial, sans-serif;
+  --font-heading: 'Poppins', Helvetica, Arial, sans-serif;
+
+  --color-text: #353a40;
+  --color-text-muted: #696f77;
+  --color-placeholder: #aeb5bc;
+  --color-bg: #f6f7f9;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f0f2f4;
+
+  --color-brand: #4ca74e;          /* primary buttons */
+  --color-brand-hover: #3e8f40;
+  --color-brand-dark: #2b6450;     /* links, active nav, badges */
+  --color-mint: #cfeadf;
+  --color-mint-light: #f0f9f6;
+  --color-mint-border: #b7e1d0;
+
+  --color-border: #dfe3e7;
+  --color-border-strong: #ced3d9;
+  --color-row-line: #e5e8ec;
+
+  --color-success: #21ba45;
+  --color-warning: #f2711c;
+  --color-error: #db2828;
+  --color-ai: #7662db;
+
+  --color-app-mailer: #e76155;
+  --color-app-monitor: #27b99f;
+
+  --text-body: 12px;
+  --text-nav: 13.71px;
+  --text-section: 13.71px;
+  --text-page-title: 17.14px;
+
+  --radius-sm: 3.43px;
+  --radius-nav: 6.86px;
+  --radius-card: 13.71px;
+  --radius-pill: 120px;
+
+  --shadow-card: 0 3px 3px rgba(0, 0, 0, 0.03);
+  --shadow-button: 0 3px 3px rgba(0, 0, 0, 0.1);
+  --shadow-pop: 0 20px 30px rgba(23, 73, 77, 0.15);
+
+  --sidebar-width: 228px;
+  --header-height: 50px;
+}

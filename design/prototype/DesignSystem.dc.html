@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Liana design system</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Poppins:wght@500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.ds{font-family:'Inter',Helvetica,Arial,sans-serif;color:#353A40;background:#F6F7F9}
+.ds *{box-sizing:border-box}
+.ds h2{margin:0;font-family:'Poppins',Helvetica,Arial,sans-serif;font-size:20px;font-weight:600;color:#353A40}
+.ds .sub{margin:4px 0 22px;font-size:14px;line-height:1.5;color:#696F77}
+.ds .card{background:#fff;border:1px solid #DFE3E7;border-radius:14px;box-shadow:0 3px 3px rgba(0,0,0,.03)}
+.ds .sec{padding:28px}
+.ds .grid{display:grid;gap:18px}
+.ds .sw{display:flex;flex-direction:column;gap:6px}
+.ds .chipc{height:64px;border-radius:8px;border:1px solid #DFE3E7}
+.ds .hex{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;font-weight:600}
+.ds .use{font-size:13px;color:#696F77;line-height:1.4}
+.ds .lbl{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#696F77;margin-bottom:12px}
+.ds .row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.ds .spec{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#696F77;line-height:1.6;margin-top:10px}
+.ds .src{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.02em}
+.ds .m{background:#F0F9F6;color:#2B6450;border:1px solid #B7E1D0}
+.ds .e{background:#F0F2F4;color:#4F555C;border:1px solid #CED3D9}
+.ds .lb{font-family:'Poppins',Helvetica,Arial,sans-serif;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:34px;padding:0 14px;border-radius:120px;font-size:12px;font-weight:500;line-height:1;border:1px solid #CED3D9;background:#fff;color:#353A40;box-shadow:0 3px 3px rgba(0,0,0,.03);cursor:pointer}
+.ds .lb.p{background:#4CA74E;border-color:#4CA74E;color:#fff;box-shadow:0 3px 3px rgba(0,0,0,.1)}
+.ds .lb.s{height:28px;padding:0 10px}
+.ds .lb.d{background:#F6F7F9;box-shadow:none;cursor:default}
+.ds .lb.i{width:34px;padding:0;border-color:transparent;background:transparent;box-shadow:none}
+.ds .lb.ai{color:#7662DB;border-color:#C9C0F2}
+.ds .li{height:34px;width:220px;padding:0 10px;border:1px solid #CED3D9;border-radius:7px;font-family:'Inter',Helvetica,Arial,sans-serif;font-size:12px;color:#353A40;background:#fff;box-shadow:0 3px 3px rgba(0,0,0,.03)}
+.ds .nvi{display:flex;align-items:center;gap:10px;height:36px;padding:0 8px;border-radius:7px;font-size:13.7px;line-height:20.6px;width:212px;color:#353A40}
+.ds table{border-collapse:collapse;width:100%;font-size:13px}
+.ds th{text-align:left;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:#696F77;padding:8px 10px;border-bottom:1px solid #DFE3E7}
+.ds td{padding:9px 10px;border-bottom:1px solid #E5E8EC;vertical-align:top}
+.ds code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+</style>
+</helmet>
+<div class="ds" style="width: 1440px; min-height: 3700px; padding: 48px 56px 64px; display: flex; flex-direction: column; gap: 24px">
+
+<header style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 14px; max-width: 900px">
+<img src="/_blob/8c4d60630a6d0a867ef85f4f89d814b2" alt="Liana" style="width: 150px; height: auto; display: block">
+<h1 style="margin: 0; font-family: 'Poppins', Helvetica, Arial, sans-serif; font-size: 32px; font-weight: 600">Design system for the Feedback prototype</h1>
+<p style="margin: 0; font-size: 15px; line-height: 1.55; color: #696F77">Values measured with the browser Inspect tool on Liana's own app (14 Nov 2026, the Applications page). Liana is built on Fomantic UI, with Inter for text, Poppins for headings and buttons, and Font Awesome 7 Pro icons. The odd decimals Inspect shows (13.71, 6.86) come from Fomantic's em units on a 12 px base; this page keeps the measured value and gives the rounded one to design with.</p>
+</div>
+<div class="row" style="gap: 8px"><span class="src m">Measured</span><span class="use">from Inspect</span><span class="src e" style="margin-left: 10px">Estimated</span><span class="use">from screenshots, confirm later</span></div>
+</header>
+
+<section class="card sec">
+<h2>Colours</h2>
+<p class="sub">Text, greens and surfaces are the ones used most on the page. Counts are how many elements used each colour.</p>
+<div class="lbl">Text and brand</div>
+<div class="grid" style="grid-template-columns: repeat(6, minmax(0, 1fr))">
+<div class="sw"><div class="chipc" style="background: #353A40"></div><span class="hex">#353A40</span><span class="use">Main text, icons (317)</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #696F77"></div><span class="hex">#696F77</span><span class="use">Secondary text, 5.1:1 on white</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #2B6450"></div><span class="hex">#2B6450</span><span class="use">Links, logo link, app switcher text, 6.9:1 on white</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #4CA74E"></div><span class="hex">#4CA74E</span><span class="use">Brand green: primary buttons, logo. White text on it is 3.0:1, large text only</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #59BA54"></div><span class="hex">#59BA54</span><span class="use">Bright green: icons, highlights</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #7662DB"></div><span class="hex">#7662DB</span><span class="use">Ailu (AI) accent only</span><span><span class="src m">Measured</span></span></div>
+</div>
+<div class="lbl" style="margin-top: 24px">Surfaces and borders</div>
+<div class="grid" style="grid-template-columns: repeat(6, minmax(0, 1fr))">
+<div class="sw"><div class="chipc" style="background: #FFFFFF"></div><span class="hex">#FFFFFF</span><span class="use">Cards, header, inputs, buttons</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #F6F7F9"></div><span class="hex">#F6F7F9</span><span class="use">Page background, active sidebar item, disabled button</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #F0F2F4"></div><span class="hex">#F0F2F4</span><span class="use">Hover background</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #CFEADF"></div><span class="hex">#CFEADF</span><span class="use">Mint: inactive tabs, hero background</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #F0F9F6"></div><span class="hex">#F0F9F6</span><span class="use">Light mint: active tab</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #B7E1D0"></div><span class="hex">#B7E1D0</span><span class="use">Mint border</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #CED3D9"></div><span class="hex">#CED3D9</span><span class="use">Border of buttons and inputs (most used)</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #DFE3E7"></div><span class="hex">#DFE3E7</span><span class="use">Panel borders, side panel edge</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #E5E8EC"></div><span class="hex">#E5E8EC</span><span class="use">Dividers between rows</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #878E97"></div><span class="hex">#878E97</span><span class="use">Strong border (rare)</span><span><span class="src m">Measured</span></span></div>
+<div class="sw"><div class="chipc" style="background: #E2F2EA"></div><span class="hex">#E2F2EA</span><span class="use">Login page background</span><span><span class="src e">Estimated</span></span></div>
+<div class="sw"><div class="chipc" style="background: #D0EADF"></div><span class="hex">#D0EADF</span><span class="use">Login page curve</span><span><span class="src e">Estimated</span></span></div>
+</div>
+<div class="grid" style="grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 24px">
+<div><div class="lbl">Status (Fomantic defaults)</div>
+<div class="row" style="gap: 20px"><span class="row" style="gap: 8px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #21BA45"></span><span class="hex">#21BA45</span><span class="use">success</span></span><span class="row" style="gap: 8px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #F2711C"></span><span class="hex">#F2711C</span><span class="use">warning</span></span><span class="row" style="gap: 8px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #DB2828"></span><span class="hex">#DB2828</span><span class="use">error</span></span><span class="src m">Measured</span></div></div>
+<div><div class="lbl">Product colours</div>
+<div class="row" style="gap: 20px"><span class="row" style="gap: 8px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #E76155"></span><span class="hex">#E76155</span><span class="use">LianaMailer</span></span><span class="row" style="gap: 8px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #27B99F"></span><span class="hex">#27B99F</span><span class="use">LianaMonitor</span></span><span class="row" style="gap: 8px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #4CA74E"></span><span class="hex">#4CA74E</span><span class="use">Liana / Feedback</span></span><span class="src e">Estimated</span></div></div>
+</div>
+</section>
+
+<div class="grid" style="grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr)">
+<section class="card sec">
+<h2>Typography</h2>
+<p class="sub">Inter for text, Poppins for headings and buttons. Base text is 12 px; the root is 14 px.</p>
+<table>
+<thead><tr><th scope="col">Style</th><th scope="col">Sample</th><th scope="col">Spec</th></tr></thead>
+<tbody>
+<tr><td>Login title</td><td style="font-family: 'Poppins', Helvetica, Arial, sans-serif; font-size: 26px; font-weight: 600">Enter Your Password</td><td><code>Poppins 600 · ~26px</code> <span class="src e">Estimated</span></td></tr>
+<tr><td>Page title</td><td style="font-family: 'Poppins', Helvetica, Arial, sans-serif; font-size: 17.14px; line-height: 20.57px; font-weight: 600">Applications</td><td><code>Poppins 600 · 17.14 / 20.57</code> <span class="src m">Measured</span></td></tr>
+<tr><td>Section header</td><td style="font-family: 'Poppins', Helvetica, Arial, sans-serif; font-size: 13.71px; line-height: 16.46px; font-weight: 600">3 Total applications</td><td><code>Poppins 600 · 13.71 / 16.46</code> <span class="src m">Measured</span></td></tr>
+<tr><td>Sidebar item</td><td style="font-size: 13.71px; line-height: 20.57px">Front page</td><td><code>Inter 400 · 13.71 / 20.57 · active 600</code> <span class="src m">Measured</span></td></tr>
+<tr><td>Body</td><td style="font-size: 12px; line-height: 18px">Ready-made integrations, now in one library.</td><td><code>Inter 400 · 12 / 18</code> <span class="src m">Measured</span></td></tr>
+<tr><td>Button</td><td style="font-family: 'Poppins', Helvetica, Arial, sans-serif; font-size: 12px; font-weight: 500">View all</td><td><code>Poppins 500 · 12 / 12</code> <span class="src m">Measured</span></td></tr>
+<tr><td>Small</td><td style="font-size: 11.14px">Last edited by</td><td><code>Inter 400 · 11.14 / 13.53</code> <span class="src m">Measured</span></td></tr>
+<tr><td>Caption</td><td style="font-size: 10.8px">Tue 10/11/2026</td><td><code>Inter 400 · 10.8</code> <span class="src m">Measured</span></td></tr>
+</tbody>
+</table>
+<div class="spec">Weights in use: 400 (most text), 500 (buttons), 600 (headings, active nav), 700 and 900 (icons, rare).</div>
+</section>
+
+<section class="card sec">
+<h2>Shape, borders and shadows</h2>
+<p class="sub">Light and flat. Shadows are very faint and only point down.</p>
+<div class="lbl">Corner radius</div>
+<div class="row" style="gap: 18px; align-items: flex-start">
+<div style="text-align: center"><div style="width: 76px; height: 44px; border: 2px solid #4CA74E; border-radius: 120px"></div><div class="spec">120px<br>buttons</div></div>
+<div style="text-align: center"><div style="width: 76px; height: 44px; border: 2px solid #4CA74E; border-radius: 13.71px"></div><div class="spec">13.71 ≈ 14<br>cards, panels</div></div>
+<div style="text-align: center"><div style="width: 76px; height: 44px; border: 2px solid #4CA74E; border-radius: 10.29px 10.29px 0 0"></div><div class="spec">10.29 top<br>tabs</div></div>
+<div style="text-align: center"><div style="width: 76px; height: 44px; border: 2px solid #4CA74E; border-radius: 6.86px"></div><div class="spec">6.86 ≈ 7<br>inputs, nav</div></div>
+<div style="text-align: center"><div style="width: 76px; height: 44px; border: 2px solid #4CA74E; border-radius: 3.43px"></div><div class="spec">3.43<br>small</div></div>
+</div>
+<div class="lbl" style="margin-top: 24px">Borders</div>
+<div class="use">1 px solid <code>#CED3D9</code> on controls, <code>#DFE3E7</code> on panels, <code>#E5E8EC</code> between rows. Inspect showed 0.67 px only because the screen was at 150 % scaling.</div>
+<div class="lbl" style="margin-top: 24px">Shadows</div>
+<table>
+<tbody>
+<tr><td><span style="display: inline-block; width: 44px; height: 28px; border-radius: 7px; background: #fff; box-shadow: 0 3px 3px rgba(0,0,0,.03); border: 1px solid #E5E8EC"></span></td><td><code>0 3px 3px rgba(0,0,0,.03)</code><div class="use">buttons, inputs (most used)</div></td></tr>
+<tr><td><span style="display: inline-block; width: 44px; height: 28px; border-radius: 7px; background: #4CA74E; box-shadow: 0 3px 3px rgba(0,0,0,.1)"></span></td><td><code>0 3px 3px rgba(0,0,0,.1)</code><div class="use">primary button</div></td></tr>
+<tr><td><span style="display: inline-block; width: 44px; height: 28px; border-radius: 7px; background: #fff; box-shadow: 0 5px 10px rgba(0,0,0,.07)"></span></td><td><code>0 5px 10px rgba(0,0,0,.07)</code><div class="use">raised element</div></td></tr>
+<tr><td><span style="display: inline-block; width: 44px; height: 28px; border-radius: 7px; background: #fff; box-shadow: 0 5px 32px rgba(0,0,0,.05)"></span></td><td><code>0 5px 32px rgba(0,0,0,.05)</code><div class="use">popups, menus</div></td></tr>
+<tr><td><span style="display: inline-block; width: 44px; height: 28px; background: #fff; box-shadow: -1px 0 0 #DFE3E7"></span></td><td><code>-1px 0 0 #DFE3E7</code><div class="use">side panel edge</div></td></tr>
+</tbody>
+</table>
+</section>
+</div>
+
+<section class="card sec">
+<h2>Sizes and layout</h2>
+<p class="sub">Liana's admin screens are compact. Feedback's admin screens follow these sizes.</p>
+<div class="grid" style="grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px">
+<div><div class="lbl">Top bar</div><div style="font-size: 22px; font-weight: 600">50 px</div><div class="use">white, full width, logo link 241 px wide</div></div>
+<div><div class="lbl">Sidebar</div><div style="font-size: 22px; font-weight: 600">228 px</div><div class="use">items 212 px wide inside</div></div>
+<div><div class="lbl">Sidebar item</div><div style="font-size: 22px; font-weight: 600">36 px</div><div class="use">padding 7.84, radius 6.86</div></div>
+<div><div class="lbl">Button</div><div style="font-size: 22px; font-weight: 600">34 px</div><div class="use">padding 10.29 × 13.71; small 28 px (7.2 × 9.6)</div></div>
+<div><div class="lbl">Icon button</div><div style="font-size: 22px; font-weight: 600">32–35 px</div><div class="use">round, no border, transparent</div></div>
+<div><div class="lbl">Input</div><div style="font-size: 22px; font-weight: 600">34 px</div><div class="use">padding 9 × 10.29, radius 6.86</div></div>
+<div><div class="lbl">Tab</div><div style="font-size: 22px; font-weight: 600">39–42 px</div><div class="use">padding 13.71; active is 3 px taller</div></div>
+<div><div class="lbl">Spacing</div><div style="font-size: 22px; font-weight: 600">3.4 · 6.9 · 10.3 · 13.7 · 20.6</div><div class="use">≈ 4 · 7 · 10 · 14 · 21 (steps of 12 px × 2/7)</div></div>
+</div>
+</section>
+
+<section class="card sec">
+<h2>Components</h2>
+<p class="sub">Rebuilt at Liana's measured sizes.</p>
+<div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px">
+
+<div><div class="lbl">Buttons</div>
+<div class="row" style="gap: 8px"><button type="button" class="lb p">Save</button><button type="button" class="lb">View all <span aria-hidden="true">→</span></button><button type="button" class="lb d" disabled="{{ true }}">Reset</button></div>
+<div class="row" style="gap: 8px; margin-top: 12px"><button type="button" class="lb s p">Close</button><button type="button" class="lb s">Small</button><button type="button" class="lb ai"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"></path></svg>Ailu</button><button type="button" class="lb i" aria-label="More actions"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg></button></div>
+<div class="spec">Pill · Poppins 500 12px · 34px tall · 1px #CED3D9 · primary #4CA74E · disabled #F6F7F9</div></div>
+
+<div><div class="lbl">Input</div>
+<label style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600">Search<input class="li" type="search" placeholder="Search..."></label>
+<div class="spec">34px · Inter 12px · radius 6.86 · 1px #CED3D9 · shadow .03</div></div>
+
+<div><div class="lbl">Sidebar navigation</div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div class="nvi" style="background: #F6F7F9; font-weight: 600"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4CA74E" stroke-width="2" aria-hidden="true"><path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z"></path></svg>Front page</div>
+<div class="nvi"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18v12H3zM3 7l9 6 9-6"></path></svg>Messages</div>
+<div class="nvi"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Feedback</div>
+</div>
+<div class="spec">36px · Inter 13.71px · active: weight 600 on #F6F7F9, text stays #353A40</div></div>
+
+<div><div class="lbl">Tabs</div>
+<div style="display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid #B7E1D0">
+<span style="display: inline-flex; align-items: center; height: 42px; padding: 0 14px; border-radius: 10.29px 10.29px 0 0; background: #F0F9F6; font-size: 12px; font-weight: 600">Summary</span>
+<span style="display: inline-flex; align-items: center; height: 39px; padding: 0 14px; border-radius: 6px 13.71px 0 0; background: #CFEADF; font-size: 12px">Comments</span>
+<span style="display: inline-flex; align-items: center; height: 39px; padding: 0 14px; border-radius: 6px 13.71px 0 0; background: #CFEADF; font-size: 12px">Follow-ups</span>
+</div>
+<div class="spec">Active #F0F9F6, weight 600, 42px · inactive #CFEADF, 39px</div></div>
+
+<div style="grid-column: span 2"><div class="lbl">Top bar</div>
+<div style="height: 50px; display: flex; align-items: center; gap: 10px; padding: 0 12px; background: #fff; border: 1px solid #DFE3E7; border-radius: 7px">
+<img src="/_blob/8c4d60630a6d0a867ef85f4f89d814b2" alt="Liana" style="height: 24px; width: auto">
+<span style="margin-left: auto"></span>
+<button type="button" class="lb ai" style="height: 29px; font-size: 10.3px"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"></path></svg>Ailu</button>
+<button type="button" class="lb">Support chat</button>
+<button type="button" class="lb i" aria-label="Liana apps"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="4" height="4" rx="1"></rect><rect x="10" y="3" width="4" height="4" rx="1"></rect><rect x="17" y="3" width="4" height="4" rx="1"></rect><rect x="3" y="10" width="4" height="4" rx="1"></rect><rect x="10" y="10" width="4" height="4" rx="1"></rect><rect x="17" y="10" width="4" height="4" rx="1"></rect><rect x="3" y="17" width="4" height="4" rx="1"></rect><rect x="10" y="17" width="4" height="4" rx="1"></rect><rect x="17" y="17" width="4" height="4" rx="1"></rect></svg></button>
+<span style="display: flex; flex-direction: column; font-size: 12px; line-height: 1.3; padding-left: 6px; border-left: 1px solid #DFE3E7"><strong>Anna Virtanen</strong><span style="color: #696F77">Example Members Association</span></span>
+</div>
+<div class="spec">50px · white · Ailu 29px with purple text · user block on the right</div></div>
+
+</div>
+</section>
+
+<section class="card sec">
+<h2>Form components</h2>
+<p class="sub">Measured on LianaMonitor's "Add new monitor" form (14 Nov 2026). That capture ran in Liana's mobile layout (window 287 px wide), where everything is 1.25× bigger; the values below are converted back to desktop size (× 0.8).</p>
+<div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px">
+
+<div><div class="lbl">Breadcrumb and form title</div>
+<div style="font-size: 12px; line-height: 14.4px; color: #696F77"><span style="color: #2B6450">Monitors</span> <span aria-hidden="true">/</span> Add new monitor</div>
+<div style="margin-top: 8px; font-family: 'Poppins', Helvetica, Arial, sans-serif; font-size: 17.14px; line-height: 20.57px; font-weight: 600">Add new monitor</div>
+<div style="margin-top: 4px; font-size: 12px; color: #696F77">Required fields are marked with *</div>
+<div class="spec">Breadcrumb link Inter 12 · #2B6450 · title = page title (17.14 / 600)</div>
+<span class="src m">Measured</span></div>
+
+<div><div class="lbl">Section header (dividing)</div>
+<div style="font-family: 'Poppins', Helvetica, Arial, sans-serif; font-size: 15.43px; line-height: 18.51px; font-weight: 600; padding-bottom: 8.82px; border-bottom: 1px solid #DFE3E7">Basic</div>
+<div style="margin-top: 16px; font-family: 'Poppins', Helvetica, Arial, sans-serif; font-size: 15.43px; line-height: 18.51px; font-weight: 600; padding-bottom: 8.82px; border-bottom: 1px solid #DFE3E7; color: #2B6450; display: flex; justify-content: space-between; cursor: pointer">Advanced <span aria-hidden="true">▾</span></div>
+<div class="spec">Poppins 600 · 15.43 / 18.51 · padding-bottom 8.82 · line under it · collapsible version in link green</div>
+<span class="src m">Measured</span> <span class="src e">Line colour estimated</span></div>
+
+<div><div class="lbl">Textarea</div>
+<textarea class="li" style="height: 52px; width: 100%; padding: 10.29px; line-height: 15.43px; resize: none" aria-label="Description">Members' opinions about the spring course</textarea>
+<div class="spec">Inter 12 / 15.43 · padding 10.29 · radius 6.86 · 1px #CED3D9 · shadow .03</div>
+<span class="src m">Measured</span></div>
+
+<div><div class="lbl">Labels (chips)</div>
+<div class="row" style="gap: 6px">
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 5.14px 6.86px; border-radius: 3.43px; background: rgba(181,191,201,.2); font-size: 12px; line-height: 13.2px">Finland: online media</span>
+<span style="display: inline-flex; align-items: center; gap: 6px; padding: 5.14px 6.86px; border-radius: 3.43px; background: rgba(181,191,201,.2); font-size: 12px; line-height: 13.2px">Newsletter <span aria-hidden="true" style="color: #696F77">×</span></span>
+</div>
+<div class="spec">Fomantic "ui label" · bg rgba(181,191,201,.2) ≈ #F0F2F4 · radius 3.43 · padding 5.14 × 6.86 · Inter 12 · ~24 px tall</div>
+<span class="src m">Measured</span></div>
+
+<div><div class="lbl">Tag input (keywords)</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 34px; padding: 4px; border: 1px solid #CED3D9; border-radius: 6.86px; background: #fff; box-shadow: 0 2px 2px rgba(0,0,0,.03)">
+<span style="padding: 3px 6px; border-radius: 3.43px; background: rgba(181,191,201,.2); font-size: 12px">survey</span>
+<span style="padding: 3px 6px; border-radius: 3.43px; background: rgba(181,191,201,.2); font-size: 12px">feedback</span>
+<span style="font-size: 12px; color: #AEB5BC; padding-left: 2px">Add keyword…</span>
+</div>
+<div class="row" style="margin-top: 8px"><span style="font-size: 12px; color: #2B6450">Copy words</span></div>
+<div class="spec">Box like an input (34 px, radius 6.86) with chips inside · placeholder #AEB5BC · text link #2B6450, no underline</div>
+<span class="src m">Measured</span> <span class="src e">Chip size inside estimated</span></div>
+
+<div><div class="lbl">Form buttons</div>
+<div style="display: flex; flex-direction: column; gap: 8px; width: 214px">
+<button type="button" class="lb p" style="width: 100%; box-shadow: none; background: #4DA84F; border-color: #4DA84F">Save monitor</button>
+<button type="button" class="lb" style="width: 100%">Cancel</button>
+</div>
+<div class="row" style="gap: 8px; margin-top: 10px">
+<button type="button" class="lb s" style="height: 29.5px; padding: 0 11.76px; font-size: 10.29px">Tiny</button>
+<button type="button" class="lb" aria-label="Clear" style="width: 21px; height: 21px; padding: 0; font-size: 9px; border-radius: 50%">×</button>
+</div>
+<div class="spec">Full-width on narrow screens · primary here #4DA84F, no shadow · tiny 29.5 px · round clear button 21 px</div>
+<span class="src m">Measured</span></div>
+
+</div>
+
+<div class="grid" style="grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; margin-top: 28px; padding-top: 24px; border-top: 1px solid #E5E8EC">
+<div><div class="lbl">New colours from this page</div>
+<div class="row" style="gap: 14px">
+<span class="row" style="gap: 8px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #AEB5BC"></span><span class="hex">#AEB5BC</span><span class="use">placeholder / disabled text</span></span>
+<span class="row" style="gap: 8px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #4DA84F"></span><span class="hex">#4DA84F</span><span class="use">primary button (1 step off #4CA74E)</span></span>
+<span class="row" style="gap: 8px"><span style="width: 22px; height: 22px; border-radius: 6px; background: #C5CBD2"></span><span class="hex">#C5CBD2</span><span class="use">scrollbar thumb, track #EDEFF3</span></span>
+</div></div>
+<div><div class="lbl">New shadows</div>
+<table><tbody>
+<tr><td><span style="display: inline-block; width: 44px; height: 28px; border-radius: 7px; background: #fff; box-shadow: 0 20px 30px rgba(23,73,77,.15)"></span></td><td><code>0 20px 30px rgba(23,73,77,.15)</code><div class="use">floating panel, teal-tinted (3 uses)</div></td></tr>
+<tr><td><span style="display: inline-block; width: 44px; height: 28px; border-radius: 7px; background: #fff; box-shadow: inset 10px 10px 30px rgba(0,0,0,.024); border: 1px solid #E5E8EC"></span></td><td><code>inset 10px 10px 30px rgba(0,0,0,.024)</code><div class="use">sunken area</div></td></tr>
+<tr><td><span style="display: inline-block; width: 44px; height: 28px; border-radius: 7px; background: #fff; box-shadow: 0 2px 2px rgba(0,0,0,.03); border: 1px solid #E5E8EC"></span></td><td><code>0 2px 2px rgba(0,0,0,.03)</code><div class="use">controls on this page (Applications page had 3px)</div></td></tr>
+</tbody></table></div>
+<div><div class="lbl">How Liana's app behaves</div>
+<ul style="margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.65">
+<li><strong>Breakpoints</strong> (classes on &lt;html&gt;): mobile, tablet, computer, largescreen, widescreen, hugescreen, massivescreen.</li>
+<li><strong>Mobile</strong> makes everything 1.25× bigger (text 15 px, buttons 42 px) and buttons go full width.</li>
+<li><strong>Dark mode</strong> is a filter: <code>invert(99%) hue-rotate(180deg)</code> on the page, with images and coloured labels inverted back.</li>
+</ul></div>
+</div>
+</section>
+
+<div class="grid" style="grid-template-columns: 1fr 1fr">
+<section class="card sec">
+<h2>Rules for Feedback</h2>
+<p class="sub">How we apply Liana's system.</p>
+<ul style="margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.75">
+<li><strong>Admin screens</strong> (top bar, sidebar, front page, editor, results) use Liana's sizes exactly, so Feedback looks like part of LianaMailer.</li>
+<li><strong>Answer screens</strong> (survey in the email, on a phone, on the web) stay larger: text 16 px or more, tap targets at least 44 px. They are for members, not for Liana users.</li>
+<li><strong>Green text:</strong> use <code>#2B6450</code> for links and small green text. <code>#4CA74E</code> is for fills, icons and text 18.7 px bold or larger.</li>
+<li><strong>Purple</strong> <code>#7662DB</code> is only for Ailu and AI features.</li>
+<li><strong>Icons:</strong> Liana uses Font Awesome 7 Pro, which needs a licence. The prototype uses simple line icons instead.</li>
+</ul>
+</section>
+<section class="card sec">
+<h2>Still to measure</h2>
+<p class="sub">Measured so far: the Applications page and the "Add new monitor" form.</p>
+<ul style="margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.75">
+<li>Cards with a header row (LianaMailer front page)</li>
+<li>Tables and list rows (Contacts, Messages, monitor hits)</li>
+<li>Coloured status badges ("New", "Good"); grey labels are done</li>
+<li>Checkboxes, radio buttons, toggles and dropdowns</li>
+<li>Modals and toasts</li>
+<li>Hover and focus states</li>
+<li>Desktop check of the form page (window at least 1280 px wide)</li>
+</ul>
+<p class="use" style="margin: 14px 0 0">Run the Inspect script with DevTools undocked (⋮ → Dock side → separate window) so the page keeps its desktop size.</p>
+</section>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3700}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
