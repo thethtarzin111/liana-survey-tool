@@ -105,7 +105,8 @@ test('thumbs surveys show their three answers and reason label', async () => {
   questions = [q('main', 'thumbs', 'How was this newsletter?'), q('reasons', 'reasons', '', ['Too long'], false)];
   renderPage();
   expect(await screen.findByRole('group', { name: 'Reasons for “Not for me”' })).toBeInTheDocument();
-  for (const word of ['Not for me', 'Good', 'Loved it']) expect(screen.getByText(word)).toBeInTheDocument();
+  const settings = screen.getByRole('region', { name: 'Settings' });
+  for (const word of ['Not for me', 'Good', 'Loved it']) expect(within(settings).getByText(word)).toBeInTheDocument();
 });
 
 test('the question text is saved when leaving the field', async () => {
@@ -309,3 +310,20 @@ test('a wrong file type is refused before uploading', async () => {
   expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
 });
 
+
+// --- Live preview (#46) -------------------------------------------------------
+
+test('the preview updates while editing', async () => {
+  renderPage();
+  const previewPanel = await screen.findByRole('region', { name: 'Preview' });
+  expect(within(previewPanel).getByText('How likely are you to recommend Example Members Association?')).toBeInTheDocument();
+
+  fireEvent.change(await screen.findByRole('textbox', { name: 'Question' }), { target: { value: 'Would you recommend us?' } });
+  expect(within(previewPanel).getByText('Would you recommend us?')).toBeInTheDocument();
+
+  fireEvent.click(within(previewPanel).getByRole('button', { name: 'Survey page' }));
+  expect(within(previewPanel).getByText('Membership fee')).toBeInTheDocument();
+  const page = previewPanel.querySelector('.preview-page') as HTMLElement;
+  fireEvent.click(within(screen.getByRole('group', { name: 'Accent colour' })).getByRole('button', { name: 'Blue' }));
+  expect(page.style.getPropertyValue('--preview-accent')).toBe(ACCENT_SWATCHES[1].hex);
+});

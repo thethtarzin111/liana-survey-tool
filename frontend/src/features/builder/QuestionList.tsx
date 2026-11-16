@@ -79,10 +79,18 @@ function QuestionCard({ question, number, count, busy, inputRef, onSavePrompt, o
 }
 
 /** The survey's questions. Every change is saved right away, one at a time, in order. */
-export function QuestionList({ surveyId }: { surveyId: string }) {
+export function QuestionList({ surveyId, onQuestionsChange }: {
+  surveyId: string;
+  /** Called with the questions whenever they change, e.g. for the preview. */
+  onQuestionsChange?: (questions: Question[]) => void;
+}) {
   const { questions, setQuestions, loadError, retry, busy, save, replace, update, updateOptions } = useSavedQuestions(surveyId);
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const focusNext = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (questions) onQuestionsChange?.(questions);
+  }, [questions, onQuestionsChange]);
 
   // Put the cursor in a question that was just added or duplicated.
   useEffect(() => {

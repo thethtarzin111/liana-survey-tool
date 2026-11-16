@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ApiError, api, type Survey } from '../../api/client';
+import { ApiError, api, type Question, type Survey } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, Disclosure, TextArea, TextField, useToast } from '../../components/ui';
 import { BrandingFields } from './BrandingFields';
 import { EditPreviewPage } from './EditPreviewPage';
 import { QuestionList } from './QuestionList';
+import { CustomPreview } from './SurveyPreview';
 import './builder.css';
 
 type FieldErrors = { title?: string; description?: string };
@@ -46,6 +47,7 @@ export function BuilderPage() {
   const [description, setDescription] = useState('');
   const [accent, setAccent] = useState('');
   const [background, setBackground] = useState('');
+  const [previewQuestions, setPreviewQuestions] = useState<Question[]>([]);
   const [loadError, setLoadError] = useState<'not-found' | 'failed' | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saveError, setSaveError] = useState('');
@@ -147,6 +149,7 @@ export function BuilderPage() {
           <Button onClick={() => setAttempt((value) => value + 1)}>Try again</Button>
         </div>
       ) : survey ? (
+        <div className="edit-layout">
         <div className="survey-builder">
         <form id="survey-details-form" className="survey-builder-form" onSubmit={saveDraft} noValidate>
           <Card padded className="survey-details-card">
@@ -176,7 +179,7 @@ export function BuilderPage() {
           </Card>
           {saveError ? <p className="survey-save-error" role="alert">{saveError}</p> : null}
         </form>
-        <QuestionList surveyId={survey.id} />
+        <QuestionList surveyId={survey.id} onQuestionsChange={setPreviewQuestions} />
         <Card padded className="branding-card">
           <Disclosure title={<><strong>Branding</strong> <span className="answer-hint">(optional)</span></>}>
             <BrandingFields
@@ -189,6 +192,16 @@ export function BuilderPage() {
             />
           </Disclosure>
         </Card>
+        </div>
+        <CustomPreview
+          title={title}
+          description={description}
+          questions={previewQuestions}
+          contactOptIn={survey.contact_opt_in}
+          accent={accent}
+          background={background}
+          logoUrl={survey.logo_url}
+        />
         </div>
       ) : <p role="status">Loading your survey&hellip;</p>}
     </>

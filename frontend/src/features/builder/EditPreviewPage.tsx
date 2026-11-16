@@ -4,6 +4,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, Checkbox, InfoTip, Select, TextArea, TextField, useToast } from '../../components/ui';
 import { AnswerTypeControls } from './AnswerTypeControls';
 import { BrandingFields } from './BrandingFields';
+import { TemplatePreview } from './SurveyPreview';
 import { ANSWER_TYPES, changesForType, newOptionText } from './answerTypes';
 import { useSavedQuestions } from './useSavedQuestions';
 import './builder.css';
@@ -238,6 +239,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
           </div>
         }
       />
+      <div className="edit-layout">
       <form id={formId} onSubmit={saveDraft} noValidate>
         <Card padded className="edit-settings">
           <section aria-label="Settings" className="edit-settings-body">
@@ -369,6 +371,18 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
         </Card>
         {saveError ? <p className="survey-save-error" role="alert">{saveError}</p> : null}
       </form>
+      <TemplatePreview
+        type={type}
+        question={questionText}
+        reasons={reasons?.options ?? []}
+        extras={extras}
+        thanks={thanks}
+        options={options}
+        accent={accent}
+        background={background}
+        logoUrl={survey.logo_url}
+      />
+      </div>
     </>
   );
 }
