@@ -319,9 +319,12 @@ components:
         description: { type: string, maxLength: 1000, description: Trimmed; an empty string clears the description }
         thank_you: { type: string, maxLength: 500, description: Trimmed; an empty string clears the message }
         type: { $ref: '#/components/schemas/SurveyType' }
+        comment_field: { type: boolean, description: 'Reader option: optional "Tell us more" field after any answer' }
+        show_results: { type: boolean, description: 'Reader option: show results to readers (after about 10 answers)' }
+        contact_opt_in: { type: boolean, description: 'Reader option: "Contact me about this by email" opt-in' }
     Survey:
       type: object
-      required: [id, title, description, thank_you, type, status, anonymous, language, opens_at, closes_at, response_limit, created_at, updated_at]
+      required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, language, opens_at, closes_at, response_limit, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         title: { type: string, example: Member NPS 2026 }
@@ -330,6 +333,14 @@ components:
         type: { $ref: '#/components/schemas/SurveyType' }
         status: { $ref: '#/components/schemas/SurveyStatus' }
         anonymous: { type: boolean, description: True unless respondents opt in to be identified }
+        comment_field: { type: boolean, description: 'Reader option, default true: optional "Tell us more" field' }
+        show_results: { type: boolean, description: 'Reader option, default true: readers see results after answering' }
+        contact_opt_in:
+          type: boolean
+          description: >-
+            Reader option, default true: readers may tick "Contact me about this by email".
+            Answers stay anonymous unless they do; then a contact request is created with a
+            contact reference, never an e-mail address.
         language: { type: string, enum: [en, fi, sv] }
         opens_at: { type: [string, 'null'], format: date-time }
         closes_at: { type: [string, 'null'], format: date-time }

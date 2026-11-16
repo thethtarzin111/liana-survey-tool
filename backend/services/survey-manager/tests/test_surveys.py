@@ -432,3 +432,42 @@ def test_other_tenant_cannot_act_on_a_survey(client):
 
     app.dependency_overrides.clear()
     assert client.get(url).json()["status"] == "live"
+
+
+# --- Reader options (#44) -----------------------------------------------------
+
+
+def test_reader_options_must_be_true_or_false(no_db):
+    url = f"/api/v1/surveys/{uuid4()}"
+    for field in ("comment_field", "show_results", "contact_opt_in"):
+        assert no_db.patch(url, json={field: None}).status_code == 422
+        assert no_db.patch(url, json={field: "yes"}).status_code == 422
+        assert no_db.patch(url, json={field: 1}).status_code == 422
+
+
+@pytest.mark.db
+@needs_db
+def test_reader_options_are_on_by_default_and_saved_per_survey(client):
+    first = client.post("/api/v1/surveys", json={"type": "nps"}).json()
+    second = client.post("/api/v1/surveys", json={"type": "nps"}).json()
+    for survey in (first, second):
+        assert (survey["comment_field"], survey["show_results"], survey["contact_opt_in"]) == (
+            True,
+            True,
+            True,
+        )
+
+    url = f"/api/v1/surveys/{first['id']}"
+    r = client.patch(url, json={"show_results": False, "contact_opt_in": False})
+    assert r.status_code == 200
+    assert (r.json()["comment_field"], r.json()["show_results"], r.json()["contact_opt_in"]) == (
+        True,
+        False,
+        False,
+    )
+    assert client.get(url).json()["show_results"] is False
+    # Other surveys keep their own options.
+    assert client.get(f"/api/v1/surveys/{second['id']}").json()["show_results"] is True
+    # A copy keeps the options.
+    copy = client.post(f"{url}/duplicate").json()
+    assert (copy["show_results"], copy["contact_opt_in"]) == (False, False)
