@@ -47,14 +47,14 @@ services:
       interval: 10s
       retries: 20
 
-  # One-shot: applies db/migrations as the schema owner.
+  # One-shot: applies backend/db/migrations as the schema owner.
   migrate:
     image: ghcr.io/amacneil/dbmate:2.21
     command: ["--wait", "--no-dump-schema", "up"]
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       DBMATE_MIGRATIONS_DIR: /db/migrations
-    volumes: ["./db:/db:ro"]
+    volumes: ["./backend/db:/db:ro"]
     depends_on:
       postgres: { condition: service_healthy }
 
@@ -67,13 +67,13 @@ services:
       PGUSER: ${POSTGRES_USER}
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: ${POSTGRES_DB}
-    volumes: ["./db:/db:ro"]
+    volumes: ["./backend/db:/db:ro"]
     depends_on:
       migrate: { condition: service_completed_successfully }
 
   # API gateway: routing, auth (dev: demo user), rate limiting.
   gateway:
-    build: { context: services/gateway }
+    build: { context: backend/gateway }
     environment:
       DEV_TENANT_ID: ${DEV_TENANT_ID}
       DEV_TENANT_NAME: ${DEV_TENANT_NAME}
@@ -88,7 +88,7 @@ services:
 
   # Surveys, questions, templates, publishing and links.
   survey-manager:
-    build: { context: ., dockerfile: services/survey-manager/Dockerfile }
+    build: { context: ., dockerfile: backend/survey-manager/Dockerfile }
     environment: *python-env
     ports: ["8001:8000"]
     depends_on:
@@ -100,7 +100,7 @@ services:
 
   # Public answer path: verify link, queue the answer, thank-you page.
   respondent:
-    build: { context: ., dockerfile: services/respondent/Dockerfile }
+    build: { context: ., dockerfile: backend/respondent/Dockerfile }
     environment: *python-env
     ports: ["8002:8000"]
     depends_on:
@@ -112,7 +112,7 @@ services:
 
   # Results (NPS/CSAT); sends identified answers and contact requests to the integration queue.
   data-analyzer:
-    build: { context: ., dockerfile: services/data-analyzer/Dockerfile }
+    build: { context: ., dockerfile: backend/data-analyzer/Dockerfile }
     environment: *python-env
     ports: ["8003:8000"]
     depends_on:
@@ -124,14 +124,14 @@ services:
       retries: 20
 
   worker:
-    build: { context: ., dockerfile: services/worker/Dockerfile }
+    build: { context: ., dockerfile: backend/worker/Dockerfile }
     environment: *python-env
     depends_on:
       rabbitmq: { condition: service_healthy }
       seed: { condition: service_completed_successfully }
 
   liana-connector:
-    build: { context: ., dockerfile: services/liana-connector/Dockerfile }
+    build: { context: ., dockerfile: backend/liana-connector/Dockerfile }
     environment:
       <<: *python-env
       LIANA_ADAPTER: ${LIANA_ADAPTER:-mock}
@@ -142,9 +142,9 @@ services:
       rabbitmq: { condition: service_healthy }
 
   # Production-style build of the React app, served by nginx.
-  # For day-to-day frontend work use `npm run dev` in apps/admin-web instead.
+  # For day-to-day frontend work use `npm run dev` in frontend instead.
   admin-web:
-    build: { context: apps/admin-web }
+    build: { context: frontend }
     ports: ["4200:80"]
     depends_on:
       gateway: { condition: service_healthy }

@@ -35,19 +35,17 @@ jobs:
               - 'Makefile'
             python:
               - *shared
-              - 'packages/**'
-              - 'services/**'
-              - 'ruff.toml'
+              - 'backend/**'
             web:
               - *shared
-              - 'apps/admin-web/**'
+              - 'frontend/**'
             # The API's database tests run in the db job, so API changes run it too.
             db:
               - *shared
-              - 'db/**'
+              - 'backend/db/**'
               - 'infra/postgres/**'
-              - 'services/survey-manager/**'
-              - 'packages/shared-py/**'
+              - 'backend/survey-manager/**'
+              - 'backend/shared-py/**'
 
   python:
     needs: changes
@@ -73,11 +71,11 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: apps/admin-web/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
       - run: make install-web
       - run: make lint-web
       - run: make test-web
-      - run: cd apps/admin-web && npm run build
+      - run: cd frontend && npm run build
 
   # Applies the migrations and seed data to a real Postgres and checks that
   # row-level security hides other tenants' rows.
@@ -117,18 +115,18 @@ jobs:
         env:
           DATABASE_URL: postgres://survey_owner:ci-owner@localhost:5432/survey?sslmode=disable
         run: |
-          dbmate --migrations-dir db/migrations --no-dump-schema up
-          dbmate --migrations-dir db/migrations --no-dump-schema rollback
-          dbmate --migrations-dir db/migrations --no-dump-schema up
+          dbmate --migrations-dir backend/db/migrations --no-dump-schema up
+          dbmate --migrations-dir backend/db/migrations --no-dump-schema rollback
+          dbmate --migrations-dir backend/db/migrations --no-dump-schema up
       - name: Seed twice (must be repeatable)
         run: |
-          psql -v ON_ERROR_STOP=1 -f db/seed/seed.sql
-          psql -v ON_ERROR_STOP=1 -f db/seed/seed.sql
+          psql -v ON_ERROR_STOP=1 -f backend/db/seed/seed.sql
+          psql -v ON_ERROR_STOP=1 -f backend/db/seed/seed.sql
       - name: Row-level security check
         env:
           PGUSER: survey_app
           PGPASSWORD: ci-app
-        run: psql -v ON_ERROR_STOP=1 -f db/tests/rls_check.sql
+        run: psql -v ON_ERROR_STOP=1 -f backend/db/tests/rls_check.sql
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -138,4 +136,4 @@ jobs:
         env:
           DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
           REQUIRE_DB: '1'
-        run: cd services/survey-manager && python -m pytest -q -m db -rs
+        run: cd backend/survey-manager && python -m pytest -q -m db -rs

@@ -41,7 +41,7 @@ make install-py               # or copy the pip commands from the Makefile
 make test-py
 
 # Frontend
-cd apps/admin-web
+cd frontend
 npm install
 npm run dev                   # http://localhost:4200, talks to the gateway on :8000
 npm test
@@ -50,7 +50,7 @@ npm run lint                  # ESLint; also blocks hard-coded colours (use the 
 
 The frontend has no API URL setting: it always calls `/api/...` on its own address.
 `npm run dev` forwards those calls to the API gateway on http://localhost:8000 (`vite.config.ts`),
-and in Docker nginx forwards them to the `gateway` container (`apps/admin-web/nginx.conf`).
+and in Docker nginx forwards them to the `gateway` container (`frontend/nginx.conf`).
 
 `make` is not installed on Windows by default. Use Git Bash or WSL, or run
 the commands from the `Makefile` by hand. CI only calls `make` targets.
@@ -59,15 +59,15 @@ the commands from the `Makefile` by hand. CI only calls `make` targets.
 
 | Folder | What |
 |---|---|
-| `apps/admin-web/` | React + TypeScript admin app (one folder per sidebar item in `src/features/`) |
-| `services/gateway/` | API gateway (nginx): routing, auth (dev: demo user), rate limiting |
-| `services/survey-manager/` | FastAPI: surveys, questions, templates, publishing, links |
-| `services/respondent/` | FastAPI: public answer path (verify link, queue answer, thank-you page) |
-| `services/data-analyzer/` | FastAPI: NPS/CSAT results; sends contact requests to the integration queue |
-| `services/worker/` | Saves answers from the queue and updates totals |
-| `services/liana-connector/` | The only part that talks to Liana products (ports and adapters) |
-| `packages/shared-py/` | Settings, tenant-safe DB access, queue message formats, FastAPI helpers |
-| `db/` | Plain SQL migrations (dbmate), demo seed data, RLS check |
+| `frontend/` | React + TypeScript admin app (one folder per sidebar item in `src/features/`) |
+| `backend/gateway/` | API gateway (nginx): routing, auth (dev: demo user), rate limiting |
+| `backend/survey-manager/` | FastAPI: surveys, questions, templates, publishing, links |
+| `backend/respondent/` | FastAPI: public answer path (verify link, queue answer, thank-you page) |
+| `backend/data-analyzer/` | FastAPI: NPS/CSAT results; sends contact requests to the integration queue |
+| `backend/worker/` | Saves answers from the queue and updates totals |
+| `backend/liana-connector/` | The only part that talks to Liana products (ports and adapters) |
+| `backend/shared-py/` | Settings, tenant-safe DB access, queue message formats, FastAPI helpers |
+| `backend/db/` | Plain SQL migrations (dbmate), demo seed data, RLS check |
 | `infra/` | Postgres init, RabbitMQ and deployment config |
 | `design/` | Prototype snapshot and design tokens (reference only) |
 | `docs/` | Architecture, API, data model, integrations, GDPR, handoff to Liana |

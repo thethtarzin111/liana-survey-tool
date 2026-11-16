@@ -46,19 +46,19 @@ instance hosts the separate queues, as the note under the report's figure says.
 
 | Report component (Figure 1) | Code | Requirements (Table 2) |
 |---|---|---|
-| Admin web app | `apps/admin-web` | R02 |
-| API Gateway (routing, auth, rate limiting) | `services/gateway` (nginx) | R01, R05 |
-| Survey Manager (surveys, links, results) | `services/survey-manager` | R02, R06, R07 |
-| Respondent's Survey Service (verify token, accept answer) | `services/respondent` | R01, R05, R07, R08 |
-| Background Worker | `services/worker` | R04 |
-| Data Analyzer service | `services/data-analyzer` | R03, R04, R08 |
-| Liana Connector (OAuth 2.0, retries, back-off) | `services/liana-connector` | R08 |
-| Survey DB (tenant_id + row-level security) | `db/migrations` (PostgreSQL) | R05 |
+| Admin web app | `frontend` | R02 |
+| API Gateway (routing, auth, rate limiting) | `backend/gateway` (nginx) | R01, R05 |
+| Survey Manager (surveys, links, results) | `backend/survey-manager` | R02, R06, R07 |
+| Respondent's Survey Service (verify token, accept answer) | `backend/respondent` | R01, R05, R07, R08 |
+| Background Worker | `backend/worker` | R04 |
+| Data Analyzer service | `backend/data-analyzer` | R03, R04, R08 |
+| Liana Connector (OAuth 2.0, retries, back-off) | `backend/liana-connector` | R08 |
+| Survey DB (tenant_id + row-level security) | `backend/db/migrations` (PostgreSQL) | R05 |
 | "respondent DB" | The respondent tables in the same Survey DB: `responses`, `answers`, `contact_requests` | R01, R05 |
 | answers queue / integration queue | `survey.answers` / `survey.liana-events` in `liana_survey_shared/queues.py` | R01, R08 |
 | Sending survey queue → LianaMailer API | Not built: the report plans it once LianaMailer's API docs arrive. Until then links go out by the HTML snippet, public link and QR code (R06, R07). | R06 |
 
-Shared Python code lives in `packages/shared-py`: settings, database access
+Shared Python code lives in `backend/shared-py`: settings, database access
 with tenant isolation, queue message formats, and FastAPI helpers for the
 HTTP services (`liana_survey_shared.web`).
 
@@ -82,7 +82,7 @@ database role that may only touch its own tables.
 
 ## The API gateway
 
-`services/gateway` is nginx. It is the only container reachable from outside
+`backend/gateway` is nginx. It is the only container reachable from outside
 in production.
 
 - **Routing:** `/api/v1/surveys`, `/api/v1/templates` → survey-manager;

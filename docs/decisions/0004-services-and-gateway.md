@@ -26,7 +26,7 @@ Run the report's components as separate containers:
 They share one PostgreSQL database (the report's Survey DB, with row-level
 security) and one RabbitMQ instance with separate queues. Shared Python code
 (settings, tenant-safe database access, queue messages, FastAPI helpers) is
-in `packages/shared-py`.
+in `backend/shared-py`.
 
 ## Consequences
 - The respondent path can be scaled on its own during newsletter bursts.

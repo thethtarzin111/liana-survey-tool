@@ -8,7 +8,7 @@ in through Liana's existing account system, which the team cannot access.
 
 ## Decision
 Every admin request is the demo user from `.env` (`AUTH_MODE=dev`): Anna
-Virtanen, Example Members Association. The API gateway (`services/gateway`)
+Virtanen, Example Members Association. The API gateway (`backend/gateway`)
 sets this user on each request and answers `/api/v1/me`; the services read it
 with `liana_survey_shared.web.auth.current_user()` (see decision 0004).
 
