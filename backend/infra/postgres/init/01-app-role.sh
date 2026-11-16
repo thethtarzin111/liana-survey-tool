@@ -1,5 +1,5 @@
 #!/bin/sh
-# Runs once, when the Postgres volume is first created.
+# Run once against a new native PostgreSQL database before migrations (also used in CI).
 # Creates the role the services use. It does not own the tables, so
 # row-level security always applies to it.
 set -eu

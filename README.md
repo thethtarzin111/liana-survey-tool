@@ -12,7 +12,7 @@ start a LianaAutomation flow.
 
 ## Run it
 
-### Without Docker (local development)
+### Local development
 
 Install Node.js, Python 3.12+ (available as `python`), and PostgreSQL including
 its command-line tools. On Windows the launcher finds PostgreSQL under
@@ -61,30 +61,22 @@ an existing cluster without migrating its data.
 Survey API documentation is available at http://localhost:8000/docs.
 
 The local gateway runs the existing service apps in one Python process. It uses
-the demo identity and is for local development only; production uses nginx with
-its rate limits. It does not add features missing from the scaffold (for example,
-the results and respondent endpoints are still placeholders).
+the demo identity and is for local development only. Production authentication,
+TLS and rate limiting must be configured separately. It does not add features
+missing from the scaffold (for example, the results and respondent endpoints
+are still placeholders).
 
 RabbitMQ is unnecessary for the current HTTP endpoints. To also run the worker
 and connector, install/start RabbitMQ separately, set `RABBITMQ_URL` in `.env`
 or your environment, and set `LOCAL_QUEUE_WORKERS=1` before `npm run dev`.
-The default local database is independent of Docker and does not change `.env`.
-
-### With Docker
-
-Needs Docker Desktop.
-
-```sh
-cp .env.example .env        # then change the passwords
-docker compose up --build
-```
+The local launcher does not change `.env`.
 
 | What | URL |
 |---|---|
 | Admin app | http://localhost:4200 |
-| API gateway (the only entry point) | http://localhost:8000 |
-| API docs (Swagger), per service | http://localhost:8001/docs (survey-manager), :8002/docs (respondent), :8003/docs (data-analyzer) |
-| RabbitMQ console | http://localhost:15672 |
+| API gateway | http://localhost:8000 |
+| Survey API docs | http://localhost:8000/docs |
+| Backend readiness | http://localhost:8000/health/ready |
 
 The backend is the mid-term report's architecture: an API gateway in front of
 separate services. See [`docs/architecture.md`](docs/architecture.md).
@@ -109,18 +101,18 @@ npm run lint                  # ESLint; also blocks hard-coded colours (use the 
 ```
 
 The frontend has no API URL setting: it always calls `/api/...` on its own address.
-`npm run dev` forwards those calls to the API gateway on http://localhost:8000 (`vite.config.ts`),
-and in Docker nginx forwards them to the `gateway` container (`frontend/nginx.conf`).
+`npm run dev` forwards those calls to the local API gateway on port 8000
+(`frontend/vite.config.ts`). A deployed frontend needs equivalent API routing.
 
 `make` is not installed on Windows by default. Use Git Bash or WSL, or run
-the commands from the `Makefile` by hand. CI only calls `make` targets.
+the commands from the `Makefile` by hand. CI uses the same native tools and Makefile checks.
 
 ## Repo layout
 
 | Folder | What |
 |---|---|
 | `frontend/` | React + TypeScript admin app (one folder per sidebar item in `src/features/`) |
-| `backend/services/gateway/` | API gateway (nginx): routing, auth (dev: demo user), rate limiting |
+| `backend/scripts/` | Native launcher and development API gateway (demo identity) |
 | `backend/services/survey-manager/` | FastAPI: surveys, questions, templates, publishing, links |
 | `backend/services/respondent/` | FastAPI: public answer path (verify link, queue answer, thank-you page) |
 | `backend/services/data-analyzer/` | FastAPI: NPS/CSAT results; sends contact requests to the integration queue |

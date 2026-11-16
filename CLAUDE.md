@@ -18,8 +18,8 @@ Read `README.md` and `docs/architecture.md` first.
   an API gateway, as in the mid-term report (`docs/architecture.md`, decision 0004).
   - Put code in the service that owns it (survey-manager, respondent,
     data-analyzer, worker, liana-connector). Services never import each other;
-    shared code goes in `backend/packages/shared-py`. New routes also need a `location`
-    in `backend/services/gateway/templates/default.conf.template`.
+    shared code goes in `backend/packages/shared-py`. New route prefixes also need routing
+    in `backend/scripts/local_gateway.py`.
   - In each service area keep three layers: `domain.py` (plain Python rules),
     `repo.py` (SQL), `routes.py` (HTTP). Business rules never live in routes.
     This keeps a later PHP port simple (`docs/handoff.md`).

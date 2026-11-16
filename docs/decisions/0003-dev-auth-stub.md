@@ -1,5 +1,8 @@
 # 0003 Dev-auth stub, no login screen
 
+> Runtime update: see [0005 Native development](0005-native-development.md).
+> Container and nginx references below describe the former deployment.
+
 **Status:** accepted · 2026-11-15
 
 ## Context

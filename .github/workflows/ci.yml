@@ -27,10 +27,12 @@ jobs:
         id: filter
         with:
           filters: |
-            # Changes to CI, Docker or env settings run every job.
+            # Changes to CI, launch scripts or env settings run every job.
             shared: &shared
               - '.github/workflows/**'
-              - 'docker-compose.yml'
+              - 'scripts/**'
+              - 'package.json'
+              - 'package-lock.json'
               - '.env.example'
               - 'Makefile'
             python:
@@ -86,17 +88,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.db == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: survey
-          POSTGRES_USER: survey_owner
-          POSTGRES_PASSWORD: ci-owner
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U survey_owner -d survey"
-          --health-interval 5s --health-retries 20
     env:
       PGHOST: localhost
       PGUSER: survey_owner
@@ -108,6 +99,13 @@ jobs:
       APP_DB_PASSWORD: ci-app
     steps:
       - uses: actions/checkout@v4
+      - name: Start native PostgreSQL and create the schema owner
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql postgresql-contrib
+          sudo systemctl start postgresql
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "CREATE ROLE survey_owner LOGIN SUPERUSER PASSWORD 'ci-owner';"
+          sudo -u postgres createdb --owner=survey_owner survey
       - name: Create app role
         run: sh backend/infra/postgres/init/01-app-role.sh
       - name: Install dbmate

@@ -150,7 +150,7 @@ def main():
             dbname="postgres",
         )
         prepare_database(owner_url, password)
-        # Only subprocesses get this configuration; .env and Docker settings are untouched.
+        # Only subprocesses get this configuration; .env is untouched.
         env = {
             **os.environ,
             "DATABASE_URL": make_conninfo(

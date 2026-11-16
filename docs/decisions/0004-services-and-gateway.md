@@ -1,5 +1,8 @@
 # 0004 Separate services and an API gateway, as in the report
 
+> Runtime update: see [0005 Native development](0005-native-development.md).
+> Container and nginx references below describe the former deployment.
+
 **Status:** accepted · 2026-11-16 · replaces [0002](0002-three-processes.md)
 
 ## Context

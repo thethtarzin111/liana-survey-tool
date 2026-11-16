@@ -6,7 +6,7 @@ PY_DIRS := backend/packages/shared-py backend/services/survey-manager backend/se
 PIP     ?= python -m pip
 
 .PHONY: install install-py install-web lint lint-py lint-web test test-py test-web \
-        up down logs migrate seed e2e
+        dev e2e
 
 install: install-py install-web
 
@@ -36,20 +36,8 @@ test-py:
 test-web:
 	cd frontend && npm test
 
-up:
-	docker compose up -d --build
-
-down:
-	docker compose down
-
-logs:
-	docker compose logs -f --tail=100
-
-migrate:
-	docker compose run --rm migrate
-
-seed:
-	docker compose run --rm seed
+dev:
+	npm run dev
 
 e2e:
 	cd tests/e2e && npm ci && npx playwright install --with-deps chromium && npx playwright test

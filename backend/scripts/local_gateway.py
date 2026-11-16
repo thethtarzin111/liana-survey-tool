@@ -1,4 +1,4 @@
-"""Loopback-only development gateway; production continues to use nginx."""
+"""Loopback-only development gateway for the native Python service apps."""
 
 from starlette.responses import JSONResponse
 

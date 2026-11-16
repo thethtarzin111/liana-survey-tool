@@ -4,7 +4,7 @@ For Liana's developers taking over LianaSurvey.
 
 ## Two ways to take it over
 
-**A. Run it as its own service.** Deploy the Docker images next to Liana's
+**A. Run it as its own service.** Deploy the Python services and compiled React app next to Liana's
 products (`docs/deployment.md`). Replace the dev-auth stub with Liana's login
 (`docs/decisions/0003-dev-auth-stub.md`) and switch the connector to the real
 adapters. No rewrite needed.

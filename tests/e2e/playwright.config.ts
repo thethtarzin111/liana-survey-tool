@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Runs against the full system from docker compose (admin app on :4200).
+// Runs against the native development stack (admin app on :4200).
 export default defineConfig({
   testDir: './specs',
   retries: process.env.CI ? 1 : 0,

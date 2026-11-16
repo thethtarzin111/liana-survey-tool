@@ -1,9 +1,9 @@
 """Who is calling: the user the API gateway signed in.
 
-The gateway (backend/services/gateway) is the only way in from outside. It
-authenticates the request and forwards the user as headers. It always
-overwrites these headers, so a client cannot set them itself. The services
-are not reachable from outside, so they trust the headers.
+The local gateway (backend/scripts/local_gateway.py) overwrites admin identity
+headers with the configured demo user. Production ingress must authenticate
+requests, overwrite identity headers, and keep the services private, since
+they trust the forwarded identity.
 
 Dev mode (AUTH_MODE=dev): the gateway sends the demo user from .env. A request
 that reaches a service directly without the headers (unit tests, Swagger on a

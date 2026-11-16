@@ -1,5 +1,8 @@
 # 0002 Three processes instead of five services
 
+> Runtime update: see [0005 Native development](0005-native-development.md).
+> Container and nginx references below describe the former deployment.
+
 **Status:** replaced by [0004](0004-services-and-gateway.md) on 2026-11-16, so the code matches the mid-term report
 
 ## Context
