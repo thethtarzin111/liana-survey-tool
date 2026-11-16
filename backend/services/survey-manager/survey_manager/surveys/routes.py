@@ -47,7 +47,7 @@ def get_survey(survey_id: UUID, db: TenantDB = Depends(tenant_db)) -> dict:
 
 @router.patch("/{survey_id}", response_model=Survey)
 def update_survey(survey_id: UUID, data: SurveyUpdate, db: TenantDB = Depends(tenant_db)) -> dict:
-    """Change the title or type. Fields left out stay the same."""
+    """Change the title, description or type. Fields left out stay the same."""
     with db() as conn:
         row = repo.update(conn, survey_id, data)
     if row is None:

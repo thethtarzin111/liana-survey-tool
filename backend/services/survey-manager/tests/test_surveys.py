@@ -61,6 +61,7 @@ def no_db(client):
         {"type": "quiz"},  # unknown type
         {"type": "nps", "title": "   "},  # blank title
         {"type": "nps", "title": "x" * 201},  # too long
+        {"type": "nps", "description": "x" * 1001},  # too long
         {"type": "nps", "status": "live"},  # status is set by the server
         {"type": "nps", "tenant_id": str(OTHER_TENANT)},  # tenant comes from the login
     ],
@@ -76,6 +77,20 @@ def test_update_rejects_blank_title_and_unknown_fields(no_db):
     # Explicit null would otherwise be a silent no-op with 200.
     assert no_db.patch(url, json={"title": None}).status_code == 422
     assert no_db.patch(url, json={"type": None}).status_code == 422
+    assert no_db.patch(url, json={"description": None}).status_code == 422
+
+
+def test_update_rejects_too_long_title_and_description(no_db):
+    url = f"/api/v1/surveys/{uuid4()}"
+    title_error = no_db.patch(url, json={"title": "x" * 201})
+    description_error = no_db.patch(url, json={"description": "x" * 1001})
+
+    assert title_error.status_code == 422
+    assert title_error.json()["detail"][0]["loc"] == ["body", "title"]
+    assert "at most 200 characters" in title_error.json()["detail"][0]["msg"]
+    assert description_error.status_code == 422
+    assert description_error.json()["detail"][0]["loc"] == ["body", "description"]
+    assert "at most 1000 characters" in description_error.json()["detail"][0]["msg"]
 
 
 def test_bad_survey_id_is_422(no_db):
@@ -94,6 +109,7 @@ def test_new_survey_is_a_draft_with_default_title(client):
     assert body["status"] == "draft"
     assert body["type"] == "nps"
     assert body["title"] == "Untitled survey"
+    assert body["description"] is None
     assert body["anonymous"] is True
 
 
@@ -110,7 +126,15 @@ def test_every_wizard_type_can_be_created(client, kind):
 @pytest.mark.db
 @needs_db
 def test_created_survey_is_listed_and_can_be_reopened(client):
-    created = client.post("/api/v1/surveys", json={"type": "csat", "title": "Reopen me"}).json()
+    created = client.post(
+        "/api/v1/surveys",
+        json={
+            "type": "csat",
+            "title": "Reopen me",
+            "description": "  Members' view of 2026  ",
+        },
+    ).json()
+    assert created["description"] == "Members' view of 2026"
 
     listed = client.get("/api/v1/surveys").json()
     assert listed[0]["id"] == created["id"]  # newest first
@@ -135,6 +159,25 @@ def test_patch_changes_only_given_fields(client):
     r = client.patch(f"/api/v1/surveys/{created['id']}", json={"type": "nps"})
     assert r.json()["type"] == "nps"
     assert r.json()["title"] == "Was this useful?"
+
+
+@pytest.mark.db
+@needs_db
+def test_description_can_be_updated_and_cleared(client):
+    created = client.post(
+        "/api/v1/surveys", json={"type": "nps", "description": "  Initial context  "}
+    ).json()
+    url = f"/api/v1/surveys/{created['id']}"
+    assert created["description"] == "Initial context"
+
+    updated = client.patch(url, json={"description": "  New context  "})
+    assert updated.status_code == 200
+    assert updated.json()["description"] == "New context"
+
+    cleared = client.patch(url, json={"description": "   "})
+    assert cleared.status_code == 200
+    assert cleared.json()["description"] is None
+    assert client.get(url).json()["description"] is None
 
 
 @pytest.mark.db

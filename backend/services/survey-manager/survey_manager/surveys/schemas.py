@@ -5,11 +5,12 @@ from enum import StrEnum
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator, model_validator
 
 DEFAULT_TITLE = "Untitled survey"
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
 
 
 class SurveyType(StrEnum):
@@ -34,6 +35,14 @@ class SurveyCreate(BaseModel):
 
     type: SurveyType
     title: Title = DEFAULT_TITLE
+    description: Description | None = None
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def empty_description_is_none(cls, value: Any) -> Any:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
 
 class SurveyUpdate(BaseModel):
@@ -46,7 +55,15 @@ class SurveyUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: Title | None = None
+    description: Description | None = None
     type: SurveyType | None = None
+
+    @field_validator("description", mode="before")
+    @classmethod
+    def empty_description_is_none(cls, value: Any) -> Any:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @model_validator(mode="before")
     @classmethod
@@ -61,6 +78,7 @@ class SurveyUpdate(BaseModel):
 class Survey(BaseModel):
     id: UUID
     title: str
+    description: str | None
     type: SurveyType
     status: SurveyStatus
     anonymous: bool
