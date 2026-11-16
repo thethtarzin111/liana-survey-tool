@@ -11,15 +11,15 @@ Read `README.md` and `docs/architecture.md` first.
   the PR description instead of fixing it.
 
 ## Stack and rules
-- Frontend: React 18 + TypeScript + Vite in `apps/admin-web`. One folder per
+- Frontend: React 18 + TypeScript + Vite in `frontend`. One folder per
   sidebar item in `src/features/`. Use the CSS variables in
   `src/styles/tokens.css`; do not hard-code colours or font sizes.
 - Backend: Python 3.12, FastAPI, PostgreSQL, RabbitMQ. Separate services behind
   an API gateway, as in the mid-term report (`docs/architecture.md`, decision 0004).
   - Put code in the service that owns it (survey-manager, respondent,
     data-analyzer, worker, liana-connector). Services never import each other;
-    shared code goes in `packages/shared-py`. New routes also need a `location`
-    in `services/gateway/templates/default.conf.template`.
+    shared code goes in `backend/packages/shared-py`. New routes also need a `location`
+    in `backend/services/gateway/templates/default.conf.template`.
   - In each service area keep three layers: `domain.py` (plain Python rules),
     `repo.py` (SQL), `routes.py` (HTTP). Business rules never live in routes.
     This keeps a later PHP port simple (`docs/handoff.md`).
@@ -29,14 +29,14 @@ Read `README.md` and `docs/architecture.md` first.
     response is sent (never yield a connection from a dependency).
   - Every database call goes through `liana_survey_shared.db.tenant_connection()`.
     Every new table gets `tenant_id` plus a row-level security policy, and
-    `db/tests/rls_check.sql` gets a check for it.
-  - Migrations are plain `.sql` files in `db/migrations` (dbmate format:
+    `backend/db/tests/rls_check.sql` gets a check for it.
+  - Migrations are plain `.sql` files in `backend/db/migrations` (dbmate format:
     `-- migrate:up` / `-- migrate:down`). Never edit a migration that is on `main`;
     add a new one.
   - Queue message formats live in `liana_survey_shared/messages.py`. Changing
     one means updating `docs/integrations.md`.
 - API: update `docs/api/openapi.yaml` in the same PR as any endpoint change.
-- Only `services/liana-connector` talks to Liana products, through a port in
+- Only `backend/services/liana-connector` talks to Liana products, through a port in
   `ports/` and an adapter in `adapters/`. `mock` is the default adapter.
 
 ## Privacy (GDPR)

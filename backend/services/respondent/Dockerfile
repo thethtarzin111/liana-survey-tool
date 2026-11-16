@@ -1,13 +1,13 @@
-# Build from the repo root: docker build -f services/respondent/Dockerfile .
+# Build from the repo root: docker build -f backend/services/respondent/Dockerfile .
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /srv
 
-COPY packages/shared-py /srv/packages/shared-py
+COPY backend/packages/shared-py /srv/packages/shared-py
 RUN pip install --no-cache-dir "/srv/packages/shared-py[web]"
 
-COPY services/respondent /srv/services/respondent
+COPY backend/services/respondent /srv/services/respondent
 RUN pip install --no-cache-dir /srv/services/respondent
 
 USER nobody

@@ -1,6 +1,6 @@
 """Who is calling: the user the API gateway signed in.
 
-The gateway (services/gateway) is the only way in from outside. It
+The gateway (backend/services/gateway) is the only way in from outside. It
 authenticates the request and forwards the user as headers. It always
 overwrites these headers, so a client cannot set them itself. The services
 are not reachable from outside, so they trust the headers.

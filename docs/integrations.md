@@ -1,6 +1,6 @@
 # Integrations with Liana products
 
-All calls to Liana go through `services/liana-connector`. The rest of the
+All calls to Liana go through `backend/services/liana-connector`. The rest of the
 system only publishes messages to RabbitMQ.
 
 | Integration | How | Status |

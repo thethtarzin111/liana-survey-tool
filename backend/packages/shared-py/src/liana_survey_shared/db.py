@@ -1,7 +1,7 @@
 """Database access with tenant isolation.
 
 Every table has a tenant_id column protected by row-level security (see
-db/migrations). Always open connections through tenant_connection(), which
+backend/db/migrations). Always open connections through tenant_connection(), which
 sets app.tenant_id for the current transaction. Without it, queries return
 no rows.
 """

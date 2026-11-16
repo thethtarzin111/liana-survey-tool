@@ -1,6 +1,6 @@
 # Data model (draft)
 
-Defined in `db/migrations/20261115000000_initial_schema.sql`. Every table has
+Defined in `backend/db/migrations/20261115000000_initial_schema.sql`. Every table has
 `tenant_id` with row-level security; built-in templates have `tenant_id = null`
 and are visible to everyone.
 

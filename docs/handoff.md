@@ -13,10 +13,10 @@ adapters. No rewrite needed.
 
 | Part | Reuse |
 |---|---|
-| `apps/admin-web` (React + TS) | As is |
-| `db/migrations` (plain SQL) | As is |
+| `frontend` (React + TS) | As is |
+| `backend/db/migrations` (plain SQL) | As is |
 | `docs/api/openapi.yaml` | As is: a new backend implements the same contract |
-| `tests/e2e`, `tests/contract`, `db/tests` | As is: they test over HTTP / SQL |
+| `tests/e2e`, `tests/contract`, `backend/db/tests` | As is: they test over HTTP / SQL |
 | `*/domain.py` (NPS, CSAT, survey rules) | Translate: plain code, no framework |
 | Queue message formats (`messages.py`) | Translate: they are documented contracts |
 | FastAPI routes, worker, connector | Rewrite in the new language |
