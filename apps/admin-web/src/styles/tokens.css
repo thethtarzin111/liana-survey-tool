@@ -45,6 +45,9 @@
   --text-hint: 11.14px;
   --text-small: 10.8px;
   --text-table-head: 11px;
+  --text-xs: 11px;                 /* step numbers, small remove buttons */
+  --text-icon: 13px;               /* the × in chips */
+  --text-brand: 16px;              /* "LianaSurvey" in the header */
 
   --radius-sm: 3.43px;
   --radius-nav: 6.86px;

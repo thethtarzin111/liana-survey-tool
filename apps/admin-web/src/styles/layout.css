@@ -5,7 +5,7 @@
   display: flex; align-items: center; gap: 12px; padding: 6px 16px;
   background: var(--color-surface); border-bottom: 1px solid var(--color-border);
 }
-.header-brand { font: 700 16px var(--font-heading); color: var(--color-brand-dark); }
+.header-brand { font: 700 var(--text-brand) var(--font-heading); color: var(--color-brand-dark); }
 .header-spacer { flex: 1; }
 .header-user { color: var(--color-text-muted); }
 
