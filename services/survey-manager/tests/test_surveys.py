@@ -156,3 +156,16 @@ def test_other_tenant_cannot_see_or_change_a_survey(client):
     # Back as the demo tenant: unchanged.
     app.dependency_overrides.clear()
     assert client.get(url).json()["title"] == "Members only"
+
+
+@pytest.mark.db
+@needs_db
+def test_created_survey_is_committed_when_the_response_arrives(client):
+    """Regression: the commit must happen before the response is sent, so a
+    client that opens the survey right after creating it never gets 404."""
+    from liana_survey_shared.db import tenant_connection
+
+    created = client.post("/api/v1/surveys", json={"type": "nps", "title": "Committed"}).json()
+    with tenant_connection(DEMO_TENANT) as conn:
+        row = conn.execute("select title from surveys where id = %s", (created["id"],)).fetchone()
+    assert row is not None and row[0] == "Committed"

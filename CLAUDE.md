@@ -24,7 +24,9 @@ Read `README.md` and `docs/architecture.md` first.
     `repo.py` (SQL), `routes.py` (HTTP). Business rules never live in routes.
     This keeps a later PHP port simple (`docs/handoff.md`).
   - Get the user with `liana_survey_shared.web.auth.current_user()` (set by the
-    gateway) and the database with `liana_survey_shared.web.db.tenant_db()`.
+    gateway) and the database with `liana_survey_shared.web.db.tenant_db()`:
+    `with db() as conn:` inside the handler, so the commit happens before the
+    response is sent (never yield a connection from a dependency).
   - Every database call goes through `liana_survey_shared.db.tenant_connection()`.
     Every new table gets `tenant_id` plus a row-level security policy, and
     `db/tests/rls_check.sql` gets a check for it.
