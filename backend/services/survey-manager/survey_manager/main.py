@@ -8,9 +8,11 @@ from fastapi import FastAPI
 
 from liana_survey_shared.web.health import health_router
 
+from .questions.routes import router as questions_router
 from .surveys.routes import router as surveys_router
 
 app = FastAPI(title="LianaSurvey Survey Manager", version="0.1.0")
 
 app.include_router(health_router())
 app.include_router(surveys_router)
+app.include_router(questions_router)
