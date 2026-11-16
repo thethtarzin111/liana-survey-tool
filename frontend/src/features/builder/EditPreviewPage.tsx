@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { ApiError, api, type Question, type QuestionInput, type QuestionKind, type Survey, type SurveyType } from '../../api/client';
+import { ApiError, api, type Question, type QuestionInput, type QuestionKind, type ReaderOptions, type Survey, type SurveyType } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
-import { Button, ButtonLink, Card, Checkbox, Select, TextArea, TextField, useToast } from '../../components/ui';
+import { Button, ButtonLink, Card, Checkbox, InfoTip, Select, TextArea, TextField, useToast } from '../../components/ui';
 import { AnswerTypeControls } from './AnswerTypeControls';
 import { ANSWER_TYPES, changesForType, newOptionText } from './answerTypes';
 import { useSavedQuestions } from './useSavedQuestions';
@@ -20,6 +20,18 @@ const REASON_LABEL: Record<Exclude<SurveyType, 'custom'>, string> = {
   csat: 'Improvement topics (question 2)',
 };
 const MANY_EXTRAS = 3;
+/** The reader options, with the prototype's labels and tips. */
+const READER_OPTIONS: { key: keyof ReaderOptions; label: string; tip: string }[] = [
+  { key: 'comment_field', label: 'Optional comment field', tip: '“Tell us more” after any answer' },
+  { key: 'show_results', label: 'Show results to readers', tip: 'Appears after about 10 answers' },
+  {
+    key: 'contact_opt_in',
+    label: '"Contact me about this by email" opt-in',
+    tip: 'Answers stay anonymous unless the reader ticks it. You choose what happens next in the Follow-up step.',
+  },
+];
+const readerOptionsOf = (s: Survey): ReaderOptions =>
+  ({ comment_field: s.comment_field, show_results: s.show_results, contact_opt_in: s.contact_opt_in });
 /** What "+ Add question" adds to the extra questions, as in the prototype. */
 const NEW_EXTRA: QuestionInput = { kind: 'single_choice', prompt: '', options: ['Option 1', 'Option 2'], required: false };
 const DRAFT_SAVE_ERROR = 'We couldn’t save your draft. Please try again.';
@@ -126,6 +138,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
   const { questions, setQuestions, loadError, retry, busy, save, update, updateOptions } = useSavedQuestions(survey.id);
   const [name, setName] = useState(survey.title);
   const [thanks, setThanks] = useState(survey.thank_you ?? '');
+  const [options, setOptions] = useState<ReaderOptions>(() => readerOptionsOf(survey));
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -176,9 +189,12 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
     setSaveError('');
     if (Object.keys(found).length) return;
 
-    const changes: { title?: string; thank_you?: string } = {};
+    const changes: { title?: string; thank_you?: string } & Partial<ReaderOptions> = {};
     if (name.trim() !== survey.title) changes.title = name;
     if (thanks.trim() !== (survey.thank_you ?? '')) changes.thank_you = thanks;
+    for (const { key } of READER_OPTIONS) {
+      if (options[key] !== survey[key]) changes[key] = options[key];
+    }
     if (!Object.keys(changes).length) {
       toast('Saved as draft');
       return;
@@ -190,6 +206,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
       if (!mounted.current) return;
       setName(saved.title);
       setThanks(saved.thank_you ?? '');
+      setOptions(readerOptionsOf(saved));
       onSaved(saved);
       toast('Saved as draft');
     } catch (error) {
@@ -315,6 +332,20 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
               disabled={saving}
               onChange={(event) => { setThanks(event.target.value); setErrors((e) => ({ ...e, thank_you: undefined })); }}
             />
+            <fieldset className="reader-options">
+              <legend className="edit-label">Reader options</legend>
+              {READER_OPTIONS.map(({ key, label, tip }) => (
+                <div key={key} className="reader-option">
+                  <Checkbox
+                    label={label}
+                    checked={options[key]}
+                    disabled={saving}
+                    onChange={() => setOptions((current) => ({ ...current, [key]: !current[key] }))}
+                  />
+                  <InfoTip label={`About: ${label}. ${tip}`}>{tip}</InfoTip>
+                </div>
+              ))}
+            </fieldset>
           </section>
         </Card>
         {saveError ? <p className="survey-save-error" role="alert">{saveError}</p> : null}
