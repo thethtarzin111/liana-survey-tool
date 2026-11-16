@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Question, Survey } from '../../api/client';
 import { ToastProvider } from '../../components/ui';
 import { BuilderPage } from './BuilderPage';
+import { ACCENT_SWATCHES, BACKGROUND_SWATCHES, DEFAULT_ACCENT, DEFAULT_BACKGROUND } from './branding';
 
 const SURVEY_URL = '/api/v1/surveys/s1';
 const QUESTIONS_URL = `${SURVEY_URL}/questions`;
@@ -18,12 +19,20 @@ const q = (id: string, kind: Question['kind'], prompt: string, options: string[]
 async function server(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const path = String(input);
   const method = init?.method ?? 'GET';
-  const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+  const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined;
   const renumber = () => { questions = questions.map((x, i) => ({ ...x, position: i + 1 })); };
   if (path === SURVEY_URL && method === 'GET') return Response.json(survey);
   if (path === SURVEY_URL && method === 'PATCH') {
     survey = { ...survey, ...body, ...(body.title ? { title: body.title.trim() } : {}), ...('thank_you' in body ? { thank_you: body.thank_you.trim() || null } : {}) };
     return Response.json(survey);
+  }
+  if (path === `${SURVEY_URL}/logo` && method === 'PUT') {
+    survey = { ...survey, logo_url: `${SURVEY_URL}/logo?v=${nextId++}` };
+    return Response.json(survey);
+  }
+  if (path === `${SURVEY_URL}/logo` && method === 'DELETE') {
+    survey = { ...survey, logo_url: null };
+    return new Response(null, { status: 204 });
   }
   if (path === QUESTIONS_URL && method === 'GET') return Response.json(questions);
   if (path === QUESTIONS_URL && method === 'POST') {
@@ -52,7 +61,7 @@ async function server(input: RequestInfo | URL, init?: RequestInit): Promise<Res
 }
 
 beforeEach(() => {
-  survey = { id: 's1', title: 'Member NPS', description: null, thank_you: 'Thank you. This takes our member work forward.', type: 'nps', status: 'draft', comment_field: true, show_results: true, contact_opt_in: true };
+  survey = { id: 's1', title: 'Member NPS', description: null, thank_you: 'Thank you. This takes our member work forward.', type: 'nps', status: 'draft', comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null };
   questions = [
     q('main', 'nps', 'How likely are you to recommend Example Members Association?'),
     q('reasons', 'reasons', '', ['Events and activities', 'Membership fee', 'Something else'], false),
@@ -231,3 +240,72 @@ test('saved reader options are shown when the survey opens', async () => {
   expect(within(group).getByLabelText('Show results to readers')).toBeChecked();
   expect(within(group).getByLabelText('"Contact me about this by email" opt-in')).not.toBeChecked();
 });
+
+// --- Branding (#67) ------------------------------------------------------------
+
+const brand = () => screen.getByRole('group', { name: 'Accent colour' });
+const backgroundGroup = () => screen.getByRole('group', { name: 'Background colour' });
+
+test('accent and background swatches are saved with Save as draft', async () => {
+  renderPage();
+  await screen.findByRole('group', { name: 'Accent colour' });
+  expect(within(brand()).getByRole('button', { name: 'Teal' })).toHaveAttribute('aria-pressed', 'true');
+  fireEvent.click(within(brand()).getByRole('button', { name: 'Plum' }));
+  fireEvent.click(within(backgroundGroup()).getByRole('button', { name: 'Sand' }));
+  expect(within(brand()).getByRole('button', { name: 'Plum' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(brand()).getByLabelText('Hex code')).toHaveValue(ACCENT_SWATCHES[2].hex);
+  expect(patches(SURVEY_URL)).toHaveLength(0);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Save as draft' }));
+  expect(await screen.findByText('Saved as draft')).toBeInTheDocument();
+  expect(JSON.parse(String(patches(SURVEY_URL)[0][1]?.body))).toEqual({
+    accent_color: ACCENT_SWATCHES[2].hex, background_color: BACKGROUND_SWATCHES[3].hex, // Plum, Sand
+  });
+});
+
+test('a typed hex code is used, and a bad one is refused', async () => {
+  renderPage();
+  const hex = within(await screen.findByRole('group', { name: 'Accent colour' })).getByLabelText('Hex code');
+  fireEvent.change(hex, { target: { value: '1b4f9c' } });
+  fireEvent.blur(hex);
+  expect(within(brand()).getByRole('button', { name: 'Blue' })).toHaveAttribute('aria-pressed', 'true');
+  expect(hex).toHaveValue(ACCENT_SWATCHES[1].hex);
+
+  fireEvent.change(hex, { target: { value: 'blue' } });
+  fireEvent.keyDown(hex, { key: 'Enter' });
+  expect(await screen.findByText('Use a 6-digit hex code, like #2B6450.')).toBeInTheDocument();
+  expect(hex).toHaveValue(ACCENT_SWATCHES[1].hex);
+});
+
+test('a light accent shows the contrast warning', async () => {
+  renderPage();
+  const hex = within(await screen.findByRole('group', { name: 'Accent colour' })).getByLabelText('Hex code');
+  fireEvent.change(hex, { target: { value: BACKGROUND_SWATCHES[1].hex } }); // light grey as an accent
+  fireEvent.blur(hex);
+  expect(await screen.findByText(/^White text on this colour is hard to read/)).toBeInTheDocument();
+});
+
+test('a logo is uploaded straight away and can be removed', async () => {
+  renderPage();
+  expect(await screen.findByText('No logo yet')).toBeInTheDocument();
+  const input = screen.getByLabelText('Upload logo') as HTMLInputElement;
+  const file = new File(['<svg/>'], 'logo.svg', { type: 'image/svg+xml' });
+  fireEvent.change(input, { target: { files: [file] } });
+  expect(await screen.findByRole('img', { name: 'Your logo' })).toHaveAttribute('src', expect.stringContaining('/logo?v='));
+  const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT');
+  expect(put?.[1]?.headers).toMatchObject({ 'Content-Type': 'image/svg+xml' });
+  expect(put?.[1]?.body).toBe(file);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+  expect(await screen.findByText('No logo yet')).toBeInTheDocument();
+  expect(survey.logo_url).toBeNull();
+});
+
+test('a wrong file type is refused before uploading', async () => {
+  renderPage();
+  const input = (await screen.findByLabelText('Upload logo')) as HTMLInputElement;
+  fireEvent.change(input, { target: { files: [new File(['GIF'], 'logo.gif', { type: 'image/gif' })] } });
+  expect(await screen.findByText('Choose an image file: PNG, JPG or SVG.')).toBeInTheDocument();
+  expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false);
+});
+

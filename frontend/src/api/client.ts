@@ -46,7 +46,7 @@ export const api = {
   },
   updateSurvey: async (
     id: string,
-    changes: Partial<Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions>>,
+    changes: Partial<Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'>>,
   ): Promise<Survey> => {
     const res = await fetch(`/api/v1/surveys/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -81,6 +81,19 @@ export const api = {
     send<Question>('POST', `${questionsPath(surveyId, questionId)}/duplicate`),
   reorderQuestions: (surveyId: string, questionIds: string[]) =>
     send<Question[]>('PUT', `${questionsPath(surveyId)}/order`, { question_ids: questionIds }),
+
+  /** Uploads (or replaces) the logo and returns the survey with its new logo_url. */
+  uploadLogo: async (surveyId: string, file: File): Promise<Survey> => {
+    const path = `/api/v1/surveys/${encodeURIComponent(surveyId)}/logo`;
+    const res = await fetch(path, {
+      method: 'PUT',
+      headers: { Accept: 'application/json', 'Content-Type': file.type },
+      body: file,
+    });
+    if (!res.ok) throw new ApiError(res.status, await responseBody(res), `${res.status} ${res.statusText} for ${path}`);
+    return (await res.json()) as Survey;
+  },
+  deleteLogo: (surveyId: string) => send<void>('DELETE', `/api/v1/surveys/${encodeURIComponent(surveyId)}/logo`),
 
   templates: (type?: SurveyType) =>
     getJson<Template[]>(`/api/v1/templates${type ? `?${new URLSearchParams({ type })}` : ''}`),
@@ -142,7 +155,14 @@ export type Survey = {
   thank_you: string | null;
   type: SurveyType;
   status: SurveyStatus;
-} & ReaderOptions;
+} & ReaderOptions & Branding;
+
+/** Branding: colours as "#RRGGBB", and where to load the logo (null when there is none). */
+export type Branding = {
+  accent_color: string;
+  background_color: string;
+  logo_url: string | null;
+};
 
 /** Reader options from "Edit and preview". All on by default. */
 export type ReaderOptions = {

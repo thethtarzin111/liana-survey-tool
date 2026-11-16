@@ -1,15 +1,16 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Survey } from '../../api/client';
 import { ToastProvider } from '../../components/ui';
 import { BuilderPage } from './BuilderPage';
+import { BACKGROUND_SWATCHES, DEFAULT_ACCENT, DEFAULT_BACKGROUND } from './branding';
 
 const saved: Survey = {
   id: 'survey-1',
   title: 'Member survey',
   description: "Members' view of 2026",
   thank_you: null,
-  comment_field: true, show_results: true, contact_opt_in: true,
+  comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null,
   type: 'custom',
   status: 'draft',
 };
@@ -150,3 +151,14 @@ test('shows a spinner and prevents duplicate saves while PATCH is pending', asyn
   complete(Response.json({ ...saved, title: 'Updated' }));
   await waitFor(() => expect(button).toBeEnabled());
 });
+
+test('Branding (optional) opens and its colours are saved with Save as draft', async () => {
+  renderPage();
+  fireEvent.click(await screen.findByRole('button', { name: /Branding/ }));
+  fireEvent.click(within(screen.getByRole('group', { name: 'Background colour' })).getByRole('button', { name: 'Mint' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save as draft' }));
+  await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(true));
+  const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+  expect(JSON.parse(String(patch?.[1]?.body))).toEqual({ background_color: BACKGROUND_SWATCHES[2].hex }); // Mint
+});
+
