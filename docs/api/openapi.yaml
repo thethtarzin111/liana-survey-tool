@@ -86,6 +86,7 @@ paths:
     patch:
       tags: [surveys]
       summary: Change the title or type; omitted fields stay the same
+      description: Leave out fields that should not change. Sending a field as null is a 422.
       requestBody:
         required: true
         content:

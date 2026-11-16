@@ -2,10 +2,10 @@
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
 DEFAULT_TITLE = "Untitled survey"
 
@@ -37,12 +37,25 @@ class SurveyCreate(BaseModel):
 
 
 class SurveyUpdate(BaseModel):
-    """Fields that can change. Omitted fields stay as they are."""
+    """Fields that can change. Omitted fields stay as they are.
+
+    Sending a field as null is an error (422), not a silent no-op: title and
+    type can never be empty.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     title: Title | None = None
     type: SurveyType | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def no_nulls(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            nulls = sorted(k for k, v in data.items() if v is None)
+            if nulls:
+                raise ValueError(f"{', '.join(nulls)} cannot be null; leave the field out instead")
+        return data
 
 
 class Survey(BaseModel):

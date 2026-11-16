@@ -73,6 +73,9 @@ def test_update_rejects_blank_title_and_unknown_fields(no_db):
     url = f"/api/v1/surveys/{uuid4()}"
     assert no_db.patch(url, json={"title": ""}).status_code == 422
     assert no_db.patch(url, json={"status": "live"}).status_code == 422
+    # Explicit null would otherwise be a silent no-op with 200.
+    assert no_db.patch(url, json={"title": None}).status_code == 422
+    assert no_db.patch(url, json={"type": None}).status_code == 422
 
 
 def test_bad_survey_id_is_422(no_db):
