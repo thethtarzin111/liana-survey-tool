@@ -16,10 +16,22 @@ begin
   select count(*) into n from templates where tenant_id is null;
   if n < 3 then raise exception 'RLS: built-in templates not visible (got %)', n; end if;
 
+  -- A logo for the demo survey, to check that logos are isolated as well.
+  insert into survey_logos (survey_id, tenant_id, content_type, data)
+  values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000001',
+          'image/png', '\x89504e47'::bytea)
+  on conflict (survey_id) do nothing;
+
   -- 3. Another tenant sees none of the demo tenant's rows.
   perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
   select count(*) into n from surveys;
   if n <> 0 then raise exception 'RLS: other tenant sees % surveys', n; end if;
+  select count(*) into n from survey_logos;
+  if n <> 0 then raise exception 'RLS: other tenant sees % survey logos', n; end if;
+
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
+  delete from survey_logos where survey_id = '00000000-0000-4000-8000-000000000201';
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
 
   -- 4. Writing a row for a different tenant is refused.
   begin

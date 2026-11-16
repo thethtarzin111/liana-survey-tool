@@ -4,12 +4,13 @@ from collections.abc import Callable
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
 
 from liana_survey_shared.web.auth import CurrentUser, current_user
 from liana_survey_shared.web.db import TenantDB, tenant_db
 
-from . import domain, repo
+from . import branding, domain, repo
 from .schemas import Survey, SurveyCreate, SurveyListItem, SurveyStatus, SurveyUpdate
 
 router = APIRouter(prefix="/api/v1/surveys", tags=["surveys"])
@@ -113,3 +114,88 @@ def _change_status(
         except domain.StatusChangeNotAllowed as error:
             raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
         return repo.set_status(conn, survey_id, new_status)
+
+
+# --- Logo (#66) ----------------------------------------------------------------
+
+#: Served with the logo so that, even opened on its own, an SVG cannot run code.
+LOGO_HEADERS = {
+    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+    "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "private, max-age=86400",
+}
+
+
+@router.put(
+    "/{survey_id}/logo",
+    response_model=Survey,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                kind: {"schema": {"type": "string", "format": "binary"}}
+                for kind in branding.LOGO_TYPES
+            },
+        }
+    },
+)
+async def upload_logo(
+    survey_id: UUID,
+    request: Request,
+    user: CurrentUser = Depends(current_user),
+    db: TenantDB = Depends(tenant_db),
+) -> dict:
+    """Upload or replace the logo: send the image itself as the body, with its
+    Content-Type. PNG, JPG, SVG or WebP, at most 1 MB."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > branding.MAX_LOGO_BYTES:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "the logo can be at most 1 MB")
+    # Read at most one byte more than allowed, so a large upload sent without a
+    # Content-Length (chunked) is never held in memory in full.
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > branding.MAX_LOGO_BYTES:
+            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "the logo can be at most 1 MB")
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    try:
+        kind = branding.check_logo(request.headers.get("content-type", ""), data)
+    except branding.LogoTooLarge as error:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(error)) from error
+    except branding.LogoError as error:
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, str(error)) from error
+
+    def save() -> dict | None:
+        with db() as conn:
+            return repo.put_logo(conn, user.tenant_id, survey_id, kind, data)
+
+    row = await run_in_threadpool(save)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
+    return row
+
+
+@router.get(
+    "/{survey_id}/logo",
+    response_class=Response,
+    responses={200: {"content": {kind: {} for kind in branding.LOGO_TYPES}}, 404: {}},
+)
+def get_logo(survey_id: UUID, db: TenantDB = Depends(tenant_db)) -> Response:
+    """The survey's logo image."""
+    with db() as conn:
+        logo = repo.get_logo(conn, survey_id)
+    if logo is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No logo for this survey")
+    return Response(bytes(logo["data"]), media_type=logo["content_type"], headers=LOGO_HEADERS)
+
+
+@router.delete("/{survey_id}/logo", status_code=status.HTTP_204_NO_CONTENT)
+def delete_logo(survey_id: UUID, db: TenantDB = Depends(tenant_db)) -> Response:
+    """Remove the logo. Surveys without a logo also get 204."""
+    with db() as conn:
+        found = repo.delete_logo(conn, survey_id)
+    if not found:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

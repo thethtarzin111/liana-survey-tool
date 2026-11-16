@@ -17,6 +17,9 @@ COLUMN_NAMES = (
     "comment_field",
     "show_results",
     "contact_opt_in",
+    "accent_color",
+    "background_color",
+    "logo_updated_at",
     "type",
     "status",
     "anonymous",
@@ -112,9 +115,11 @@ def duplicate(
     row = conn.execute(
         f"""insert into surveys
               (tenant_id, title, description, thank_you, type, status, anonymous, language,
-               response_limit, comment_field, show_results, contact_opt_in, created_by)
+               response_limit, comment_field, show_results, contact_opt_in,
+               accent_color, background_color, logo_updated_at, created_by)
             select %s, %s, description, thank_you, type, %s, anonymous, language,
-                   response_limit, comment_field, show_results, contact_opt_in, %s
+                   response_limit, comment_field, show_results, contact_opt_in,
+                   accent_color, background_color, logo_updated_at, %s
             from surveys where id = %s
             returning {COLUMNS}""",
         (tenant_id, title, SurveyStatus.draft.value, user_id, survey_id),
@@ -126,6 +131,11 @@ def duplicate(
            select %s, %s, position, kind, prompt, options, required
            from questions where survey_id = %s""",
         (tenant_id, row["id"], survey_id),
+    )
+    conn.execute(
+        """insert into survey_logos (survey_id, tenant_id, content_type, data)
+           select %s, %s, content_type, data from survey_logos where survey_id = %s""",
+        (row["id"], tenant_id, survey_id),
     )
     return row
 
@@ -147,3 +157,43 @@ def update(conn: psycopg.Connection, survey_id: UUID, data: SurveyUpdate) -> dic
         f"update surveys set {sets}, updated_at = now() where id = %s returning {COLUMNS}",
         (*changes.values(), survey_id),
     ).fetchone()
+
+
+# --- Logo ---------------------------------------------------------------------
+
+
+def put_logo(
+    conn: psycopg.Connection, tenant_id: UUID, survey_id: UUID, content_type: str, data: bytes
+) -> dict[str, Any] | None:
+    """Save (or replace) the survey's logo. Returns the survey, or None if there is none."""
+    survey = conn.execute(
+        f"""update surveys set logo_updated_at = now(), updated_at = now()
+            where id = %s returning {COLUMNS}""",
+        (survey_id,),
+    ).fetchone()
+    if survey is None:
+        return None
+    conn.execute(
+        """insert into survey_logos (survey_id, tenant_id, content_type, data)
+           values (%s, %s, %s, %s)
+           on conflict (survey_id) do update
+             set content_type = excluded.content_type, data = excluded.data, updated_at = now()""",
+        (survey_id, tenant_id, content_type, data),
+    )
+    return survey
+
+
+def get_logo(conn: psycopg.Connection, survey_id: UUID) -> dict[str, Any] | None:
+    return conn.execute(
+        "select content_type, data from survey_logos where survey_id = %s", (survey_id,)
+    ).fetchone()
+
+
+def delete_logo(conn: psycopg.Connection, survey_id: UUID) -> bool:
+    """Remove the logo. False if there is no such survey (no logo is fine)."""
+    found = conn.execute(
+        "update surveys set logo_updated_at = null, updated_at = now() where id = %s",
+        (survey_id,),
+    ).rowcount
+    conn.execute("delete from survey_logos where survey_id = %s", (survey_id,))
+    return found == 1

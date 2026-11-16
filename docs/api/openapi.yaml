@@ -163,6 +163,51 @@ paths:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such survey in this organisation }
         '409': { description: The survey is not live or scheduled }
+  /api/v1/surveys/{survey_id}/logo:
+    parameters:
+      - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [surveys]
+      summary: Upload or replace the survey's logo
+      description: >-
+        Send the image itself as the body, with its Content-Type. PNG, JPEG, SVG or WebP, at most
+        1 MB. The bytes must match the type. SVGs with scripts, event handlers, javascript: links
+        or foreignObject are refused.
+      requestBody:
+        required: true
+        content:
+          image/png: { schema: { type: string, format: binary } }
+          image/jpeg: { schema: { type: string, format: binary } }
+          image/svg+xml: { schema: { type: string, format: binary } }
+          image/webp: { schema: { type: string, format: binary } }
+      responses:
+        '200':
+          description: The survey, with its new logo_url
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Survey' }
+        '404': { description: No such survey in this organisation }
+        '413': { description: Larger than 1 MB }
+        '415': { description: Not an accepted image, or the bytes do not match the type }
+    get:
+      tags: [surveys]
+      summary: The survey's logo image
+      description: Served with a strict Content-Security-Policy (sandbox) and nosniff, so it cannot run code.
+      responses:
+        '200':
+          description: The image
+          content:
+            image/png: {}
+            image/jpeg: {}
+            image/svg+xml: {}
+            image/webp: {}
+        '404': { description: No such survey, or it has no logo }
+    delete:
+      tags: [surveys]
+      summary: Remove the logo (also 204 when there is none)
+      responses:
+        '204': { description: Removed }
+        '404': { description: No such survey in this organisation }
   /api/v1/surveys/{survey_id}/questions:
     parameters:
       - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -322,9 +367,11 @@ components:
         comment_field: { type: boolean, description: 'Reader option: optional "Tell us more" field after any answer' }
         show_results: { type: boolean, description: 'Reader option: show results to readers (after about 10 answers)' }
         contact_opt_in: { type: boolean, description: 'Reader option: "Contact me about this by email" opt-in' }
+        accent_color: { type: string, pattern: '^#?[0-9A-Fa-f]{6}$', description: 'Branding: buttons and highlights. Stored as "#RRGGBB"' }
+        background_color: { type: string, pattern: '^#?[0-9A-Fa-f]{6}$', description: 'Branding: page background. Stored as "#RRGGBB"' }
     Survey:
       type: object
-      required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, language, opens_at, closes_at, response_limit, created_at, updated_at]
+      required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, accent_color, background_color, logo_url, language, opens_at, closes_at, response_limit, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         title: { type: string, example: Member NPS 2026 }
@@ -341,6 +388,12 @@ components:
             Reader option, default true: readers may tick "Contact me about this by email".
             Answers stay anonymous unless they do; then a contact request is created with a
             contact reference, never an e-mail address.
+        accent_color: { type: string, pattern: '^#[0-9A-F]{6}$', example: '#0F6A5E', description: Default Teal (#0F6A5E) }
+        background_color: { type: string, pattern: '^#[0-9A-F]{6}$', example: '#FFFFFF', description: Default White (#FFFFFF) }
+        logo_url:
+          type: [string, 'null']
+          description: Where to load the logo from (changes with every upload), or null when there is none
+          example: /api/v1/surveys/9f1c.../logo?v=1794870174
         language: { type: string, enum: [en, fi, sv] }
         opens_at: { type: [string, 'null'], format: date-time }
         closes_at: { type: [string, 'null'], format: date-time }
