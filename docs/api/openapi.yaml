@@ -100,6 +100,95 @@ paths:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such survey in this organisation }
         '422': { description: Invalid body }
+  /api/v1/surveys/{survey_id}/questions:
+    parameters:
+      - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [questions]
+      summary: List a survey's questions in their saved order
+      responses:
+        '200':
+          description: Questions
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Question' } }
+        '404': { description: No such survey in this organisation }
+    post:
+      tags: [questions]
+      summary: Add a question at the end of a survey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuestionCreate' }
+      responses:
+        '201':
+          description: Added question
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Question' }
+        '404': { description: No such survey in this organisation }
+        '422': { description: Invalid question }
+  /api/v1/surveys/{survey_id}/questions/order:
+    parameters:
+      - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [questions]
+      summary: Replace the question order atomically
+      description: question_ids must contain every question in this survey exactly once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuestionOrder' }
+      responses:
+        '200':
+          description: Questions in their new order
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Question' } }
+        '404': { description: No such survey in this organisation }
+        '422': { description: Missing, extra, or duplicate question id }
+  /api/v1/surveys/{survey_id}/questions/{question_id}:
+    parameters:
+      - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: question_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [questions]
+      summary: Edit a question; omitted fields stay the same
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/QuestionUpdate' }
+      responses:
+        '200':
+          description: Updated question
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Question' }
+        '404': { description: No such survey or question in this organisation }
+        '422': { description: Invalid question }
+    delete:
+      tags: [questions]
+      summary: Delete a question and close the position gap
+      responses:
+        '204': { description: Deleted }
+        '404': { description: No such survey or question in this organisation }
+  /api/v1/surveys/{survey_id}/questions/{question_id}/duplicate:
+    parameters:
+      - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: question_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [questions]
+      summary: Copy a question into the next position
+      responses:
+        '201':
+          description: Duplicated question
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Question' }
+        '404': { description: No such survey or question in this organisation }
 components:
   schemas:
     CurrentUser:
@@ -149,3 +238,50 @@ components:
         response_limit: { type: [integer, 'null'], minimum: 1 }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    QuestionKind:
+      type: string
+      enum: [nps, rating, single_choice, multiple_choice, text]
+    QuestionOptions:
+      type: array
+      items:
+        oneOf:
+          - { type: string }
+          - { type: integer }
+          - { type: number }
+    QuestionCreate:
+      type: object
+      additionalProperties: false
+      required: [kind]
+      properties:
+        kind: { $ref: '#/components/schemas/QuestionKind' }
+        prompt: { type: string, default: '' }
+        options: { $ref: '#/components/schemas/QuestionOptions' }
+        required: { type: boolean, default: true }
+    QuestionUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        kind: { $ref: '#/components/schemas/QuestionKind' }
+        prompt: { type: string }
+        options: { $ref: '#/components/schemas/QuestionOptions' }
+        required: { type: boolean }
+    QuestionOrder:
+      type: object
+      additionalProperties: false
+      required: [question_ids]
+      properties:
+        question_ids:
+          type: array
+          items: { type: string, format: uuid }
+          uniqueItems: true
+    Question:
+      type: object
+      required: [id, survey_id, position, kind, prompt, options, required]
+      properties:
+        id: { type: string, format: uuid }
+        survey_id: { type: string, format: uuid }
+        position: { type: integer, minimum: 1 }
+        kind: { $ref: '#/components/schemas/QuestionKind' }
+        prompt: { type: string }
+        options: { $ref: '#/components/schemas/QuestionOptions' }
+        required: { type: boolean }
