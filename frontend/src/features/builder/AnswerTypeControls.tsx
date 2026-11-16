@@ -8,11 +8,13 @@ type Props = {
   number: number;
   busy: boolean;
   onSaveOptions: (options: string[]) => void;
+  /** How screen readers name the question, e.g. "Extra question 1". Defaults to "Question N". */
+  name?: string;
 };
 
-function OptionRow({ question, number, index, busy, onSave, onRemove }: {
+function OptionRow({ question, name, index, busy, onSave, onRemove }: {
   question: Question;
-  number: number;
+  name: string;
   index: number;
   busy: boolean;
   onSave: (text: string) => void;
@@ -29,7 +31,7 @@ function OptionRow({ question, number, index, busy, onSave, onRemove }: {
       <input
         className="input"
         type="text"
-        aria-label={`Question ${number}, option ${index + 1}`}
+        aria-label={`${name}, option ${index + 1}`}
         maxLength={200}
         value={text}
         onChange={(event) => setText(event.target.value)}
@@ -51,7 +53,7 @@ function OptionRow({ question, number, index, busy, onSave, onRemove }: {
 }
 
 /** The part of a question card that depends on its answer type. */
-export function AnswerTypeControls({ question, number, busy, onSaveOptions }: Props) {
+export function AnswerTypeControls({ question, number, busy, onSaveOptions, name = `Question ${number}` }: Props) {
   const { kind, options } = question;
 
   if (CHOICE_KINDS.has(kind)) {
@@ -61,7 +63,7 @@ export function AnswerTypeControls({ question, number, busy, onSaveOptions }: Pr
           <OptionRow
             key={`${question.id}-${index}`}
             question={question}
-            number={number}
+            name={name}
             index={index}
             busy={busy}
             onSave={(text) => onSaveOptions(options.map((o, i) => (i === index ? text : o)))}

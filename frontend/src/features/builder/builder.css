@@ -61,3 +61,13 @@
 @media (max-width: 639px) {
   .template-picker-card { grid-template-columns: minmax(0, 1fr); }
 }
+
+.edit-settings { width: min(100%, 760px); }
+.edit-settings-body { display: flex; flex-direction: column; gap: 18px; }
+.edit-field { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.edit-label { font-weight: 600; font-size: var(--text-body); }
+.edit-scale { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.edit-scale li { padding: 6px 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill); font-weight: 600; font-size: var(--text-body); }
+.edit-reasons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.edit-add-reason { color: var(--color-brand-dark); }
+.extra-question { width: 100%; display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--color-border); border-radius: var(--radius-card); }

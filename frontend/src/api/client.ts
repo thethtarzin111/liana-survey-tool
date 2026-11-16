@@ -46,7 +46,7 @@ export const api = {
   },
   updateSurvey: async (
     id: string,
-    changes: Partial<Pick<Survey, 'title' | 'description'>>,
+    changes: Partial<Pick<Survey, 'title' | 'description' | 'thank_you'>>,
   ): Promise<Survey> => {
     const res = await fetch(`/api/v1/surveys/${encodeURIComponent(id)}`, {
       method: 'PATCH',
