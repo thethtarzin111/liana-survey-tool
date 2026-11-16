@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from liana_survey_shared.web.auth import CurrentUser, current_user
 from liana_survey_shared.web.db import TenantDB, tenant_db
 
-from . import repo
-from .schemas import Question, QuestionCreate, QuestionOrder, QuestionUpdate
+from . import domain, repo
+from .schemas import Question, QuestionCreate, QuestionKind, QuestionOrder, QuestionUpdate
 
 router = APIRouter(prefix="/api/v1/surveys/{survey_id}/questions", tags=["questions"])
 
@@ -65,9 +65,20 @@ def edit_question(
 ) -> dict:
     with db() as conn:
         require_survey(conn, survey_id)
-        row = repo.update(conn, survey_id, question_id, data)
-        if row is None:
+        current = repo.get(conn, survey_id, question_id)
+        if current is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, QUESTION_NOT_FOUND)
+        if data.kind is not None or data.options is not None:
+            # The type and options must fit together after the edit, not only on their own.
+            old_kind = QuestionKind(current["kind"])
+            try:
+                data.options = domain.options_after_change(
+                    old_kind, current["options"], data.kind or old_kind, data.options
+                )
+            except domain.QuestionRuleError as error:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
+        row = repo.update(conn, survey_id, question_id, data)
+        assert row is not None
         return row
 
 
