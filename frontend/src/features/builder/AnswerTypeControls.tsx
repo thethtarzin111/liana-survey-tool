@@ -1,0 +1,102 @@
+import { useEffect, useState } from 'react';
+import type { Question } from '../../api/client';
+import { Button, IconButton, icons } from '../../components/ui';
+import { CHOICE_KINDS, MAX_OPTIONS, REASONS_HINT, SCALES, TEXT_HINTS, newOptionText } from './answerTypes';
+
+type Props = {
+  question: Question;
+  number: number;
+  busy: boolean;
+  onSaveOptions: (options: string[]) => void;
+};
+
+function OptionRow({ question, number, index, busy, onSave, onRemove }: {
+  question: Question;
+  number: number;
+  index: number;
+  busy: boolean;
+  onSave: (text: string) => void;
+  onRemove: () => void;
+}) {
+  const saved = question.options[index];
+  const [text, setText] = useState(saved);
+  useEffect(() => setText(saved), [saved]);
+  const mark = question.kind === 'dropdown' ? String(index + 1) : '';
+
+  return (
+    <div className="option-row">
+      <span className={`option-mark option-mark-${question.kind}`} aria-hidden="true">{mark}</span>
+      <input
+        className="input"
+        type="text"
+        aria-label={`Question ${number}, option ${index + 1}`}
+        maxLength={200}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={() => {
+          // An emptied option goes back to its saved text; options cannot be blank.
+          if (!text.trim()) setText(saved);
+          else if (text.trim() !== saved) onSave(text.trim());
+        }}
+      />
+      <IconButton
+        label={`Remove option ${index + 1}`}
+        icon={icons.close}
+        iconSize={14}
+        disabled={busy || question.options.length <= 1}
+        onClick={onRemove}
+      />
+    </div>
+  );
+}
+
+/** The part of a question card that depends on its answer type. */
+export function AnswerTypeControls({ question, number, busy, onSaveOptions }: Props) {
+  const { kind, options } = question;
+
+  if (CHOICE_KINDS.has(kind)) {
+    return (
+      <div className="answer-options">
+        {options.map((_, index) => (
+          <OptionRow
+            key={`${question.id}-${index}`}
+            question={question}
+            number={number}
+            index={index}
+            busy={busy}
+            onSave={(text) => onSaveOptions(options.map((o, i) => (i === index ? text : o)))}
+            onRemove={() => onSaveOptions(options.filter((_, i) => i !== index))}
+          />
+        ))}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="answer-add-option"
+          disabled={busy || options.length >= MAX_OPTIONS}
+          onClick={() => onSaveOptions([...options, newOptionText(kind, options)])}
+        >
+          {kind === 'reasons' ? '+ Add reason' : '+ Add option'}
+        </Button>
+        {kind === 'reasons' ? <span className="answer-hint">{REASONS_HINT}</span> : null}
+      </div>
+    );
+  }
+
+  const scale = SCALES[kind];
+  if (scale) {
+    return (
+      <div className="answer-scale">
+        <div className={`answer-scale-numbers answer-scale-${kind}`} aria-hidden="true">
+          {scale.numbers.map((n) => <span key={n}>{n}</span>)}
+        </div>
+        <span className="answer-hint">{scale.hint}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`answer-text-preview answer-text-${kind}`}>
+      {TEXT_HINTS[kind]}
+    </div>
+  );
+}
