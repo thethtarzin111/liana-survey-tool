@@ -6,14 +6,14 @@ info:
     The contract between the admin app and the backend. Update it in the same
     pull request as any endpoint change. FastAPI also serves its generated
     version at /openapi.json; this file is the reviewed, hand-kept contract.
-    All calls go through the API gateway (services/gateway), which routes them:
+    All calls go through the API gateway (backend/scripts/local_gateway.py), which routes them:
     /api/v1/me is answered by the gateway itself (dev auth), /api/v1/surveys
     and /api/v1/templates by survey-manager, /api/v1/results by data-analyzer,
     and /r/<token> by the respondent service. The service of each path is in
     its tag. /health and /health/ready also exist on every service.
 servers:
   - url: http://localhost:8000
-    description: API gateway (docker compose)
+    description: Local development API gateway
 paths:
   /health:
     get:

@@ -9,7 +9,7 @@ Rules the code follows (R05):
 - **No recipient e-mail addresses** are stored in the survey database. They are
   only used by LianaMailer to send the link.
 - **Tenant isolation** with `tenant_id` and row-level security on every table,
-  checked in CI (`db/tests/rls_check.sql`).
+  checked in CI (`backend/db/tests/rls_check.sql`).
 - **EU hosting** for every deployment, including demos.
 - **Demo data only** in this repo and in demos.
 

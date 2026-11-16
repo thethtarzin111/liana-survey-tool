@@ -1,5 +1,8 @@
 # 0003 Dev-auth stub, no login screen
 
+> Runtime update: see [0005 Native development](0005-native-development.md).
+> Container and nginx references below describe the former deployment.
+
 **Status:** accepted · 2026-11-15
 
 ## Context
@@ -8,7 +11,7 @@ in through Liana's existing account system, which the team cannot access.
 
 ## Decision
 Every admin request is the demo user from `.env` (`AUTH_MODE=dev`): Anna
-Virtanen, Example Members Association. The API gateway (`services/gateway`)
+Virtanen, Example Members Association. The API gateway (`backend/services/gateway`)
 sets this user on each request and answers `/api/v1/me`; the services read it
 with `liana_survey_shared.web.auth.current_user()` (see decision 0004).
 

@@ -1,5 +1,8 @@
 # 0004 Separate services and an API gateway, as in the report
 
+> Runtime update: see [0005 Native development](0005-native-development.md).
+> Container and nginx references below describe the former deployment.
+
 **Status:** accepted · 2026-11-16 · replaces [0002](0002-three-processes.md)
 
 ## Context
@@ -26,7 +29,7 @@ Run the report's components as separate containers:
 They share one PostgreSQL database (the report's Survey DB, with row-level
 security) and one RabbitMQ instance with separate queues. Shared Python code
 (settings, tenant-safe database access, queue messages, FastAPI helpers) is
-in `packages/shared-py`.
+in `backend/packages/shared-py`.
 
 ## Consequences
 - The respondent path can be scaled on its own during newsletter bursts.
