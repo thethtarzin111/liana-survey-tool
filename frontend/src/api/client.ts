@@ -58,14 +58,39 @@ export const api = {
     }
     return (await res.json()) as Survey;
   },
+  listSurveys: (filters: { q?: string; status?: SurveyStatus } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.q) params.set('q', filters.q);
+    if (filters.status) params.set('status', filters.status);
+    const query = params.toString();
+    return getJson<SurveyListItem[]>(`/api/v1/surveys${query ? `?${query}` : ''}`);
+  },
+  /** Close (live → closed) or unpublish (live/scheduled → draft) a survey. */
+  changeSurveyStatus: (id: string, action: 'close' | 'unpublish') =>
+    send<Survey>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/${action}`),
+  deleteSurvey: (id: string) => send<void>('DELETE', `/api/v1/surveys/${encodeURIComponent(id)}`),
 };
 
+async function send<T>(method: string, path: string): Promise<T> {
+  const res = await fetch(path, { method, headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new ApiError(res.status, await responseBody(res), `${res.status} ${res.statusText} for ${path}`);
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
 export type SurveyType = 'thumbs' | 'nps' | 'csat' | 'custom';
+
+export type SurveyStatus = 'draft' | 'scheduled' | 'live' | 'closed';
 
 export type Survey = {
   id: string;
   title: string;
   description: string | null;
   type: SurveyType;
-  status: 'draft' | 'scheduled' | 'live' | 'closed';
+  status: SurveyStatus;
+};
+
+export type SurveyListItem = Survey & {
+  opens_at: string | null;
+  /** Submitted responses so far. */
+  answers: number;
 };
