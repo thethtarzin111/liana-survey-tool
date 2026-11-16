@@ -88,3 +88,9 @@ class Survey(BaseModel):
     response_limit: int | None
     created_at: datetime
     updated_at: datetime
+
+
+class SurveyListItem(Survey):
+    """A survey as shown on the Surveys list."""
+
+    answers: int  # submitted responses, from the worker's totals
