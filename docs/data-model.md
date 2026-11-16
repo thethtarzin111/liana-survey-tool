@@ -8,7 +8,7 @@ and are visible to everyone.
 |---|---|---|
 | `tenants` | A Liana customer organisation | |
 | `users` | Marketers in a tenant | Dev stub: one demo user |
-| `surveys` | One survey | type `nps/csat/poll/custom`; status `draft/scheduled/live/closed`; `anonymous` defaults to true; language `fi/sv/en`; optional open/close dates and response limit |
+| `surveys` | One survey | type `thumbs/nps/csat/custom` (custom = start from scratch); status `draft/scheduled/live/closed`; `anonymous` defaults to true; language `fi/sv/en`; optional open/close dates and response limit |
 | `questions` | Questions of a survey, ordered by `position` | kind `nps/rating/single_choice/multiple_choice/text`; `options` is JSON |
 | `responses` | One submitted response | `link_token_hash` stops double counting; `contact_ref` only in identified mode |
 | `answers` | One answer to one question | number, text or choices |

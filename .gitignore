@@ -27,3 +27,6 @@ tests/e2e/playwright-report/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Vite dependency cache
+.vite/
