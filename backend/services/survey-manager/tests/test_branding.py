@@ -88,11 +88,22 @@ def test_refused_logos(kind, data):
         b'<svg onload="alert(1)"></svg>',
         b'<svg><a href="javascript:alert(1)"/></svg>',
         b"<svg><foreignObject><div/></foreignObject></svg>",
+        b'<svg><a href="&#106;avascript:alert(1)"/></svg>',  # entity-encoded
+        b'<svg><iframe src="https://example.org"/></svg>',
+        b'<svg><embed src="x.swf"/></svg>',
+        b'<svg><use href="https://example.org/evil.svg#a"/></svg>',
+        b'<svg><animate attributeName="href" to="javascript:alert(1)"/></svg>',
     ],
 )
 def test_svg_logos_cannot_run_code(svg):
     with pytest.raises(LogoError, match="scripts or event handlers"):
         check_logo("image/svg+xml", svg)
+
+
+def test_svg_logos_may_reuse_their_own_shapes():
+    # Design tools export <use href="#id"> for shapes in the same file.
+    svg = b'<svg><defs><path id="p" d="M0 0h4"/></defs><use href="#p"/><use xlink:href="#p"/></svg>'
+    assert check_logo("image/svg+xml", svg) == "image/svg+xml"
 
 
 def test_logos_are_at_most_1_mb():
@@ -113,6 +124,15 @@ def test_bad_colours_and_uploads_are_refused_before_saving(client):
     assert r.status_code == 415
     big = PNG + b"\x00" * MAX_LOGO_BYTES
     r = client.put(f"{url}/logo", content=big, headers={"Content-Type": "image/png"})
+    assert r.status_code == 413
+
+    # Without a Content-Length (chunked), the size is checked while reading.
+    def chunks():
+        yield PNG
+        for _ in range(MAX_LOGO_BYTES // 65536 + 1):
+            yield b"\x00" * 65536
+
+    r = client.put(f"{url}/logo", content=chunks(), headers={"Content-Type": "image/png"})
     assert r.status_code == 413
 
 
@@ -149,6 +169,10 @@ def test_logo_can_be_uploaded_read_replaced_and_removed(client):
     assert r.status_code == 200
     logo_url = r.json()["logo_url"]
     assert logo_url.startswith(f"{url}/logo?v=")
+    # A second upload straight away gets a new URL, so browsers never keep the old logo.
+    again = client.put(f"{url}/logo", content=PNG, headers={"Content-Type": "image/png"})
+    assert again.json()["logo_url"] != logo_url
+    logo_url = again.json()["logo_url"]
     assert client.get(url).json()["logo_url"] == logo_url
 
     logo = client.get(logo_url)

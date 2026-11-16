@@ -134,7 +134,9 @@ class Survey(BaseModel):
         changes with every upload, so browsers never show an old logo."""
         if self.logo_updated_at is None:
             return None
-        return f"/api/v1/surveys/{self.id}/logo?v={int(self.logo_updated_at.timestamp())}"
+        # Microseconds, so two uploads within the same second still get different URLs.
+        version = int(self.logo_updated_at.timestamp() * 1_000_000)
+        return f"/api/v1/surveys/{self.id}/logo?v={version}"
 
 
 class SurveyListItem(Survey):

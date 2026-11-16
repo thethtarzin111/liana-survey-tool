@@ -150,7 +150,16 @@ async def upload_logo(
     declared = request.headers.get("content-length", "")
     if declared.isdigit() and int(declared) > branding.MAX_LOGO_BYTES:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "the logo can be at most 1 MB")
-    data = await request.body()
+    # Read at most one byte more than allowed, so a large upload sent without a
+    # Content-Length (chunked) is never held in memory in full.
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > branding.MAX_LOGO_BYTES:
+            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "the logo can be at most 1 MB")
+        chunks.append(chunk)
+    data = b"".join(chunks)
     try:
         kind = branding.check_logo(request.headers.get("content-type", ""), data)
     except branding.LogoTooLarge as error:
