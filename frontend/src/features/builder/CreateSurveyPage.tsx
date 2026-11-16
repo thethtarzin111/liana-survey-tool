@@ -24,6 +24,11 @@ export function CreateSurveyPage() {
   async function choose(type: SurveyType) {
     // Guard the request immediately, before React renders disabled cards.
     if (pending.current) return;
+    // Thumbs, NPS and CSAT start from a template; the draft is created there.
+    if (type !== 'custom') {
+      navigate(`/surveys/new/template?${new URLSearchParams({ type })}`);
+      return;
+    }
     pending.current = true;
     setSaving(true);
     setError('');
@@ -66,7 +71,7 @@ export function CreateSurveyPage() {
       </section>
       <div className="survey-create-footer">
         <Button disabled={saving} onClick={() => navigate('/surveys')}>Cancel</Button>
-        {saving ? <span role="status">Saving your draft…</span> : <span>Choosing a type saves a new draft.</span>}
+        {saving ? <span role="status">Saving your draft…</span> : <span>Start from scratch saves a new draft right away.</span>}
       </div>
     </div>
   );

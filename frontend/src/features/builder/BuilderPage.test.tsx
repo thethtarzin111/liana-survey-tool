@@ -8,6 +8,7 @@ const saved: Survey = {
   id: 'survey-1',
   title: 'Member survey',
   description: "Members' view of 2026",
+  thank_you: null,
   type: 'nps',
   status: 'draft',
 };
