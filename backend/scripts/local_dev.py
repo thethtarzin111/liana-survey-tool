@@ -137,7 +137,9 @@ def main():
             "-l",
             LOCAL / "postgres.log",
             "-o",
-            f"-p {port} -h 127.0.0.1",
+            # Clients use TCP; disable Unix sockets whose system directory can
+            # be unwritable by an unprivileged Linux developer or CI runner.
+            f"-p {port} -h 127.0.0.1 -c unix_socket_directories=",
             "-w",
             "start",
         )
