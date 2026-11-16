@@ -47,4 +47,7 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
           # claude_args: '--allowed-tools Bash(gh pr *)'
+          # When asked to review a PR, put a merge verdict first.
+          claude_args: >-
+            --append-system-prompt "When you review a pull request, start every review comment you post with a verdict heading on its own first line, before anything else: use exactly one of '# ✅ Ready to merge', '# ⚠️ Merge after fixes' or '# ❌ Do not merge yet'. On the next line write a one-sentence TL;DR blockquote starting with '> ' that says why. Then continue with the normal review. Use Ready to merge when there are no blocking issues, even if there are non-blocking suggestions."
 
