@@ -22,7 +22,7 @@ const REASON_LABEL: Record<Exclude<SurveyType, 'custom'>, string> = {
 const MANY_EXTRAS = 3;
 /** What "+ Add question" adds to the extra questions, as in the prototype. */
 const NEW_EXTRA: QuestionInput = { kind: 'single_choice', prompt: '', options: ['Option 1', 'Option 2'], required: false };
-const SAVE_ERROR = 'We couldn’t save your draft. Please try again.';
+const DRAFT_SAVE_ERROR = 'We couldn’t save your draft. Please try again.';
 
 type FieldErrors = { title?: string; thank_you?: string };
 
@@ -53,8 +53,8 @@ function useSavedText(saved: string) {
   return [text, setText] as const;
 }
 
-function ReasonChip({ text: saved, index, onlyOne, busy, onSave, onRemove }: {
-  text: string; index: number; onlyOne: boolean; busy: boolean;
+function ReasonChip({ text: saved, index, onlyOne, onSave, onRemove }: {
+  text: string; index: number; onlyOne: boolean;
   onSave: (text: string) => void; onRemove: () => void;
 }) {
   const [text, setText] = useSavedText(saved);
@@ -71,16 +71,18 @@ function ReasonChip({ text: saved, index, onlyOne, busy, onSave, onRemove }: {
           else if (text.trim() !== saved) onSave(text.trim());
         }}
       />
-      <button type="button" className="chip-remove" aria-label={`Remove reason ${index + 1}`} disabled={busy || onlyOne} onClick={onRemove}>
+      <button type="button" className="chip-remove" aria-label={`Remove reason ${index + 1}`} disabled={onlyOne} onClick={onRemove}>
         ×
       </button>
     </span>
   );
 }
 
-function ExtraQuestion({ question, number, busy, onSave, onDelete }: {
+function ExtraQuestion({ question, number, busy, onSave, onChangeOptions, onDelete }: {
   question: Question; number: number; busy: boolean;
-  onSave: (changes: Partial<QuestionInput>) => void; onDelete: () => void;
+  onSave: (changes: Partial<QuestionInput>) => void;
+  onChangeOptions: (change: (options: string[]) => string[]) => void;
+  onDelete: () => void;
 }) {
   const [text, setText] = useSavedText(question.prompt);
   const name = `Extra question ${number}`;
@@ -93,7 +95,7 @@ function ExtraQuestion({ question, number, busy, onSave, onDelete }: {
           maxLength={500}
           value={text}
           onChange={(event) => setText(event.target.value)}
-          onBlur={() => { if (text.trim() !== question.prompt) onSave({ prompt: text }); }}
+          onBlur={() => { if (text.trim() !== question.prompt) onSave({ prompt: text.trim() }); }}
         />
         <Select
           label="Answer type"
@@ -106,7 +108,7 @@ function ExtraQuestion({ question, number, busy, onSave, onDelete }: {
           }}
         />
       </div>
-      <AnswerTypeControls question={question} number={number} name={name} busy={busy} onSaveOptions={(options) => onSave({ options })} />
+      <AnswerTypeControls question={question} number={number} name={name} onChangeOptions={onChangeOptions} />
       <div className="question-actions">
         <Checkbox label="Required" checked={question.required} disabled={busy} onChange={() => onSave({ required: !question.required })} />
         <Button variant="ghost" size="sm" aria-label={`Delete extra question ${number}`} disabled={busy} onClick={onDelete}>
@@ -121,7 +123,7 @@ function ExtraQuestion({ question, number, busy, onSave, onDelete }: {
 export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: (survey: Survey) => void }) {
   const toast = useToast();
   const type = survey.type as Exclude<SurveyType, 'custom'>;
-  const { questions, setQuestions, loadError, retry, busy, save, update } = useSavedQuestions(survey.id);
+  const { questions, setQuestions, loadError, retry, busy, save, update, updateOptions } = useSavedQuestions(survey.id);
   const [name, setName] = useState(survey.title);
   const [thanks, setThanks] = useState(survey.thank_you ?? '');
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -138,6 +140,10 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
   }, []);
 
   const all = questions ?? [];
+  // The main question is the first one, if it has the survey's scale. Older drafts
+  // may have none yet: then every question is shown as an extra question, typing
+  // the Question adds the main question first, and + Add reason puts the reasons
+  // first (they move to second when the main question is added).
   const main = all[0]?.kind === SCALE_KIND[type] ? all[0] : undefined;
   const reasons = all.find((q) => q !== main && q.kind === 'reasons');
   const extras = all.filter((q) => q !== main && q !== reasons);
@@ -155,10 +161,10 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
 
   function saveQuestionText() {
     if (main) {
-      if (questionText.trim() !== main.prompt) update(main, { prompt: questionText });
+      if (questionText.trim() !== main.prompt) update(main, { prompt: questionText.trim() });
     } else if (questionText.trim()) {
       // Older drafts may not have their main question yet.
-      insert({ kind: SCALE_KIND[type], prompt: questionText, options: [], required: true }, 0);
+      insert({ kind: SCALE_KIND[type], prompt: questionText.trim(), options: [], required: true }, 0);
     }
   }
 
@@ -190,7 +196,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
       if (!mounted.current) return;
       const fromApi = apiErrors(error);
       setErrors(fromApi);
-      if (!Object.keys(fromApi).length) setSaveError(SAVE_ERROR);
+      if (!Object.keys(fromApi).length) setSaveError(DRAFT_SAVE_ERROR);
     } finally {
       savingRef.current = false;
       if (mounted.current) setSaving(false);
@@ -250,17 +256,16 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
                         text={reason}
                         index={index}
                         onlyOne={options.length <= 1}
-                        busy={busy}
-                        onSave={(text) => update(reasons!, { options: options.map((o, i) => (i === index ? text : o)) })}
-                        onRemove={() => update(reasons!, { options: options.filter((_, i) => i !== index) })}
+                        onSave={(text) => updateOptions(reasons!.id, (current) => current.map((o, i) => (i === index ? text : o)))}
+                        onRemove={() => updateOptions(reasons!.id, (current) => current.filter((_, i) => i !== index))}
                       />
                     ))}
                     <button
                       type="button"
                       className="chip edit-add-reason"
-                      disabled={busy || (reasons?.options.length ?? 0) >= 20}
+                      disabled={reasons ? reasons.options.length >= 20 : busy}
                       onClick={() => reasons
-                        ? update(reasons, { options: [...reasons.options, newOptionText('reasons', reasons.options)] })
+                        ? updateOptions(reasons.id, (current) => [...current, newOptionText('reasons', current)])
                         : insert({ kind: 'reasons', prompt: '', options: ['New reason'], required: false }, main ? 1 : 0)}
                     >
                       + Add reason
@@ -277,6 +282,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
                       number={index + 1}
                       busy={busy}
                       onSave={(changes) => update(question, changes)}
+                      onChangeOptions={(change) => updateOptions(question.id, change)}
                       onDelete={() => save(async () => {
                         await api.deleteQuestion(survey.id, question.id);
                         setQuestions((list) => list && list.filter((q) => q.id !== question.id));

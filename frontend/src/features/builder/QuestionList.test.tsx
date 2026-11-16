@@ -292,3 +292,15 @@ test('switching from a scale to a choice type starts with Option 1', async () =>
   expect(await screen.findByRole('textbox', { name: 'Question 1, option 1' })).toHaveValue('Option 1');
   await waitFor(() => expect(saved[0]).toMatchObject({ kind: 'multiple_choice', options: ['Option 1'] }));
 });
+
+test('removing an option right after renaming another keeps both changes', async () => {
+  saved = [question(1, { kind: 'single_choice', options: ['Yes', 'No', 'Maybe'] })];
+  renderList();
+  const second = await screen.findByRole('textbox', { name: 'Question 1, option 2' });
+  fireEvent.change(second, { target: { value: 'Not really' } });
+  fireEvent.blur(second);
+  const remove = card(1).getByRole('button', { name: 'Remove option 3' });
+  expect(remove).toBeEnabled();
+  fireEvent.click(remove);
+  await waitFor(() => expect(saved[0].options).toEqual(['Yes', 'Not really']));
+});

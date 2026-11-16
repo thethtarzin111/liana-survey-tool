@@ -18,13 +18,14 @@ type CardProps = {
   inputRef: (input: HTMLInputElement | null) => void;
   onSavePrompt: (prompt: string) => void;
   onSave: (changes: Partial<QuestionInput>) => void;
+  onChangeOptions: (change: (options: string[]) => string[]) => void;
   onToggleRequired: () => void;
   onMove: (by: -1 | 1) => void;
   onDuplicate: () => void;
   onDelete: () => void;
 };
 
-function QuestionCard({ question, number, count, busy, inputRef, onSavePrompt, onSave, onToggleRequired, onMove, onDuplicate, onDelete }: CardProps) {
+function QuestionCard({ question, number, count, busy, inputRef, onSavePrompt, onSave, onChangeOptions, onToggleRequired, onMove, onDuplicate, onDelete }: CardProps) {
   const [text, setText] = useState(question.prompt);
   // Follow the saved text, e.g. after the server trims it or a reload.
   useEffect(() => setText(question.prompt), [question.prompt]);
@@ -56,7 +57,7 @@ function QuestionCard({ question, number, count, busy, inputRef, onSavePrompt, o
             }}
           />
         </div>
-        <AnswerTypeControls question={question} number={number} busy={busy} onSaveOptions={(options) => onSave({ options })} />
+        <AnswerTypeControls question={question} number={number} onChangeOptions={onChangeOptions} />
         <div className="question-actions">
           <Checkbox label="Required" checked={question.required} disabled={busy} onChange={onToggleRequired} />
           <Button variant="ghost" size="sm" aria-label={`Move question ${number} up`} disabled={busy || number === 1} onClick={() => onMove(-1)}>
@@ -79,7 +80,7 @@ function QuestionCard({ question, number, count, busy, inputRef, onSavePrompt, o
 
 /** The survey's questions. Every change is saved right away, one at a time, in order. */
 export function QuestionList({ surveyId }: { surveyId: string }) {
-  const { questions, setQuestions, loadError, retry, busy, save, replace, update } = useSavedQuestions(surveyId);
+  const { questions, setQuestions, loadError, retry, busy, save, replace, update, updateOptions } = useSavedQuestions(surveyId);
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const focusNext = useRef<string | null>(null);
 
@@ -115,6 +116,7 @@ export function QuestionList({ surveyId }: { surveyId: string }) {
           }}
           onSavePrompt={(prompt) => save(async () => replace(await api.updateQuestion(surveyId, question.id, { prompt })))}
           onSave={(changes) => update(question, changes)}
+          onChangeOptions={(change) => updateOptions(question.id, change)}
           onToggleRequired={() => update(question, { required: !question.required })}
           onMove={(by) => {
             const order = questions.map((q) => q.id);

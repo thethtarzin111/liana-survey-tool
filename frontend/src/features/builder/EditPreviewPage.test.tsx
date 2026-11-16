@@ -189,3 +189,16 @@ test('Cancel goes back to Create survey', async () => {
   fireEvent.click(await screen.findByRole('link', { name: 'Cancel' }));
   expect(screen.getByRole('heading', { name: 'Create survey' })).toBeInTheDocument();
 });
+
+test('removing a reason right after renaming another keeps both changes', async () => {
+  renderPage();
+  const second = await within(await screen.findByRole('group', { name: 'Reasons readers can pick (question 2)' })).findByRole('textbox', { name: 'Reason 2' });
+  fireEvent.change(second, { target: { value: 'Price' } });
+  // Clicking × moves focus out of the chip first, which saves the rename.
+  fireEvent.blur(second);
+  const remove = within(reasonsGroup()).getByRole('button', { name: 'Remove reason 1' });
+  expect(remove).toBeEnabled();
+  fireEvent.click(remove);
+  await waitFor(() => expect(questions[1].options).toEqual(['Price', 'Something else']));
+  expect(within(reasonsGroup()).getAllByRole('textbox').map((input) => (input as HTMLInputElement).value)).toEqual(['Price', 'Something else']);
+});
