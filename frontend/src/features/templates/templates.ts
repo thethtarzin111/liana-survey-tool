@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type SurveyType, type Template } from '../../api/client';
 import { useToast } from '../../components/ui';
@@ -23,13 +23,25 @@ export function templateParts(template: Template) {
   };
 }
 
-/** Creates a draft from a template and opens it. One request at a time. */
+/** A description as a sentence: adds a full stop unless it already ends with one. */
+export function sentence(text: string): string {
+  return /[.!?]$/.test(text.trim()) ? text.trim() : `${text.trim()}.`;
+}
+
+/** Creates a draft from a template and opens it. One request at a time.
+ *  If the user leaves the page meanwhile, the draft is still saved but they stay where they went. */
 export function useStartFromTemplate() {
   const navigate = useNavigate();
   const toast = useToast();
   const pending = useRef(false);
+  const mounted = useRef(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   async function start(template: Template) {
     if (pending.current) return;
@@ -38,9 +50,11 @@ export function useStartFromTemplate() {
     setError('');
     try {
       const survey = await api.useTemplate(template.id);
+      if (!mounted.current) return;
       toast('Draft saved');
       navigate(`/surveys/${encodeURIComponent(survey.id)}`);
     } catch {
+      if (!mounted.current) return;
       setError(USE_ERROR);
       toast(USE_ERROR);
       setStarting(false);

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, type Template } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Badge, Button, Card } from '../../components/ui';
-import { TYPE_LABEL, templateParts, useStartFromTemplate } from './templates';
+import { TYPE_LABEL, sentence, templateParts, useStartFromTemplate } from './templates';
 import './templates.css';
 
 /** The Templates page from the sidebar: one card per featured template. */
@@ -40,7 +40,7 @@ export function TemplatesPage() {
               <Card padded className="template-card">
                 <Badge tone="outline">{TYPE_LABEL[template.type]}</Badge>
                 <h2>{template.name}</h2>
-                <p>{template.description}.</p>
+                <p>{sentence(template.description)}</p>
                 <p><strong>Question:</strong> {templateParts(template).question}</p>
                 <Button
                   variant="primary"

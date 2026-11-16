@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Template } from '../../api/client';
 import { ToastProvider } from '../../components/ui';
 import { TemplatePickerPage } from '../builder/TemplatePickerPage';
 import { TemplatesPage } from './TemplatesPage';
+import { sentence } from './templates';
 
 function template(id: string, type: Template['type'], name: string, featured = true, extra: Partial<Template> = {}): Template {
   return {
@@ -49,7 +50,9 @@ function renderAt(path: string) {
     <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
         <Location />
+        <Link to="/elsewhere">Leave</Link>
         <Routes>
+          <Route path="/elsewhere" element={<h1>Elsewhere</h1>} />
           <Route path="/templates" element={<TemplatesPage />} />
           <Route path="/surveys/new/template" element={<TemplatePickerPage />} />
           <Route path="/surveys/:id" element={<h1>Edit survey</h1>} />
@@ -150,3 +153,25 @@ test('a failed load can be retried', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
   expect(await screen.findByRole('button', { name: /Member NPS/ })).toBeInTheDocument();
 });
+
+test('leaving while the draft is being created keeps the user where they went', async () => {
+  let finish: ((response: Response) => void) | undefined;
+  renderAt('/surveys/new/template?type=nps');
+  await screen.findByRole('button', { name: /Member NPS/ });
+  fetchMock.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to edit and preview' }));
+  fireEvent.click(screen.getByRole('link', { name: 'Leave' }));
+  await waitFor(() => expect(finish).toBeDefined());
+  finish!(Response.json({ id: 'late-survey' }, { status: 201 }));
+  await waitFor(() => expect(posts()).toHaveLength(1));
+  expect(screen.getByRole('heading', { name: 'Elsewhere' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Current location')).toHaveTextContent('/elsewhere');
+  expect(screen.queryByText('Draft saved')).not.toBeInTheDocument();
+});
+
+test('descriptions end with exactly one full stop', () => {
+  expect(sentence('One tap at the end of a newsletter')).toBe('One tap at the end of a newsletter.');
+  expect(sentence('Already a sentence.')).toBe('Already a sentence.');
+  expect(sentence('Really?')).toBe('Really?');
+});
+
