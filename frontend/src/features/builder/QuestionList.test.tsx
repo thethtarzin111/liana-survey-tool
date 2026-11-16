@@ -35,7 +35,10 @@ async function server(input: RequestInfo | URL, init?: RequestInit): Promise<Res
   const index = saved.findIndex((q) => q.id === id);
   if (index < 0) return Response.json({ detail: 'Question not found' }, { status: 404 });
   if (method === 'PATCH') {
-    saved[index] = { ...saved[index], ...body, ...(body.prompt !== undefined ? { prompt: body.prompt.trim() } : {}) };
+    const next = { ...saved[index], ...body, ...(body.prompt !== undefined ? { prompt: body.prompt.trim() } : {}) };
+    // Like the server: types without options lose them.
+    if (!['single_choice', 'multiple_choice', 'dropdown', 'reasons'].includes(next.kind)) next.options = [];
+    saved[index] = next;
     return Response.json(saved[index]);
   }
   if (method === 'DELETE') {
@@ -191,4 +194,101 @@ test('a failed load can be retried', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t load the questions.');
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
   expect(await screen.findByRole('textbox', { name: 'Question 1' })).toBeInTheDocument();
+});
+
+// --- Answer types (#31) ---------------------------------------------------------
+
+const card = (n: number) => within(screen.getByRole('group', { name: `Question ${n}` }));
+
+test('the Answer type dropdown lists the eight types and saves a change', async () => {
+  renderList();
+  await screen.findByRole('group', { name: 'Question 1' });
+  const select = card(1).getByRole('combobox', { name: 'Answer type' }) as HTMLSelectElement;
+  expect([...select.options].map((o) => o.textContent)).toEqual([
+    'Multiple choice', 'Checkboxes', 'Dropdown', 'Short answer', 'Paragraph',
+    'Rating 1–5 (CSAT)', 'NPS 0–10', 'Reason bubbles',
+  ]);
+  expect(select).toHaveValue('text');
+  expect(card(1).getByText('Short answer text')).toBeInTheDocument();
+
+  fireEvent.change(select, { target: { value: 'long_text' } });
+  expect(await card(1).findByText('Long answer text')).toBeInTheDocument();
+  await waitFor(() => expect(saved[0].kind).toBe('long_text'));
+  expect(JSON.parse(String(calls('PATCH')[0][1]?.body))).toEqual({ kind: 'long_text' });
+});
+
+test('choice types show their options with + Add option and remove buttons', async () => {
+  saved = [question(1, { kind: 'single_choice', options: ['Yes', 'No'] })];
+  renderList();
+  await screen.findByRole('group', { name: 'Question 1' });
+  const first = await screen.findByRole('textbox', { name: 'Question 1, option 1' });
+  expect(first).toHaveValue('Yes');
+
+  fireEvent.click(card(1).getByRole('button', { name: '+ Add option' }));
+  expect(await screen.findByRole('textbox', { name: 'Question 1, option 3' })).toHaveValue('Option 3');
+  await waitFor(() => expect(saved[0].options).toEqual(['Yes', 'No', 'Option 3']));
+
+  fireEvent.click(card(1).getByRole('button', { name: 'Remove option 1' }));
+  await waitFor(() => expect(saved[0].options).toEqual(['No', 'Option 3']));
+  expect(screen.getByRole('textbox', { name: 'Question 1, option 1' })).toHaveValue('No');
+});
+
+test('option text is saved when leaving the field, and an emptied option goes back', async () => {
+  saved = [question(1, { kind: 'dropdown', options: ['Yes', 'No'] })];
+  renderList();
+  await screen.findByRole('group', { name: 'Question 1' });
+  const option = await screen.findByRole('textbox', { name: 'Question 1, option 2' });
+  fireEvent.change(option, { target: { value: '  Not really ' } });
+  fireEvent.blur(option);
+  await waitFor(() => expect(saved[0].options).toEqual(['Yes', 'Not really']));
+
+  fireEvent.change(option, { target: { value: '   ' } });
+  fireEvent.blur(option);
+  expect(option).toHaveValue('Not really');
+  expect(calls('PATCH')).toHaveLength(1);
+});
+
+test('the last option cannot be removed', async () => {
+  saved = [question(1, { kind: 'multiple_choice', options: ['Only one'] })];
+  renderList();
+  await screen.findByRole('group', { name: 'Question 1' });
+  expect(await screen.findByRole('button', { name: 'Remove option 1' })).toBeDisabled();
+});
+
+test('Reason bubbles get common reasons, + Add reason and their hint', async () => {
+  saved = [question(1, { kind: 'single_choice', options: ['Option 1', 'Option 2'] })];
+  renderList();
+  await screen.findByRole('group', { name: 'Question 1' });
+  fireEvent.change(await card(1).findByRole('combobox', { name: 'Answer type' }), { target: { value: 'reasons' } });
+  await waitFor(() => expect(saved[0].options).toEqual(['Price', 'Quality', 'Customer service', 'Something else']));
+  expect(card(1).getByRole('button', { name: '+ Add reason' })).toBeInTheDocument();
+  expect(card(1).getByText('Respondents tap one or more bubbles. Each bubble becomes a category in Top reasons.')).toBeInTheDocument();
+});
+
+test('NPS shows the fixed scale and fills in the standard question', async () => {
+  saved = [question(1, { prompt: '' })];
+  renderList();
+  await screen.findByRole('group', { name: 'Question 1' });
+  fireEvent.change(await card(1).findByRole('combobox', { name: 'Answer type' }), { target: { value: 'nps' } });
+  await waitFor(() => expect(saved[0].prompt).toBe('How likely are you to recommend us to a friend or colleague?'));
+  expect(screen.getByRole('textbox', { name: 'Question 1' })).toHaveValue('How likely are you to recommend us to a friend or colleague?');
+  expect(card(1).getByText(/^Standard NPS scale: 0 Not at all likely to 10 Extremely likely\./)).toBeInTheDocument();
+  expect(card(1).getByText('10')).toBeInTheDocument();
+});
+
+test('CSAT rating shows the 1–5 scale and its hint', async () => {
+  saved = [question(1, { kind: 'rating' })];
+  renderList();
+  await screen.findByRole('group', { name: 'Question 1' });
+  expect(await card(1).findByText('Standard CSAT scale: 1 Very dissatisfied to 5 Very satisfied. Score = % of 4–5 answers.')).toBeInTheDocument();
+  expect(card(1).queryByRole('button', { name: '+ Add option' })).not.toBeInTheDocument();
+});
+
+test('switching from a scale to a choice type starts with Option 1', async () => {
+  saved = [question(1, { kind: 'rating' })];
+  renderList();
+  await screen.findByRole('group', { name: 'Question 1' });
+  fireEvent.change(await card(1).findByRole('combobox', { name: 'Answer type' }), { target: { value: 'multiple_choice' } });
+  expect(await screen.findByRole('textbox', { name: 'Question 1, option 1' })).toHaveValue('Option 1');
+  await waitFor(() => expect(saved[0]).toMatchObject({ kind: 'multiple_choice', options: ['Option 1'] }));
 });

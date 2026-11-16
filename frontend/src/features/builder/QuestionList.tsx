@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Question, type QuestionInput } from '../../api/client';
-import { Button, Card, Checkbox, TextField, useToast } from '../../components/ui';
+import { Button, Card, Checkbox, Select, TextField, useToast } from '../../components/ui';
+import { AnswerTypeControls } from './AnswerTypeControls';
+import { ANSWER_TYPES, changesForType } from './answerTypes';
 
 // Texts follow the prototype's "Build your survey" screen.
 const SAVE_ERROR = 'We couldn’t save your question. Please try again.';
@@ -15,13 +17,14 @@ type CardProps = {
   busy: boolean;
   inputRef: (input: HTMLInputElement | null) => void;
   onSavePrompt: (prompt: string) => void;
+  onSave: (changes: Partial<QuestionInput>) => void;
   onToggleRequired: () => void;
   onMove: (by: -1 | 1) => void;
   onDuplicate: () => void;
   onDelete: () => void;
 };
 
-function QuestionCard({ question, number, count, busy, inputRef, onSavePrompt, onToggleRequired, onMove, onDuplicate, onDelete }: CardProps) {
+function QuestionCard({ question, number, count, busy, inputRef, onSavePrompt, onSave, onToggleRequired, onMove, onDuplicate, onDelete }: CardProps) {
   const [text, setText] = useState(question.prompt);
   // Follow the saved text, e.g. after the server trims it or a reload.
   useEffect(() => setText(question.prompt), [question.prompt]);
@@ -29,17 +32,31 @@ function QuestionCard({ question, number, count, busy, inputRef, onSavePrompt, o
   return (
     <Card padded className="question-card">
       <div role="group" aria-label={`Question ${number}`} className="question-card-body">
-        <TextField
-          ref={inputRef}
-          label={`Question ${number}`}
-          placeholder="Untitled question"
-          maxLength={500}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          onBlur={() => {
-            if (text.trim() !== question.prompt) onSavePrompt(text);
-          }}
-        />
+        <div className="question-card-head">
+          <TextField
+            ref={inputRef}
+            label={`Question ${number}`}
+            placeholder="Untitled question"
+            maxLength={500}
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            onBlur={() => {
+              if (text.trim() !== question.prompt) onSavePrompt(text);
+            }}
+          />
+          <Select
+            label="Answer type"
+            className="question-type-select"
+            options={ANSWER_TYPES}
+            value={question.kind}
+            disabled={busy}
+            onChange={(event) => {
+              const kind = event.target.value as Question['kind'];
+              if (kind !== question.kind) onSave(changesForType({ ...question, prompt: text }, kind));
+            }}
+          />
+        </div>
+        <AnswerTypeControls question={question} number={number} busy={busy} onSaveOptions={(options) => onSave({ options })} />
         <div className="question-actions">
           <Checkbox label="Required" checked={question.required} disabled={busy} onChange={onToggleRequired} />
           <Button variant="ghost" size="sm" aria-label={`Move question ${number} up`} disabled={busy || number === 1} onClick={() => onMove(-1)}>
@@ -140,6 +157,10 @@ export function QuestionList({ surveyId }: { surveyId: string }) {
             else inputs.current.delete(question.id);
           }}
           onSavePrompt={(prompt) => save(async () => replace(await api.updateQuestion(surveyId, question.id, { prompt })))}
+          onSave={(changes) => {
+            replace({ ...question, ...changes });
+            save(async () => replace(await api.updateQuestion(surveyId, question.id, changes)));
+          }}
           onToggleRequired={() => {
             const required = !question.required;
             replace({ ...question, required });
