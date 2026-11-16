@@ -5,7 +5,14 @@ from enum import StrEnum
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    StrictBool,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 DEFAULT_TITLE = "Untitled survey"
 
@@ -59,6 +66,10 @@ class SurveyUpdate(BaseModel):
     description: Description | None = None
     thank_you: ThankYou | None = None
     type: SurveyType | None = None
+    # Reader options (true or false only, not "yes" or 1).
+    comment_field: StrictBool | None = None
+    show_results: StrictBool | None = None
+    contact_opt_in: StrictBool | None = None
 
     @field_validator("description", "thank_you", mode="before")
     @classmethod
@@ -85,6 +96,10 @@ class Survey(BaseModel):
     type: SurveyType
     status: SurveyStatus
     anonymous: bool
+    #: Reader options: "Tell us more" field, results after answering, contact opt-in.
+    comment_field: bool
+    show_results: bool
+    contact_opt_in: bool
     language: str
     opens_at: datetime | None
     closes_at: datetime | None
