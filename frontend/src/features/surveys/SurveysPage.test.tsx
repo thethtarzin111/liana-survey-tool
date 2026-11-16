@@ -5,7 +5,7 @@ import { Sidebar } from '../../app/Sidebar';
 import { ToastProvider } from '../../components/ui';
 import { SurveysPage } from './SurveysPage';
 
-const base = { description: null, thank_you: null, opens_at: null, answers: 0 } as const;
+const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, opens_at: null, answers: 0 } as const;
 const live: SurveyListItem = { ...base, id: 'live-1', title: 'Member NPS 2026', type: 'nps', status: 'live', answers: 132 };
 const draft: SurveyListItem = { ...base, id: 'draft-1', title: 'Course feedback', type: 'csat', status: 'draft' };
 const scheduled: SurveyListItem = {

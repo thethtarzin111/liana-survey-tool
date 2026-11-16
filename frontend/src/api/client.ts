@@ -46,7 +46,7 @@ export const api = {
   },
   updateSurvey: async (
     id: string,
-    changes: Partial<Pick<Survey, 'title' | 'description' | 'thank_you'>>,
+    changes: Partial<Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions>>,
   ): Promise<Survey> => {
     const res = await fetch(`/api/v1/surveys/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -142,6 +142,16 @@ export type Survey = {
   thank_you: string | null;
   type: SurveyType;
   status: SurveyStatus;
+} & ReaderOptions;
+
+/** Reader options from "Edit and preview". All on by default. */
+export type ReaderOptions = {
+  /** Optional "Tell us more" field after any answer. */
+  comment_field: boolean;
+  /** Readers see the results after answering. */
+  show_results: boolean;
+  /** "Contact me about this by email" opt-in. */
+  contact_opt_in: boolean;
 };
 
 export type SurveyListItem = Survey & {

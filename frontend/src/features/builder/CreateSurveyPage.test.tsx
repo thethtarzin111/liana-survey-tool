@@ -6,7 +6,7 @@ import { BuilderPage } from './BuilderPage';
 import { CreateSurveyPage } from './CreateSurveyPage';
 
 const draft: Survey = {
-  id: 'saved-survey', title: 'Untitled survey', description: null, thank_you: null, type: 'custom', status: 'draft',
+  id: 'saved-survey', title: 'Untitled survey', description: null, thank_you: null, type: 'custom', status: 'draft', comment_field: true, show_results: true, contact_opt_in: true,
 };
 const fetchMock = vi.fn<typeof fetch>();
 

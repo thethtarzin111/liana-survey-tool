@@ -9,6 +9,7 @@ const saved: Survey = {
   title: 'Member survey',
   description: "Members' view of 2026",
   thank_you: null,
+  comment_field: true, show_results: true, contact_opt_in: true,
   type: 'custom',
   status: 'draft',
 };

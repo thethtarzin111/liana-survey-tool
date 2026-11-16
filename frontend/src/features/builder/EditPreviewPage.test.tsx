@@ -52,7 +52,7 @@ async function server(input: RequestInfo | URL, init?: RequestInit): Promise<Res
 }
 
 beforeEach(() => {
-  survey = { id: 's1', title: 'Member NPS', description: null, thank_you: 'Thank you. This takes our member work forward.', type: 'nps', status: 'draft' };
+  survey = { id: 's1', title: 'Member NPS', description: null, thank_you: 'Thank you. This takes our member work forward.', type: 'nps', status: 'draft', comment_field: true, show_results: true, contact_opt_in: true };
   questions = [
     q('main', 'nps', 'How likely are you to recommend Example Members Association?'),
     q('reasons', 'reasons', '', ['Events and activities', 'Membership fee', 'Something else'], false),
@@ -201,4 +201,33 @@ test('removing a reason right after renaming another keeps both changes', async 
   fireEvent.click(remove);
   await waitFor(() => expect(questions[1].options).toEqual(['Price', 'Something else']));
   expect(within(reasonsGroup()).getAllByRole('textbox').map((input) => (input as HTMLInputElement).value)).toEqual(['Price', 'Something else']);
+});
+
+test('reader options show their tips and are saved with Save as draft', async () => {
+  renderPage();
+  const group = await screen.findByRole('group', { name: 'Reader options' });
+  const boxes = within(group).getAllByRole('checkbox');
+  expect(boxes.map((box) => box.closest('label')?.textContent)).toEqual([
+    'Optional comment field', 'Show results to readers', '"Contact me about this by email" opt-in',
+  ]);
+  for (const box of boxes) expect(box).toBeChecked();
+  expect(within(group).getByText('Appears after about 10 answers')).toBeInTheDocument();
+  expect(within(group).getByRole('button', { name: /^About: "Contact me about this by email" opt-in\. Answers stay anonymous/ })).toBeInTheDocument();
+
+  fireEvent.click(within(group).getByLabelText('Show results to readers'));
+  fireEvent.click(within(group).getByLabelText('"Contact me about this by email" opt-in'));
+  expect(patches(SURVEY_URL)).toHaveLength(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Save as draft' }));
+  expect(await screen.findByText('Saved as draft')).toBeInTheDocument();
+  expect(JSON.parse(String(patches(SURVEY_URL)[0][1]?.body))).toEqual({ show_results: false, contact_opt_in: false });
+  expect(survey).toMatchObject({ comment_field: true, show_results: false, contact_opt_in: false });
+});
+
+test('saved reader options are shown when the survey opens', async () => {
+  survey = { ...survey, comment_field: false, show_results: true, contact_opt_in: false };
+  renderPage();
+  const group = await screen.findByRole('group', { name: 'Reader options' });
+  expect(within(group).getByLabelText('Optional comment field')).not.toBeChecked();
+  expect(within(group).getByLabelText('Show results to readers')).toBeChecked();
+  expect(within(group).getByLabelText('"Contact me about this by email" opt-in')).not.toBeChecked();
 });
