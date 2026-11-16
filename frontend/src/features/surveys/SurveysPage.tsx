@@ -230,14 +230,16 @@ export function SurveysPage() {
       <PageHeader
         title="Surveys"
         description={organisation ? `All surveys for ${organisation}.` : undefined}
-        actions={<ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>}
       />
-      <div className="survey-filters" role="group" aria-label="Filter by status">
-        {FILTERS.map((f) => (
-          <ToggleChip key={f.label} selected={status === f.status} onChange={() => setFilter({ status: f.status })}>
-            {f.label}
-          </ToggleChip>
-        ))}
+      <div className="survey-toolbar">
+        <div className="survey-filters" role="group" aria-label="Filter by status">
+          {FILTERS.map((f) => (
+            <ToggleChip key={f.label} selected={status === f.status} onChange={() => setFilter({ status: f.status })}>
+              {f.label}
+            </ToggleChip>
+          ))}
+        </div>
+        <ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>
       </div>
       {q ? (
         <p className="survey-search-note">
