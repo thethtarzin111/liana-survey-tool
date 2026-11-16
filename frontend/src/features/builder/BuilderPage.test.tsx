@@ -15,7 +15,9 @@ const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
   fetchMock.mockReset().mockResolvedValue(Response.json(saved));
-  vi.stubGlobal('fetch', fetchMock);
+  // The question list has its own tests (QuestionList.test.tsx); here it just loads empty.
+  vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) =>
+    String(input).includes('/questions') ? Promise.resolve(Response.json([])) : fetchMock(input, init));
 });
 afterEach(() => vi.unstubAllGlobals());
 

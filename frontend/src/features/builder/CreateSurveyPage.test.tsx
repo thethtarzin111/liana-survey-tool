@@ -16,7 +16,9 @@ beforeEach(() => {
     if (init?.method === 'POST') saved = { ...draft, ...JSON.parse(init.body as string) };
     return Response.json(saved);
   });
-  vi.stubGlobal('fetch', fetchMock);
+  // The question list has its own tests (QuestionList.test.tsx); here it just loads empty.
+  vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) =>
+    String(input).includes('/questions') ? Promise.resolve(Response.json([])) : fetchMock(input, init));
 });
 afterEach(() => vi.unstubAllGlobals());
 

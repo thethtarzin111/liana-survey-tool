@@ -69,13 +69,59 @@ export const api = {
   changeSurveyStatus: (id: string, action: 'close' | 'unpublish') =>
     send<Survey>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/${action}`),
   deleteSurvey: (id: string) => send<void>('DELETE', `/api/v1/surveys/${encodeURIComponent(id)}`),
+
+  questions: (surveyId: string) => getJson<Question[]>(questionsPath(surveyId)),
+  addQuestion: (surveyId: string, question: QuestionInput) =>
+    send<Question>('POST', questionsPath(surveyId), question),
+  updateQuestion: (surveyId: string, questionId: string, changes: Partial<QuestionInput>) =>
+    send<Question>('PATCH', questionsPath(surveyId, questionId), changes),
+  deleteQuestion: (surveyId: string, questionId: string) =>
+    send<void>('DELETE', questionsPath(surveyId, questionId)),
+  duplicateQuestion: (surveyId: string, questionId: string) =>
+    send<Question>('POST', `${questionsPath(surveyId, questionId)}/duplicate`),
+  reorderQuestions: (surveyId: string, questionIds: string[]) =>
+    send<Question[]>('PUT', `${questionsPath(surveyId)}/order`, { question_ids: questionIds }),
 };
 
-async function send<T>(method: string, path: string): Promise<T> {
-  const res = await fetch(path, { method, headers: { Accept: 'application/json' } });
+function questionsPath(surveyId: string, questionId?: string) {
+  const base = `/api/v1/surveys/${encodeURIComponent(surveyId)}/questions`;
+  return questionId ? `${base}/${encodeURIComponent(questionId)}` : base;
+}
+
+async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    headers: body === undefined
+      ? { Accept: 'application/json' }
+      : { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
   if (!res.ok) throw new ApiError(res.status, await responseBody(res), `${res.status} ${res.statusText} for ${path}`);
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
+
+/** Answer types (see docs/api/openapi.yaml, QuestionKind). */
+export type QuestionKind =
+  | 'single_choice'
+  | 'multiple_choice'
+  | 'dropdown'
+  | 'text'
+  | 'long_text'
+  | 'rating'
+  | 'nps'
+  | 'reasons';
+
+export type Question = {
+  id: string;
+  survey_id: string;
+  position: number;
+  kind: QuestionKind;
+  prompt: string;
+  options: string[];
+  required: boolean;
+};
+
+export type QuestionInput = Pick<Question, 'kind' | 'prompt' | 'options' | 'required'>;
 
 export type SurveyType = 'thumbs' | 'nps' | 'csat' | 'custom';
 
