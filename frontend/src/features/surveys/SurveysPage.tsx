@@ -6,6 +6,7 @@ import {
   ActionMenu,
   Button,
   ButtonLink,
+  Card,
   ConfirmDialog,
   EmptyState,
   SurveyStatusBadge,
@@ -210,14 +211,17 @@ export function SurveysPage() {
       />
     );
   } else {
+    // On a white card with rounded corners, as in the prototype.
     body = (
-      <Table
-        caption="Surveys"
-        columns={columns}
-        rows={surveys}
-        rowKey={(s) => s.id}
-        empty="No surveys match. Try another filter or search."
-      />
+      <Card className="surveys-table-card">
+        <Table
+          caption="Surveys"
+          columns={columns}
+          rows={surveys}
+          rowKey={(s) => s.id}
+          empty="No surveys match. Try another filter or search."
+        />
+      </Card>
     );
   }
 
