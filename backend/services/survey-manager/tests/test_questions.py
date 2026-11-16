@@ -168,7 +168,7 @@ def test_duplicate_is_inserted_after_the_source_and_order_can_be_changed(client)
         options=["Yes", "No"],
         required=False,
     )
-    second = add_question(client, survey_id, "Second", kind="rating", options=[1, 2, 3, 4, 5])
+    second = add_question(client, survey_id, "Second", kind="rating")  # fixed 1-5 scale
 
     duplicated = client.post(f"/api/v1/surveys/{survey_id}/questions/{first['id']}/duplicate")
     assert duplicated.status_code == 201

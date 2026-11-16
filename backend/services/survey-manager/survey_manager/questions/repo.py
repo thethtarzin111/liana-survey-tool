@@ -26,6 +26,13 @@ def list_all(conn: psycopg.Connection, survey_id: UUID) -> list[dict[str, Any]]:
     ).fetchall()
 
 
+def get(conn: psycopg.Connection, survey_id: UUID, question_id: UUID) -> dict[str, Any] | None:
+    return conn.execute(
+        f"select {COLUMNS} from questions where survey_id = %s and id = %s",
+        (survey_id, question_id),
+    ).fetchone()
+
+
 def create(
     conn: psycopg.Connection, tenant_id: UUID, survey_id: UUID, data: QuestionCreate
 ) -> dict[str, Any]:

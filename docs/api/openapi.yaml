@@ -191,7 +191,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Question' }
         '404': { description: No such survey in this organisation }
-        '422': { description: Invalid question }
+        '422': { description: Invalid question, or options that do not fit its type }
   /api/v1/surveys/{survey_id}/questions/order:
     parameters:
       - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -231,7 +231,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Question' }
         '404': { description: No such survey or question in this organisation }
-        '422': { description: Invalid question }
+        '422': { description: Invalid question, or options that do not fit its type }
     delete:
       tags: [questions]
       summary: Delete a question and close the position gap
@@ -311,29 +311,40 @@ components:
             answers: { type: integer, minimum: 0, description: Submitted responses so far }
     QuestionKind:
       type: string
-      enum: [nps, rating, single_choice, multiple_choice, text]
+      enum: [single_choice, multiple_choice, dropdown, text, long_text, rating, nps, reasons]
+      description: >-
+        The prototype's answer types. single_choice = Multiple choice (pick one),
+        multiple_choice = Checkboxes, dropdown = Dropdown, text = Short answer (answers up
+        to 500 characters), long_text = Paragraph (up to 5000), rating = Rating 1-5 (CSAT),
+        nps = NPS 0-10, reasons = Reason bubbles (pick any; each becomes a Top reasons
+        category). Rating and NPS scales are fixed.
     QuestionOptions:
       type: array
-      items:
-        oneOf:
-          - { type: string }
-          - { type: integer }
-          - { type: number }
+      maxItems: 20
+      items: { type: string, minLength: 1, maxLength: 200 }
+      description: >-
+        Choice types (single_choice, multiple_choice, dropdown, reasons) need 1-20
+        distinct options (spaces trimmed, case-insensitive duplicates rejected).
+        Every other type has none.
     QuestionCreate:
       type: object
       additionalProperties: false
       required: [kind]
       properties:
         kind: { $ref: '#/components/schemas/QuestionKind' }
-        prompt: { type: string, default: '' }
+        prompt: { type: string, maxLength: 500, default: '', description: Trimmed }
         options: { $ref: '#/components/schemas/QuestionOptions' }
         required: { type: boolean, default: true }
     QuestionUpdate:
       type: object
       additionalProperties: false
+      description: >-
+        Fields left out stay the same; an empty body changes nothing. The type and options
+        must fit together after the edit. Options left out are kept, except that switching
+        to a type without options clears them.
       properties:
         kind: { $ref: '#/components/schemas/QuestionKind' }
-        prompt: { type: string }
+        prompt: { type: string, maxLength: 500, description: Trimmed }
         options: { $ref: '#/components/schemas/QuestionOptions' }
         required: { type: boolean }
     QuestionOrder:
