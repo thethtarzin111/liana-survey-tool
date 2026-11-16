@@ -16,9 +16,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from liana_survey_shared.db import ping
-from survey_api.auth.dev_stub import CurrentUser, current_user
-from survey_api.db import tenant_db
-from survey_api.main import app
+from liana_survey_shared.web.auth import CurrentUser, current_user
+from liana_survey_shared.web.db import tenant_db
+from survey_manager.main import app
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
 OTHER_TENANT = UUID("00000000-0000-4000-8000-0000000000ff")
@@ -73,6 +73,9 @@ def test_update_rejects_blank_title_and_unknown_fields(no_db):
     url = f"/api/v1/surveys/{uuid4()}"
     assert no_db.patch(url, json={"title": ""}).status_code == 422
     assert no_db.patch(url, json={"status": "live"}).status_code == 422
+    # Explicit null would otherwise be a silent no-op with 200.
+    assert no_db.patch(url, json={"title": None}).status_code == 422
+    assert no_db.patch(url, json={"type": None}).status_code == 422
 
 
 def test_bad_survey_id_is_422(no_db):
@@ -156,3 +159,16 @@ def test_other_tenant_cannot_see_or_change_a_survey(client):
     # Back as the demo tenant: unchanged.
     app.dependency_overrides.clear()
     assert client.get(url).json()["title"] == "Members only"
+
+
+@pytest.mark.db
+@needs_db
+def test_created_survey_is_committed_when_the_response_arrives(client):
+    """Regression: the commit must happen before the response is sent, so a
+    client that opens the survey right after creating it never gets 404."""
+    from liana_survey_shared.db import tenant_connection
+
+    created = client.post("/api/v1/surveys", json={"type": "nps", "title": "Committed"}).json()
+    with tenant_connection(DEMO_TENANT) as conn:
+        row = conn.execute("select title from surveys where id = %s", (created["id"],)).fetchone()
+    assert row is not None and row[0] == "Committed"

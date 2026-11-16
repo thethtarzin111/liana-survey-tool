@@ -6,8 +6,14 @@ info:
     The contract between the admin app and the backend. Update it in the same
     pull request as any endpoint change. FastAPI also serves its generated
     version at /openapi.json; this file is the reviewed, hand-kept contract.
+    All calls go through the API gateway (services/gateway), which routes them:
+    /api/v1/me is answered by the gateway itself (dev auth), /api/v1/surveys
+    and /api/v1/templates by survey-manager, /api/v1/results by data-analyzer,
+    and /r/<token> by the respondent service. The service of each path is in
+    its tag. /health and /health/ready also exist on every service.
 servers:
   - url: http://localhost:8000
+    description: API gateway (docker compose)
 paths:
   /health:
     get:
@@ -32,14 +38,13 @@ paths:
   /api/v1/me:
     get:
       tags: [auth]
-      summary: The signed-in user (demo user in dev mode)
+      summary: The signed-in user (demo user in dev mode). Answered by the gateway.
       responses:
         '200':
           description: Current user
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CurrentUser' }
-        '501': { description: AUTH_MODE is not dev and real auth is not built }
   /api/v1/surveys:
     get:
       tags: [surveys]
@@ -81,6 +86,7 @@ paths:
     patch:
       tags: [surveys]
       summary: Change the title or type; omitted fields stay the same
+      description: Leave out fields that should not change. Sending a field as null is a 422.
       requestBody:
         required: true
         content:

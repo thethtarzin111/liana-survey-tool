@@ -7,4 +7,4 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 ignore = ["B008"]
 
 [lint.isort]
-known-first-party = ["liana_survey_shared", "survey_api", "survey_worker", "liana_connector"]
+known-first-party = ["liana_survey_shared", "survey_manager", "respondent_service", "data_analyzer", "survey_worker", "liana_connector"]

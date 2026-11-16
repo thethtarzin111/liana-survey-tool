@@ -1,6 +1,12 @@
 # Runs the whole system locally: docker compose up --build
-# Admin app: http://localhost:4200   API docs: http://localhost:8000/docs
-# RabbitMQ console: http://localhost:15672
+# Architecture: docs/architecture.md (the mid-term report's Figure 1).
+#   Admin app        http://localhost:4200
+#   API gateway      http://localhost:8000   (the only entry point)
+#   Service API docs http://localhost:8001/docs (survey-manager),
+#                    :8002/docs (respondent), :8003/docs (data-analyzer)
+#                    Dev only: the services are published so their Swagger
+#                    pages open; in production only the gateway is reachable.
+#   RabbitMQ console http://localhost:15672
 
 x-python-env: &python-env
   DATABASE_URL: postgresql://${APP_DB_USER}:${APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -65,12 +71,53 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
 
-  api:
-    build: { context: ., dockerfile: services/api/Dockerfile }
-    environment: *python-env
+  # API gateway: routing, auth (dev: demo user), rate limiting.
+  gateway:
+    build: { context: services/gateway }
+    environment:
+      DEV_TENANT_ID: ${DEV_TENANT_ID}
+      DEV_TENANT_NAME: ${DEV_TENANT_NAME}
+      DEV_USER_ID: ${DEV_USER_ID}
+      DEV_USER_NAME: ${DEV_USER_NAME}
+      DEV_USER_EMAIL: ${DEV_USER_EMAIL}
     ports: ["8000:8000"]
     depends_on:
+      survey-manager: { condition: service_healthy }
+      respondent: { condition: service_healthy }
+      data-analyzer: { condition: service_healthy }
+
+  # Surveys, questions, templates, publishing and links.
+  survey-manager:
+    build: { context: ., dockerfile: services/survey-manager/Dockerfile }
+    environment: *python-env
+    ports: ["8001:8000"]
+    depends_on:
       seed: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 5s
+      retries: 20
+
+  # Public answer path: verify link, queue the answer, thank-you page.
+  respondent:
+    build: { context: ., dockerfile: services/respondent/Dockerfile }
+    environment: *python-env
+    ports: ["8002:8000"]
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 5s
+      retries: 20
+
+  # Results (NPS/CSAT); sends identified answers and contact requests to the integration queue.
+  data-analyzer:
+    build: { context: ., dockerfile: services/data-analyzer/Dockerfile }
+    environment: *python-env
+    ports: ["8003:8000"]
+    depends_on:
+      seed: { condition: service_completed_successfully }
+      rabbitmq: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
       interval: 5s
@@ -100,7 +147,7 @@ services:
     build: { context: apps/admin-web }
     ports: ["4200:80"]
     depends_on:
-      api: { condition: service_healthy }
+      gateway: { condition: service_healthy }
 
 volumes:
   pgdata:

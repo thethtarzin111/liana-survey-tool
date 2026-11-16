@@ -1,7 +1,8 @@
 # CI only calls these targets, so the pipeline is easy to move to GitLab CI.
 # On Windows, run them from Git Bash or WSL (or copy the commands).
 
-PY_DIRS := packages/shared-py services/api services/worker services/liana-connector
+PY_DIRS := packages/shared-py services/survey-manager services/respondent services/data-analyzer \
+           services/worker services/liana-connector
 PIP     ?= python -m pip
 
 .PHONY: install install-py install-web lint lint-py lint-web test test-py test-web \
@@ -10,8 +11,9 @@ PIP     ?= python -m pip
 install: install-py install-web
 
 install-py:
-	$(PIP) install -e packages/shared-py
-	$(PIP) install -e "services/api[dev]" -e "services/worker[dev]" -e "services/liana-connector[dev]"
+	$(PIP) install -e "packages/shared-py[dev,web]"
+	$(PIP) install -e "services/survey-manager[dev]" -e "services/respondent[dev]" -e "services/data-analyzer[dev]" \
+	  -e "services/worker[dev]" -e "services/liana-connector[dev]"
 
 install-web:
 	cd apps/admin-web && npm ci

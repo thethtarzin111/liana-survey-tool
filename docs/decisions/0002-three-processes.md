@@ -1,6 +1,6 @@
 # 0002 Three processes instead of five services
 
-**Status:** accepted · 2026-11-15
+**Status:** replaced by [0004](0004-services-and-gateway.md) on 2026-11-16, so the code matches the mid-term report
 
 ## Context
 The report's architecture has five backend components (survey manager,

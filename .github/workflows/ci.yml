@@ -46,7 +46,7 @@ jobs:
               - *shared
               - 'db/**'
               - 'infra/postgres/**'
-              - 'services/api/**'
+              - 'services/survey-manager/**'
               - 'packages/shared-py/**'
 
   python:
@@ -134,8 +134,8 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: make install-py
-      - name: API tests against the database (as the app role, so RLS applies)
+      - name: Survey manager tests against the database (as the app role, so RLS applies)
         env:
           DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
           REQUIRE_DB: '1'
-        run: cd services/api && python -m pytest -q -m db -rs
+        run: cd services/survey-manager && python -m pytest -q -m db -rs

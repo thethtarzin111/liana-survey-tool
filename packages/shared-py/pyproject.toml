@@ -1,7 +1,7 @@
 [project]
 name = "liana-survey-shared"
 version = "0.1.0"
-description = "Code shared by the LianaSurvey Python services: settings, database access, queue messages."
+description = "Code shared by the LianaSurvey Python services: settings, database access, queue messages, FastAPI helpers."
 requires-python = ">=3.12"
 dependencies = [
   "pydantic>=2.9,<3",
@@ -10,7 +10,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.3,<9", "ruff>=0.8,<1"]
+# FastAPI helpers in liana_survey_shared.web (auth from gateway headers, tenant_db, health).
+web = ["fastapi>=0.115,<1"]
+dev = ["pytest>=8.3,<9", "ruff>=0.8,<1", "fastapi>=0.115,<1", "httpx>=0.27,<1"]
 
 [build-system]
 requires = ["setuptools>=75"]

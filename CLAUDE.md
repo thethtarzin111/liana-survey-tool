@@ -14,10 +14,19 @@ Read `README.md` and `docs/architecture.md` first.
 - Frontend: React 18 + TypeScript + Vite in `apps/admin-web`. One folder per
   sidebar item in `src/features/`. Use the CSS variables in
   `src/styles/tokens.css`; do not hard-code colours or font sizes.
-- Backend: Python 3.12, FastAPI, PostgreSQL, RabbitMQ.
-  - In each API module keep three layers: `domain.py` (plain Python rules),
+- Backend: Python 3.12, FastAPI, PostgreSQL, RabbitMQ. Separate services behind
+  an API gateway, as in the mid-term report (`docs/architecture.md`, decision 0004).
+  - Put code in the service that owns it (survey-manager, respondent,
+    data-analyzer, worker, liana-connector). Services never import each other;
+    shared code goes in `packages/shared-py`. New routes also need a `location`
+    in `services/gateway/templates/default.conf.template`.
+  - In each service area keep three layers: `domain.py` (plain Python rules),
     `repo.py` (SQL), `routes.py` (HTTP). Business rules never live in routes.
     This keeps a later PHP port simple (`docs/handoff.md`).
+  - Get the user with `liana_survey_shared.web.auth.current_user()` (set by the
+    gateway) and the database with `liana_survey_shared.web.db.tenant_db()`:
+    `with db() as conn:` inside the handler, so the commit happens before the
+    response is sent (never yield a connection from a dependency).
   - Every database call goes through `liana_survey_shared.db.tenant_connection()`.
     Every new table gets `tenant_id` plus a row-level security policy, and
     `db/tests/rls_check.sql` gets a check for it.
