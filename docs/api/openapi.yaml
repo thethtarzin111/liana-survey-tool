@@ -40,6 +40,60 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CurrentUser' }
         '501': { description: AUTH_MODE is not dev and real auth is not built }
+  /api/v1/surveys:
+    get:
+      tags: [surveys]
+      summary: List the organisation's surveys, most recently changed first
+      responses:
+        '200':
+          description: Surveys
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Survey' } }
+    post:
+      tags: [surveys]
+      summary: Create a survey (always a draft)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SurveyCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Survey' }
+        '422': { description: Invalid body (unknown type, blank title, or a field the server sets) }
+  /api/v1/surveys/{survey_id}:
+    parameters:
+      - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [surveys]
+      summary: One survey
+      responses:
+        '200':
+          description: Survey
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Survey' }
+        '404': { description: No such survey in this organisation }
+    patch:
+      tags: [surveys]
+      summary: Change the title or type; omitted fields stay the same
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SurveyUpdate' }
+      responses:
+        '200':
+          description: Updated survey
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Survey' }
+        '404': { description: No such survey in this organisation }
+        '422': { description: Invalid body }
 components:
   schemas:
     CurrentUser:
@@ -51,3 +105,38 @@ components:
         tenant_name: { type: string, example: Example Members Association }
         name: { type: string, example: Anna Virtanen }
         email: { type: string, format: email }
+    SurveyType:
+      type: string
+      enum: [thumbs, nps, csat, custom]
+      description: thumbs = thumbs rating, nps = 0-10, csat = 1-5, custom = start from scratch
+    SurveyStatus:
+      type: string
+      enum: [draft, scheduled, live, closed]
+    SurveyCreate:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: { $ref: '#/components/schemas/SurveyType' }
+        title: { type: string, minLength: 1, maxLength: 200, default: Untitled survey, description: Trimmed }
+    SurveyUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        type: { $ref: '#/components/schemas/SurveyType' }
+    Survey:
+      type: object
+      required: [id, title, type, status, anonymous, language, opens_at, closes_at, response_limit, created_at, updated_at]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, example: Member NPS 2026 }
+        type: { $ref: '#/components/schemas/SurveyType' }
+        status: { $ref: '#/components/schemas/SurveyStatus' }
+        anonymous: { type: boolean, description: True unless respondents opt in to be identified }
+        language: { type: string, enum: [en, fi, sv] }
+        opens_at: { type: [string, 'null'], format: date-time }
+        closes_at: { type: [string, 'null'], format: date-time }
+        response_limit: { type: [integer, 'null'], minimum: 1 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }

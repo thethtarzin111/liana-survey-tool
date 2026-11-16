@@ -1,0 +1,59 @@
+"""Request and response shapes for /api/v1/surveys. Keep in sync with docs/api/openapi.yaml."""
+
+from datetime import datetime
+from enum import StrEnum
+from typing import Annotated
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, StringConstraints
+
+DEFAULT_TITLE = "Untitled survey"
+
+Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+
+
+class SurveyType(StrEnum):
+    """What the survey finds out. Matches the first wizard step in the prototype."""
+
+    thumbs = "thumbs"  # Thumbs rating: was it useful?
+    nps = "nps"  # Net Promoter Score, 0-10
+    csat = "csat"  # Customer satisfaction, 1-5
+    custom = "custom"  # Start from scratch
+
+
+class SurveyStatus(StrEnum):
+    draft = "draft"
+    scheduled = "scheduled"
+    live = "live"
+    closed = "closed"
+
+
+class SurveyCreate(BaseModel):
+    # tenant_id, status and created_by come from the server, never from the client.
+    model_config = ConfigDict(extra="forbid")
+
+    type: SurveyType
+    title: Title = DEFAULT_TITLE
+
+
+class SurveyUpdate(BaseModel):
+    """Fields that can change. Omitted fields stay as they are."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: Title | None = None
+    type: SurveyType | None = None
+
+
+class Survey(BaseModel):
+    id: UUID
+    title: str
+    type: SurveyType
+    status: SurveyStatus
+    anonymous: bool
+    language: str
+    opens_at: datetime | None
+    closes_at: datetime | None
+    response_limit: int | None
+    created_at: datetime
+    updated_at: datetime

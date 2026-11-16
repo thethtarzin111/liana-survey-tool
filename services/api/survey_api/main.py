@@ -10,10 +10,12 @@ from fastapi import Depends, FastAPI
 
 from . import health
 from .auth.dev_stub import CurrentUser, current_user
+from .modules.surveys.router import router as surveys_router
 
 app = FastAPI(title="LianaSurvey API", version="0.1.0")
 
 app.include_router(health.router)
+app.include_router(surveys_router)
 
 
 @app.get("/api/v1/me", response_model=CurrentUser, tags=["auth"])
