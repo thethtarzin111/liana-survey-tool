@@ -11,6 +11,7 @@ from liana_survey_shared.web.auth import CurrentUser, current_user
 from liana_survey_shared.web.db import tenant_db
 from survey_manager.main import app
 
+DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
 OTHER_TENANT = UUID("00000000-0000-4000-8000-0000000000ff")
 needs_db = pytest.mark.skipif(
     not os.environ.get("REQUIRE_DB") and not ping(), reason="no database (set DATABASE_URL)"
@@ -122,6 +123,37 @@ def test_add_list_edit_and_delete_questions(client):
     assert deleted.status_code == 204
     remaining = client.get(f"/api/v1/surveys/{survey_id}/questions").json()
     assert [(question["id"], question["position"]) for question in remaining] == [(second["id"], 1)]
+
+
+@pytest.mark.db
+@needs_db
+def test_delete_near_the_front_keeps_positions_after_edits(client):
+    """Regression: unique (survey_id, position) is checked row by row, so shifting
+    the later questions down must not collide however the rows are stored."""
+    from psycopg.rows import dict_row
+
+    from liana_survey_shared.db import tenant_connection
+    from survey_manager.questions import repo
+
+    survey_id = new_survey(client)
+    questions = [add_question(client, survey_id, f"Question {n}") for n in range(1, 6)]
+    # Editing from the back stores those rows last on disk...
+    for question in reversed(questions[1:]):
+        url = f"/api/v1/surveys/{survey_id}/questions/{question['id']}"
+        assert client.patch(url, json={"prompt": f"{question['prompt']}?"}).status_code == 200
+
+    # ...and without index scans Postgres updates them in that order, as it does
+    # for bigger tables. A plain "position - 1" then moves 5 to 4 while 4 is taken.
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.row_factory = dict_row
+        conn.execute("set local enable_indexscan = off")
+        conn.execute("set local enable_bitmapscan = off")
+        assert repo.delete(conn, UUID(survey_id), UUID(questions[0]["id"]))
+
+    remaining = client.get(f"/api/v1/surveys/{survey_id}/questions").json()
+    assert [(q["id"], q["position"]) for q in remaining] == [
+        (question["id"], position) for position, question in enumerate(questions[1:], start=1)
+    ]
 
 
 @pytest.mark.db

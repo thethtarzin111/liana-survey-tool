@@ -79,11 +79,26 @@ def delete(conn: psycopg.Connection, survey_id: UUID, question_id: UUID) -> bool
     ).fetchone()
     if deleted is None:
         return False
-    conn.execute(
-        "update questions set position = position - 1 where survey_id = %s and position > %s",
-        (survey_id, deleted["position"]),
-    )
+    _shift_after(conn, survey_id, deleted["position"], -1)
     return True
+
+
+def _shift_after(conn: psycopg.Connection, survey_id: UUID, after: int, by: int) -> None:
+    """Move every question after `after` by `by` places.
+
+    unique (survey_id, position) is checked row by row, so a plain
+    "position = position + by" can collide, depending on the order Postgres
+    updates the rows in. Going through negative positions first (never used by
+    real questions) avoids that, as in reorder()."""
+    conn.execute(
+        """update questions set position = -(position + %s)
+           where survey_id = %s and position > %s""",
+        (by, survey_id, after),
+    )
+    conn.execute(
+        "update questions set position = -position where survey_id = %s and position < 0",
+        (survey_id,),
+    )
 
 
 def duplicate(
@@ -97,17 +112,7 @@ def duplicate(
     if original is None:
         return None
     position = original["position"]
-    # Move later questions through a disjoint range to avoid the immediate
-    # unique (survey_id, position) constraint colliding during the update.
-    conn.execute(
-        "update questions set position = position + 1000000 where survey_id = %s and position > %s",
-        (survey_id, position),
-    )
-    conn.execute(
-        """update questions set position = position - 999999
-           where survey_id = %s and position > 1000000""",
-        (survey_id,),
-    )
+    _shift_after(conn, survey_id, position, 1)
     return conn.execute(
         f"""insert into questions
             (tenant_id, survey_id, position, kind, prompt, options, required)
