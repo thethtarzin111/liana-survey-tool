@@ -6,9 +6,14 @@
 .survey-type-action { margin-top: auto; padding-top: 8px; font-weight: 600; color: var(--color-brand-dark); }
 .survey-create-footer { display: flex; align-items: center; gap: 16px; margin-top: 24px; color: var(--color-text-muted); }
 .survey-error { padding: 12px 16px; border: 1px solid var(--color-error-border); border-radius: var(--radius-nav); background: var(--color-error-bg); color: var(--color-error-text); }
-.survey-draft-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.survey-builder-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.survey-builder-form { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.survey-details-card { width: min(100%, 760px); display: flex; flex-direction: column; gap: 14px; }
+.survey-title-input { font-size: var(--text-title-input); font-weight: 600; }
+.survey-save-error { margin: 0; color: var(--color-error-text); font-weight: 600; }
 
 @media (max-width: 639px) {
   .survey-types { grid-template-columns: minmax(0, 1fr); }
   .survey-create-footer { flex-wrap: wrap; }
+  .survey-builder-actions { width: 100%; }
 }
