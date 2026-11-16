@@ -10,6 +10,7 @@
   --color-bg: #f6f7f9;
   --color-surface: #ffffff;
   --color-surface-muted: #f0f2f4;
+  --color-on-brand: #ffffff;       /* text and icons on green */
 
   --color-brand: #4ca74e;          /* primary buttons */
   --color-brand-hover: #3e8f40;

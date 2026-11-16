@@ -37,7 +37,7 @@ test('sidebar has the prototype items in order', () => {
   );
   const labels = screen.getAllByRole('link').map((a) => a.textContent);
   expect(labels).toEqual([
-    '+ Create survey',
+    'Create survey',
     'Home',
     'Surveys',
     'Results',

@@ -27,9 +27,9 @@ a { color: var(--color-brand-dark); }
   font: 500 12px/1 var(--font-heading); cursor: pointer; text-decoration: none;
   box-shadow: var(--shadow-card);
 }
-.btn-primary { background: var(--color-brand); border-color: var(--color-brand); color: #fff; box-shadow: var(--shadow-button); }
+.btn-primary { background: var(--color-brand); border-color: var(--color-brand); color: var(--color-on-brand); box-shadow: var(--shadow-button); }
 .btn-primary:hover { background: var(--color-brand-hover); }
-.btn-outline { background: #fff; border-color: var(--color-border-strong); color: var(--color-text); }
+.btn-outline { background: var(--color-surface); border-color: var(--color-border-strong); color: var(--color-text); }
 .btn-outline:hover { background: var(--color-surface-muted); }
 
 .card {
