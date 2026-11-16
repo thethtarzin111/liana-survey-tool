@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { App } from './App';
 import { Sidebar } from './Sidebar';
@@ -68,4 +68,23 @@ test('sidebar shows a badge when given a count', () => {
     </MemoryRouter>,
   );
   expect(screen.getByLabelText('3 new')).toBeInTheDocument();
+});
+
+test('menu button opens the sidebar drawer; navigating or Escape closes it', () => {
+  renderAt('/');
+  const menu = screen.getByRole('button', { name: 'Menu' });
+  const nav = screen.getByRole('navigation', { name: 'Sidebar' });
+  expect(menu).toHaveAttribute('aria-expanded', 'false');
+
+  fireEvent.click(menu);
+  expect(menu).toHaveAttribute('aria-expanded', 'true');
+  expect(nav).toHaveClass('open');
+
+  fireEvent.click(screen.getByRole('link', { name: 'Templates' }));
+  expect(nav).not.toHaveClass('open');
+
+  fireEvent.click(menu);
+  fireEvent.keyDown(document, { key: 'Escape' });
+  expect(nav).not.toHaveClass('open');
+  expect(menu).toHaveFocus();
 });

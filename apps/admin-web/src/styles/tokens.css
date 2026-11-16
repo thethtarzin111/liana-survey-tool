@@ -44,6 +44,8 @@
   --shadow-card: 0 3px 3px rgba(0, 0, 0, 0.03);
   --shadow-button: 0 3px 3px rgba(0, 0, 0, 0.1);
   --shadow-pop: 0 20px 30px rgba(23, 73, 77, 0.15);
+  --shadow-drawer: 0 5px 32px rgba(0, 0, 0, 0.12);
+  --color-scrim: rgba(53, 58, 64, 0.35);
 
   --sidebar-width: 228px;
   --header-height: 50px;

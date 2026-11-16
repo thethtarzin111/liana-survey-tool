@@ -5,6 +5,8 @@ import { footerNav, mainNav, type NavItem } from './nav';
 type Props = {
   /** Number badges by route, e.g. { '/contact-requests': 3 }. */
   badges?: Partial<Record<string, number>>;
+  /** Drawer state on narrow screens. Ignored on wide screens. */
+  open?: boolean;
 };
 
 function Item({ item, badge }: { item: NavItem; badge?: number }) {
@@ -25,9 +27,9 @@ function Item({ item, badge }: { item: NavItem; badge?: number }) {
   );
 }
 
-export function Sidebar({ badges = {} }: Props) {
+export function Sidebar({ badges = {}, open = false }: Props) {
   return (
-    <nav className="sidebar" aria-label="Sidebar">
+    <nav id="sideNav" className={open ? 'sidebar open' : 'sidebar'} aria-label="Sidebar">
       <Link to="/surveys/new" className="btn btn-primary">
         <Icon path="M12 5v14M5 12h14" size={16} strokeWidth={2.4} />
         Create survey

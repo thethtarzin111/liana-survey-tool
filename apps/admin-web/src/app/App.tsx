@@ -1,4 +1,5 @@
-import { Route, Routes } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Route, Routes, useLocation } from 'react-router-dom';
 import { BuilderPage } from '../features/builder/BuilderPage';
 import { ContactRequestsPage } from '../features/contact-requests/ContactRequestsPage';
 import { FrontPage } from '../features/front/FrontPage';
@@ -13,11 +14,33 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
 export function App() {
+  // On narrow screens the sidebar is a drawer opened from the header menu button.
+  const [navOpen, setNavOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const { pathname } = useLocation();
+
+  // Close the drawer after navigating.
+  useEffect(() => setNavOpen(false), [pathname]);
+
+  // Escape closes the drawer and puts focus back on the menu button.
+  useEffect(() => {
+    if (!navOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setNavOpen(false);
+        menuButton.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
   return (
     <div className="shell">
-      <Header />
+      <Header navOpen={navOpen} onToggleNav={() => setNavOpen((o) => !o)} menuButtonRef={menuButton} />
       <div className="body">
-        <Sidebar />
+        {navOpen ? <div className="scrim" aria-hidden="true" onClick={() => setNavOpen(false)} /> : null}
+        <Sidebar open={navOpen} />
         <main className="main">
           <Routes>
             <Route path="/" element={<FrontPage />} />
