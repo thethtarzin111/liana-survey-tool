@@ -75,14 +75,15 @@ type OptionCardProps = {
   icon?: string;
   /** Set for pick-one cards; leave undefined for cards that just navigate. */
   selected?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   children?: ReactNode;
 };
 
 /** Big clickable card, e.g. the survey type picker ("Thumbs rating", "NPS"…). */
-export function OptionCard({ title, description, icon, selected, onClick, children }: OptionCardProps) {
+export function OptionCard({ title, description, icon, selected, disabled, onClick, children }: OptionCardProps) {
   return (
-    <button type="button" className="option-card" aria-pressed={selected} onClick={onClick}>
+    <button type="button" className="option-card" aria-pressed={selected} disabled={disabled} onClick={onClick}>
       {icon ? <IconCircle icon={icon} size={48} /> : null}
       <span className="option-title">{title}</span>
       {description ? <span className="option-text">{description}</span> : null}
