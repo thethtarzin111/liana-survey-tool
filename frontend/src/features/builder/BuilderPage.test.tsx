@@ -9,7 +9,7 @@ const saved: Survey = {
   title: 'Member survey',
   description: "Members' view of 2026",
   thank_you: null,
-  type: 'nps',
+  type: 'custom',
   status: 'draft',
 };
 const fetchMock = vi.fn<typeof fetch>();

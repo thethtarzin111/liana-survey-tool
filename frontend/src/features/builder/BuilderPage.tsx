@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ApiError, api, type Survey } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, TextArea, TextField, useToast } from '../../components/ui';
+import { EditPreviewPage } from './EditPreviewPage';
 import { QuestionList } from './QuestionList';
 import './builder.css';
 
@@ -107,6 +108,11 @@ export function BuilderPage() {
       saving.current = false;
       if (mounted.current) setIsSaving(false);
     }
+  }
+
+  // Thumbs, NPS and CSAT surveys are edited on "Edit and preview", as in the prototype.
+  if (survey && survey.type !== 'custom') {
+    return <EditPreviewPage key={survey.id} survey={survey} onSaved={setSurvey} />;
   }
 
   return (

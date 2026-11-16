@@ -41,7 +41,16 @@ test('NPS goes through Pick a template and creates the draft from it', async ({ 
   );
   await page.getByRole('button', { name: 'Continue to edit and preview' }).click();
   await expect(page).toHaveURL(/\/surveys\/[0-9a-f-]{36}$/);
-  await expect(page.getByLabel(/^Survey title|^Name/)).toHaveValue('Member NPS');
+  await expect(page.getByRole('heading', { name: 'Edit and preview' })).toBeVisible();
+  await expect(page.getByLabel('Name (only you see this)')).toHaveValue('Member NPS');
+  await expect(page.getByRole('textbox', { name: 'Question', exact: true })).toHaveValue(
+    'How likely are you to recommend Example Members Association to a friend or colleague?',
+  );
+  await page.getByLabel('Thank-you message').fill('Thanks for helping us!');
+  await page.getByRole('button', { name: 'Save as draft' }).click();
+  await expect(page.getByText('Saved as draft')).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('Thank-you message')).toHaveValue('Thanks for helping us!');
 });
 
 test('Use template on the Templates page creates the survey with its question', async ({ page }) => {

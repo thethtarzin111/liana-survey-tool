@@ -6,15 +6,16 @@ import { CHOICE_KINDS, MAX_OPTIONS, REASONS_HINT, SCALES, TEXT_HINTS, newOptionT
 type Props = {
   question: Question;
   number: number;
-  busy: boolean;
-  onSaveOptions: (options: string[]) => void;
+  /** Changes the options, starting from the newest saved ones. */
+  onChangeOptions: (change: (options: string[]) => string[]) => void;
+  /** How screen readers name the question, e.g. "Extra question 1". Defaults to "Question N". */
+  name?: string;
 };
 
-function OptionRow({ question, number, index, busy, onSave, onRemove }: {
+function OptionRow({ question, name, index, onSave, onRemove }: {
   question: Question;
-  number: number;
+  name: string;
   index: number;
-  busy: boolean;
   onSave: (text: string) => void;
   onRemove: () => void;
 }) {
@@ -29,7 +30,7 @@ function OptionRow({ question, number, index, busy, onSave, onRemove }: {
       <input
         className="input"
         type="text"
-        aria-label={`Question ${number}, option ${index + 1}`}
+        aria-label={`${name}, option ${index + 1}`}
         maxLength={200}
         value={text}
         onChange={(event) => setText(event.target.value)}
@@ -43,7 +44,7 @@ function OptionRow({ question, number, index, busy, onSave, onRemove }: {
         label={`Remove option ${index + 1}`}
         icon={icons.close}
         iconSize={14}
-        disabled={busy || question.options.length <= 1}
+        disabled={question.options.length <= 1}
         onClick={onRemove}
       />
     </div>
@@ -51,7 +52,7 @@ function OptionRow({ question, number, index, busy, onSave, onRemove }: {
 }
 
 /** The part of a question card that depends on its answer type. */
-export function AnswerTypeControls({ question, number, busy, onSaveOptions }: Props) {
+export function AnswerTypeControls({ question, number, onChangeOptions, name = `Question ${number}` }: Props) {
   const { kind, options } = question;
 
   if (CHOICE_KINDS.has(kind)) {
@@ -61,19 +62,18 @@ export function AnswerTypeControls({ question, number, busy, onSaveOptions }: Pr
           <OptionRow
             key={`${question.id}-${index}`}
             question={question}
-            number={number}
+            name={name}
             index={index}
-            busy={busy}
-            onSave={(text) => onSaveOptions(options.map((o, i) => (i === index ? text : o)))}
-            onRemove={() => onSaveOptions(options.filter((_, i) => i !== index))}
+            onSave={(text) => onChangeOptions((current) => current.map((o, i) => (i === index ? text : o)))}
+            onRemove={() => onChangeOptions((current) => current.filter((_, i) => i !== index))}
           />
         ))}
         <Button
           variant="ghost"
           size="sm"
           className="answer-add-option"
-          disabled={busy || options.length >= MAX_OPTIONS}
-          onClick={() => onSaveOptions([...options, newOptionText(kind, options)])}
+          disabled={options.length >= MAX_OPTIONS}
+          onClick={() => onChangeOptions((current) => [...current, newOptionText(kind, current)])}
         >
           {kind === 'reasons' ? '+ Add reason' : '+ Add option'}
         </Button>

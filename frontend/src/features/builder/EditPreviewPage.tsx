@@ -1,0 +1,324 @@
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { ApiError, api, type Question, type QuestionInput, type QuestionKind, type Survey, type SurveyType } from '../../api/client';
+import { PageHeader } from '../../components/PageHeader';
+import { Button, ButtonLink, Card, Checkbox, Select, TextArea, TextField, useToast } from '../../components/ui';
+import { AnswerTypeControls } from './AnswerTypeControls';
+import { ANSWER_TYPES, changesForType, newOptionText } from './answerTypes';
+import { useSavedQuestions } from './useSavedQuestions';
+import './builder.css';
+
+// Texts follow the prototype's "Edit and preview" screen.
+const SCALE_KIND: Record<Exclude<SurveyType, 'custom'>, QuestionKind> = { thumbs: 'thumbs', nps: 'nps', csat: 'rating' };
+const SCALE_WORDS: Record<Exclude<SurveyType, 'custom'>, string[]> = {
+  thumbs: ['Not for me', 'Good', 'Loved it'],
+  nps: ['0 to 10', 'Detractors 0–6', 'Passives 7–8', 'Promoters 9–10'],
+  csat: ['1 to 5', 'Satisfied = 4–5'],
+};
+const REASON_LABEL: Record<Exclude<SurveyType, 'custom'>, string> = {
+  thumbs: 'Reasons for “Not for me”',
+  nps: 'Reasons readers can pick (question 2)',
+  csat: 'Improvement topics (question 2)',
+};
+const MANY_EXTRAS = 3;
+/** What "+ Add question" adds to the extra questions, as in the prototype. */
+const NEW_EXTRA: QuestionInput = { kind: 'single_choice', prompt: '', options: ['Option 1', 'Option 2'], required: false };
+const DRAFT_SAVE_ERROR = 'We couldn’t save your draft. Please try again.';
+
+type FieldErrors = { title?: string; thank_you?: string };
+
+function validationErrors(name: string, thanks: string): FieldErrors {
+  if (!name.trim()) return { title: 'Give your survey a name' };
+  return {
+    ...(name.trim().length > 200 ? { title: 'Name must be 200 characters or fewer' } : {}),
+    ...(thanks.trim().length > 500 ? { thank_you: 'Thank-you message must be 500 characters or fewer' } : {}),
+  };
+}
+
+function apiErrors(error: unknown): FieldErrors {
+  if (!(error instanceof ApiError) || !error.body || typeof error.body !== 'object' || !('detail' in error.body)) return {};
+  const detail = error.body.detail;
+  const fields: FieldErrors = {};
+  if (!Array.isArray(detail)) return fields;
+  for (const item of detail as { loc?: unknown; msg?: unknown }[]) {
+    const field: unknown = Array.isArray(item?.loc) ? item.loc.at(-1) : undefined;
+    if ((field === 'title' || field === 'thank_you') && typeof item.msg === 'string') fields[field] = item.msg;
+  }
+  return fields;
+}
+
+/** Text that is saved when leaving the field, and follows the saved value. */
+function useSavedText(saved: string) {
+  const [text, setText] = useState(saved);
+  useEffect(() => setText(saved), [saved]);
+  return [text, setText] as const;
+}
+
+function ReasonChip({ text: saved, index, onlyOne, onSave, onRemove }: {
+  text: string; index: number; onlyOne: boolean;
+  onSave: (text: string) => void; onRemove: () => void;
+}) {
+  const [text, setText] = useSavedText(saved);
+  return (
+    <span className="chip-edit">
+      <input
+        aria-label={`Reason ${index + 1}`}
+        maxLength={200}
+        size={Math.max(3, text.length)}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onBlur={() => {
+          if (!text.trim()) setText(saved);
+          else if (text.trim() !== saved) onSave(text.trim());
+        }}
+      />
+      <button type="button" className="chip-remove" aria-label={`Remove reason ${index + 1}`} disabled={onlyOne} onClick={onRemove}>
+        ×
+      </button>
+    </span>
+  );
+}
+
+function ExtraQuestion({ question, number, busy, onSave, onChangeOptions, onDelete }: {
+  question: Question; number: number; busy: boolean;
+  onSave: (changes: Partial<QuestionInput>) => void;
+  onChangeOptions: (change: (options: string[]) => string[]) => void;
+  onDelete: () => void;
+}) {
+  const [text, setText] = useSavedText(question.prompt);
+  const name = `Extra question ${number}`;
+  return (
+    <div role="group" aria-label={name} className="extra-question">
+      <div className="question-card-head">
+        <TextField
+          label={`Question ${number}`}
+          placeholder="Untitled question"
+          maxLength={500}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onBlur={() => { if (text.trim() !== question.prompt) onSave({ prompt: text.trim() }); }}
+        />
+        <Select
+          label="Answer type"
+          options={ANSWER_TYPES}
+          value={question.kind}
+          disabled={busy}
+          onChange={(event) => {
+            const kind = event.target.value as QuestionKind;
+            if (kind !== question.kind) onSave(changesForType({ ...question, prompt: text }, kind));
+          }}
+        />
+      </div>
+      <AnswerTypeControls question={question} number={number} name={name} onChangeOptions={onChangeOptions} />
+      <div className="question-actions">
+        <Checkbox label="Required" checked={question.required} disabled={busy} onChange={() => onSave({ required: !question.required })} />
+        <Button variant="ghost" size="sm" aria-label={`Delete extra question ${number}`} disabled={busy} onClick={onDelete}>
+          Delete
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** "Edit and preview": the editor for thumbs, NPS and CSAT surveys, usually made from a template. */
+export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: (survey: Survey) => void }) {
+  const toast = useToast();
+  const type = survey.type as Exclude<SurveyType, 'custom'>;
+  const { questions, setQuestions, loadError, retry, busy, save, update, updateOptions } = useSavedQuestions(survey.id);
+  const [name, setName] = useState(survey.title);
+  const [thanks, setThanks] = useState(survey.thank_you ?? '');
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const mounted = useRef(true);
+  const reasonsLabel = useId();
+  const formId = useId();
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const all = questions ?? [];
+  // The main question is the first one, if it has the survey's scale. Older drafts
+  // may have none yet: then every question is shown as an extra question, typing
+  // the Question adds the main question first, and + Add reason puts the reasons
+  // first (they move to second when the main question is added).
+  const main = all[0]?.kind === SCALE_KIND[type] ? all[0] : undefined;
+  const reasons = all.find((q) => q !== main && q.kind === 'reasons');
+  const extras = all.filter((q) => q !== main && q !== reasons);
+  const [questionText, setQuestionText] = useSavedText(main?.prompt ?? '');
+
+  /** Adds a question and moves it to `index` (the main question first, then the reasons). */
+  function insert(input: QuestionInput, index: number) {
+    save(async () => {
+      const added = await api.addQuestion(survey.id, input);
+      const order = (await api.questions(survey.id)).map((q) => q.id).filter((id) => id !== added.id);
+      order.splice(index, 0, added.id);
+      setQuestions(await api.reorderQuestions(survey.id, order));
+    });
+  }
+
+  function saveQuestionText() {
+    if (main) {
+      if (questionText.trim() !== main.prompt) update(main, { prompt: questionText.trim() });
+    } else if (questionText.trim()) {
+      // Older drafts may not have their main question yet.
+      insert({ kind: SCALE_KIND[type], prompt: questionText.trim(), options: [], required: true }, 0);
+    }
+  }
+
+  async function saveDraft(event: FormEvent) {
+    event.preventDefault();
+    if (savingRef.current) return;
+    const found = validationErrors(name, thanks);
+    setErrors(found);
+    setSaveError('');
+    if (Object.keys(found).length) return;
+
+    const changes: { title?: string; thank_you?: string } = {};
+    if (name.trim() !== survey.title) changes.title = name;
+    if (thanks.trim() !== (survey.thank_you ?? '')) changes.thank_you = thanks;
+    if (!Object.keys(changes).length) {
+      toast('Saved as draft');
+      return;
+    }
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const saved = await api.updateSurvey(survey.id, changes);
+      if (!mounted.current) return;
+      setName(saved.title);
+      setThanks(saved.thank_you ?? '');
+      onSaved(saved);
+      toast('Saved as draft');
+    } catch (error) {
+      if (!mounted.current) return;
+      const fromApi = apiErrors(error);
+      setErrors(fromApi);
+      if (!Object.keys(fromApi).length) setSaveError(DRAFT_SAVE_ERROR);
+    } finally {
+      savingRef.current = false;
+      if (mounted.current) setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <PageHeader
+        title="Edit and preview"
+        actions={
+          <div className="survey-builder-actions">
+            <ButtonLink to="/surveys/new" variant="ghost">Cancel</ButtonLink>
+            <Button type="submit" form={formId} loading={saving}>Save as draft</Button>
+          </div>
+        }
+      />
+      <form id={formId} onSubmit={saveDraft} noValidate>
+        <Card padded className="edit-settings">
+          <section aria-label="Settings" className="edit-settings-body">
+            <TextField
+              label="Name (only you see this)"
+              value={name}
+              error={errors.title}
+              disabled={saving}
+              onChange={(event) => { setName(event.target.value); setErrors((e) => ({ ...e, title: undefined })); }}
+            />
+            {loadError ? (
+              <div className="survey-error" role="alert">
+                <p>We couldn’t load the questions. Please try again.</p>
+                <Button onClick={retry}>Try again</Button>
+              </div>
+            ) : !questions ? (
+              <p role="status">Loading questions…</p>
+            ) : (
+              <>
+                <TextField
+                  label="Question"
+                  maxLength={500}
+                  value={questionText}
+                  onChange={(event) => setQuestionText(event.target.value)}
+                  onBlur={saveQuestionText}
+                />
+                <div className="edit-field">
+                  <span className="edit-label">Answers</span>
+                  <ul className="edit-scale">
+                    {SCALE_WORDS[type].map((word) => <li key={word}>{word}</li>)}
+                  </ul>
+                  <span className="answer-hint">The scale is fixed so results can be compared over time.</span>
+                </div>
+                <div className="edit-field">
+                  <span id={reasonsLabel} className="edit-label">{REASON_LABEL[type]}</span>
+                  <div role="group" aria-labelledby={reasonsLabel} className="edit-reasons">
+                    {(reasons?.options ?? []).map((reason, index, options) => (
+                      <ReasonChip
+                        key={`${reasons!.id}-${index}`}
+                        text={reason}
+                        index={index}
+                        onlyOne={options.length <= 1}
+                        onSave={(text) => updateOptions(reasons!.id, (current) => current.map((o, i) => (i === index ? text : o)))}
+                        onRemove={() => updateOptions(reasons!.id, (current) => current.filter((_, i) => i !== index))}
+                      />
+                    ))}
+                    <button
+                      type="button"
+                      className="chip edit-add-reason"
+                      disabled={reasons ? reasons.options.length >= 20 : busy}
+                      onClick={() => reasons
+                        ? updateOptions(reasons.id, (current) => [...current, newOptionText('reasons', current)])
+                        : insert({ kind: 'reasons', prompt: '', options: ['New reason'], required: false }, main ? 1 : 0)}
+                    >
+                      + Add reason
+                    </button>
+                  </div>
+                  <span className="answer-hint">Click a reason to rename it. Readers pick one or more. Free text is optional.</span>
+                </div>
+                <div className="edit-field">
+                  <span className="edit-label">Extra questions (optional)</span>
+                  {extras.map((question, index) => (
+                    <ExtraQuestion
+                      key={question.id}
+                      question={question}
+                      number={index + 1}
+                      busy={busy}
+                      onSave={(changes) => update(question, changes)}
+                      onChangeOptions={(change) => updateOptions(question.id, change)}
+                      onDelete={() => save(async () => {
+                        await api.deleteQuestion(survey.id, question.id);
+                        setQuestions((list) => list && list.filter((q) => q.id !== question.id));
+                      })}
+                    />
+                  ))}
+                  {extras.length >= MANY_EXTRAS ? (
+                    <span className="answer-hint" role="status">
+                      You have {extras.length} extra questions. Every extra question means fewer people finish. Keep only the ones you will act on.
+                    </span>
+                  ) : null}
+                  <Button
+                    className="edit-add-question"
+                    disabled={busy}
+                    onClick={() => save(async () => {
+                      const added = await api.addQuestion(survey.id, NEW_EXTRA);
+                      setQuestions((list) => (list ? [...list, added] : [added]));
+                    })}
+                  >
+                    + Add question
+                  </Button>
+                </div>
+              </>
+            )}
+            <TextArea
+              label="Thank-you message"
+              rows={2}
+              value={thanks}
+              error={errors.thank_you}
+              disabled={saving}
+              onChange={(event) => { setThanks(event.target.value); setErrors((e) => ({ ...e, thank_you: undefined })); }}
+            />
+          </section>
+        </Card>
+        {saveError ? <p className="survey-save-error" role="alert">{saveError}</p> : null}
+      </form>
+    </>
+  );
+}
