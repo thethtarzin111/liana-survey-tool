@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { ToastProvider } from '../components/ui';
 import { App } from './App';
 import { Sidebar } from './Sidebar';
 
@@ -24,7 +25,10 @@ afterEach(() => vi.unstubAllGlobals());
 function renderAt(path: string) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <App />
+      {/* As in main.tsx. */}
+      <ToastProvider>
+        <App />
+      </ToastProvider>
     </MemoryRouter>,
   );
 }

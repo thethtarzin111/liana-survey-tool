@@ -6,7 +6,7 @@ import { BuilderPage } from './BuilderPage';
 import { CreateSurveyPage } from './CreateSurveyPage';
 
 const draft: Survey = {
-  id: 'saved-survey', title: 'Untitled survey', description: null, type: 'nps', status: 'draft',
+  id: 'saved-survey', title: 'Untitled survey', description: null, thank_you: null, type: 'nps', status: 'draft',
 };
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -22,6 +22,10 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+function TemplateStub() {
+  return <p>Template picker for {new URLSearchParams(useLocation().search).get('type')}</p>;
+}
+
 function Location() {
   return <span aria-label="Current location">{useLocation().pathname}</span>;
 }
@@ -34,6 +38,7 @@ function renderPage(path = '/surveys/new') {
         <Link to="/surveys">Leave creation</Link>
         <Routes>
           <Route path="/surveys/new" element={<CreateSurveyPage />} />
+          <Route path="/surveys/new/template" element={<TemplateStub />} />
           <Route path="/surveys/:id" element={<BuilderPage />} />
           <Route path="/surveys" element={<h1>Surveys</h1>} />
         </Routes>
@@ -52,17 +57,24 @@ test('shows four type cards with use cases without creating a survey', () => {
 });
 
 test.each([
-  ['Thumbs rating', 'thumbs'], ['NPS survey (0–10)', 'nps'],
-  ['CSAT survey (1–5)', 'csat'], ['Start from scratch', 'custom'],
-])('choosing %s saves the right type and opens the persisted draft', async (label, type) => {
+  ['Thumbs rating', 'thumbs'], ['NPS survey (0–10)', 'nps'], ['CSAT survey (1–5)', 'csat'],
+])('choosing %s opens Pick a template without saving yet', (label, type) => {
   renderPage();
   fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${label.replace(/[()]/g, '\\$&')}`) }));
+  expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/new/template');
+  expect(screen.getByText(`Template picker for ${type}`)).toBeInTheDocument();
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
+test('Start from scratch saves a custom draft and opens it', async () => {
+  renderPage();
+  fireEvent.click(screen.getByRole('button', { name: /^Start from scratch/ }));
   expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
   expect(screen.getByRole('heading', { name: 'Build your survey' })).toBeInTheDocument();
   expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/saved-survey');
   expect(fetchMock).toHaveBeenCalledWith('/api/v1/surveys', {
     method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type }),
+    body: JSON.stringify({ type: 'custom' }),
   });
   expect(fetchMock).toHaveBeenCalledWith('/api/v1/surveys/saved-survey', expect.anything());
 });
@@ -71,7 +83,7 @@ test('disables every card while saving and prevents duplicate requests', async (
   let complete!: (response: Response) => void;
   fetchMock.mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
   renderPage();
-  const card = screen.getByRole('button', { name: /^Thumbs rating/ });
+  const card = screen.getByRole('button', { name: /^Start from scratch/ });
   fireEvent.click(card);
   fireEvent.click(card);
   for (const button of within(screen.getByRole('region')).getAllByRole('button')) {
@@ -87,12 +99,12 @@ test.each(['server', 'network'])('shows page and toast errors after a %s failure
   if (failure === 'server') fetchMock.mockResolvedValueOnce(new Response('Internal error', { status: 500 }));
   else fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
   renderPage();
-  fireEvent.click(screen.getByRole('button', { name: /^NPS survey/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Start from scratch/ }));
   const alert = await screen.findByRole('alert');
   expect(alert).toHaveTextContent('We couldn’t save your draft. Please try again.');
   expect(within(screen.getByRole('status')).getByText(alert.textContent!)).toBeInTheDocument();
   expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/new');
-  const retry = screen.getByRole('button', { name: /^NPS survey/ });
+  const retry = screen.getByRole('button', { name: /^Start from scratch/ });
   expect(retry).toBeEnabled();
   fireEvent.click(retry);
   expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
@@ -110,7 +122,7 @@ test('a completed save does not take the user back after they navigate away', as
   let complete!: (response: Response) => void;
   fetchMock.mockImplementationOnce(() => new Promise((resolve) => { complete = resolve; }));
   renderPage();
-  fireEvent.click(screen.getByRole('button', { name: /^NPS survey/ }));
+  fireEvent.click(screen.getByRole('button', { name: /^Start from scratch/ }));
   fireEvent.click(screen.getByRole('link', { name: 'Leave creation' }));
   complete(Response.json(draft));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));

@@ -81,6 +81,12 @@ export const api = {
     send<Question>('POST', `${questionsPath(surveyId, questionId)}/duplicate`),
   reorderQuestions: (surveyId: string, questionIds: string[]) =>
     send<Question[]>('PUT', `${questionsPath(surveyId)}/order`, { question_ids: questionIds }),
+
+  templates: (type?: SurveyType) =>
+    getJson<Template[]>(`/api/v1/templates${type ? `?${new URLSearchParams({ type })}` : ''}`),
+  /** Creates a draft survey from a template and returns it. */
+  useTemplate: (templateId: string) =>
+    send<Survey>('POST', `/api/v1/templates/${encodeURIComponent(templateId)}/surveys`),
 };
 
 function questionsPath(surveyId: string, questionId?: string) {
@@ -109,7 +115,8 @@ export type QuestionKind =
   | 'long_text'
   | 'rating'
   | 'nps'
-  | 'reasons';
+  | 'reasons'
+  | 'thumbs';
 
 export type Question = {
   id: string;
@@ -131,6 +138,8 @@ export type Survey = {
   id: string;
   title: string;
   description: string | null;
+  /** Shown to readers after answering. */
+  thank_you: string | null;
   type: SurveyType;
   status: SurveyStatus;
 };
@@ -139,4 +148,16 @@ export type SurveyListItem = Survey & {
   opens_at: string | null;
   /** Submitted responses so far. */
   answers: number;
+};
+
+export type Template = {
+  id: string;
+  name: string;
+  type: SurveyType;
+  description: string;
+  thank_you: string;
+  /** Shown as a card on the Templates page. */
+  featured: boolean;
+  /** The first is the main question; thumbs, NPS and CSAT templates follow it with reason bubbles. */
+  questions: Pick<Question, 'kind' | 'prompt' | 'options' | 'required'>[];
 };
