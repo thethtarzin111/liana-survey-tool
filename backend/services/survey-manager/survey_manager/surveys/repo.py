@@ -9,8 +9,23 @@ import psycopg
 
 from .schemas import SurveyCreate, SurveyStatus, SurveyUpdate
 
-COLUMNS = """id, title, description, type, status, anonymous, language, opens_at, closes_at,
-    response_limit, created_at, updated_at"""
+COLUMN_NAMES = (
+    "id",
+    "title",
+    "description",
+    "type",
+    "status",
+    "anonymous",
+    "language",
+    "opens_at",
+    "closes_at",
+    "response_limit",
+    "created_at",
+    "updated_at",
+)
+COLUMNS = ", ".join(COLUMN_NAMES)
+# The same columns qualified with the surveys alias, for queries with joins.
+S_COLUMNS = ", ".join(f"s.{name}" for name in COLUMN_NAMES)
 
 
 def create(
@@ -33,12 +48,86 @@ def create(
     return row
 
 
-def list_all(conn: psycopg.Connection) -> list[dict[str, Any]]:
-    return conn.execute(f"select {COLUMNS} from surveys order by updated_at desc, id").fetchall()
+def list_all(
+    conn: psycopg.Connection, search: str | None = None, status: SurveyStatus | None = None
+) -> list[dict[str, Any]]:
+    """Surveys with their answer counts, most recently changed first.
+
+    `search` matches anywhere in the title, ignoring case."""
+    where: list[str] = []
+    params: list[Any] = []
+    if search:
+        where.append("s.title ilike %s")
+        params.append(f"%{escape_like(search)}%")
+    if status is not None:
+        where.append("s.status = %s")
+        params.append(status.value)
+    clause = f"where {' and '.join(where)}" if where else ""
+    return conn.execute(
+        f"""select {S_COLUMNS}, coalesce(a.response_count, 0) as answers
+            from surveys s left join survey_aggregates a on a.survey_id = s.id
+            {clause}
+            order by s.updated_at desc, s.id""",
+        params,
+    ).fetchall()
+
+
+def escape_like(text: str) -> str:
+    r"""Make %, _ and \ in user input match literally in an ILIKE pattern."""
+    return text.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
 
 
 def get(conn: psycopg.Connection, survey_id: UUID) -> dict[str, Any] | None:
     return conn.execute(f"select {COLUMNS} from surveys where id = %s", (survey_id,)).fetchone()
+
+
+def get_for_update(conn: psycopg.Connection, survey_id: UUID) -> dict[str, Any] | None:
+    """Like get(), but locks the row until the transaction ends, so two status
+    changes to the same survey cannot both pass the status check."""
+    return conn.execute(
+        f"select {COLUMNS} from surveys where id = %s for update", (survey_id,)
+    ).fetchone()
+
+
+def set_status(conn: psycopg.Connection, survey_id: UUID, status: SurveyStatus) -> dict[str, Any]:
+    row = conn.execute(
+        f"""update surveys set status = %s, updated_at = now() where id = %s
+            returning {COLUMNS}""",
+        (status.value, survey_id),
+    ).fetchone()
+    assert row is not None
+    return row
+
+
+def duplicate(
+    conn: psycopg.Connection, tenant_id: UUID, user_id: UUID, survey_id: UUID, title: str
+) -> dict[str, Any] | None:
+    """Copy a survey and its questions into a new draft with no dates set.
+
+    Responses, contact requests and totals belong to the original and are not copied."""
+    row = conn.execute(
+        f"""insert into surveys
+              (tenant_id, title, description, type, status, anonymous, language,
+               response_limit, created_by)
+            select %s, %s, description, type, %s, anonymous, language, response_limit, %s
+            from surveys where id = %s
+            returning {COLUMNS}""",
+        (tenant_id, title, SurveyStatus.draft.value, user_id, survey_id),
+    ).fetchone()
+    if row is None:
+        return None
+    conn.execute(
+        """insert into questions (tenant_id, survey_id, position, kind, prompt, options, required)
+           select %s, %s, position, kind, prompt, options, required
+           from questions where survey_id = %s""",
+        (tenant_id, row["id"], survey_id),
+    )
+    return row
+
+
+def delete(conn: psycopg.Connection, survey_id: UUID) -> bool:
+    """Delete a survey. Its questions, responses and answers go with it (on delete cascade)."""
+    return conn.execute("delete from surveys where id = %s", (survey_id,)).rowcount == 1
 
 
 def update(conn: psycopg.Connection, survey_id: UUID, data: SurveyUpdate) -> dict[str, Any] | None:
