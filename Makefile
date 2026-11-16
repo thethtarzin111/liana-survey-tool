@@ -23,7 +23,7 @@ lint-py:
 	ruff format --check $(PY_DIRS)
 
 lint-web:
-	cd apps/admin-web && npm run typecheck
+	cd apps/admin-web && npm run typecheck && npm run lint
 
 test: test-py test-web
 

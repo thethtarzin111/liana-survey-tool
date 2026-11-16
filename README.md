@@ -41,7 +41,12 @@ cd apps/admin-web
 npm install
 npm run dev                   # http://localhost:4200, talks to the API on :8000
 npm test
+npm run lint                  # ESLint; also blocks hard-coded colours (use the design tokens)
 ```
+
+The frontend has no API URL setting: it always calls `/api/...` on its own address.
+`npm run dev` forwards those calls to http://localhost:8000 (`vite.config.ts`), and in Docker
+nginx forwards them to the `api` container (`apps/admin-web/nginx.conf`).
 
 `make` is not installed on Windows by default. Use Git Bash or WSL, or run
 the commands from the `Makefile` by hand. CI only calls `make` targets.

@@ -27,14 +27,22 @@ jobs:
         id: filter
         with:
           filters: |
+            # Changes to CI, Docker or env settings run every job.
+            shared: &shared
+              - '.github/workflows/**'
+              - 'docker-compose.yml'
+              - '.env.example'
+              - 'Makefile'
             python:
+              - *shared
               - 'packages/**'
               - 'services/**'
               - 'ruff.toml'
-              - 'Makefile'
             web:
+              - *shared
               - 'apps/admin-web/**'
             db:
+              - *shared
               - 'db/**'
               - 'infra/postgres/**'
 
