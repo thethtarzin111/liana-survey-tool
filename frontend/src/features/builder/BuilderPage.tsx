@@ -1,47 +1,165 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { api, type Survey } from '../../api/client';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ApiError, api, type Survey } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
-import { Button, Card, SurveyStatusBadge } from '../../components/ui';
-import { surveyTypes } from './surveyTypes';
+import { Button, ButtonLink, Card, TextArea, TextField, useToast } from '../../components/ui';
 import './builder.css';
+
+type FieldErrors = { title?: string; description?: string };
+
+function validationErrors(title: string, description: string): FieldErrors {
+  if (!title.trim()) return { title: 'Give your survey a title' };
+  return {
+    ...(title.trim().length > 200 ? { title: 'Survey title must be 200 characters or fewer' } : {}),
+    ...(description.trim().length > 1000
+      ? { description: 'Description must be 1000 characters or fewer' }
+      : {}),
+  };
+}
+
+function apiErrors(error: unknown): FieldErrors {
+  if (!(error instanceof ApiError) || !error.body || typeof error.body !== 'object') return {};
+  const detail = 'detail' in error.body ? error.body.detail : null;
+  if (!Array.isArray(detail)) return {};
+  const fields: FieldErrors = {};
+  for (const item of detail) {
+    if (!item || typeof item !== 'object' || !('loc' in item) || !('msg' in item)) continue;
+    const loc = Array.isArray(item.loc) ? item.loc : [];
+    const field: unknown = loc.at(-1);
+    if ((field === 'title' || field === 'description') && typeof item.msg === 'string') {
+      fields[field] = item.msg;
+    }
+  }
+  return fields;
+}
 
 export function BuilderPage() {
   const { id = '' } = useParams();
+  const toast = useToast();
+  const mounted = useRef(true);
+  const saving = useRef(false);
   const [survey, setSurvey] = useState<Survey | null>(null);
-  const [error, setError] = useState(false);
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [loadError, setLoadError] = useState<'not-found' | 'failed' | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
     setSurvey(null);
-    setError(false);
+    setLoadError(null);
     api.survey(id).then(
-      (saved) => { if (active) setSurvey(saved); },
-      () => { if (active) setError(true); },
+      (saved) => {
+        if (!active) return;
+        setSurvey(saved);
+        setTitle(saved.title);
+        setDescription(saved.description ?? '');
+      },
+      (error) => {
+        if (active) setLoadError(error instanceof ApiError && error.status === 404 ? 'not-found' : 'failed');
+      },
     );
     return () => { active = false; };
   }, [id, attempt]);
 
+  async function saveDraft(event: FormEvent) {
+    event.preventDefault();
+    if (!survey || saving.current) return;
+    const errors = validationErrors(title, description);
+    setFieldErrors(errors);
+    setSaveError('');
+    if (Object.keys(errors).length) return;
+
+    const changes: Partial<Pick<Survey, 'title' | 'description'>> = {};
+    if (title !== survey.title) changes.title = title;
+    if (description !== (survey.description ?? '')) changes.description = description;
+    if (!Object.keys(changes).length) {
+      toast('Saved as draft');
+      return;
+    }
+
+    saving.current = true;
+    setIsSaving(true);
+    try {
+      const saved = await api.updateSurvey(id, changes);
+      if (!mounted.current) return;
+      setSurvey(saved);
+      setTitle(saved.title);
+      setDescription(saved.description ?? '');
+      toast('Saved as draft');
+    } catch (error) {
+      if (!mounted.current) return;
+      const errorsFromApi = apiErrors(error);
+      setFieldErrors(errorsFromApi);
+      if (!Object.keys(errorsFromApi).length) {
+        setSaveError('We couldn\u2019t save your draft. Please try again.');
+      }
+    } finally {
+      saving.current = false;
+      if (mounted.current) setIsSaving(false);
+    }
+  }
+
   return (
     <>
-      <PageHeader title="Build your survey" description={survey?.title} />
-      {error ? (
+      <PageHeader
+        title="Build your survey"
+        description="Write your own questions and pick an answer type for each. Short surveys get more answers."
+        actions={survey ? (
+          <div className="survey-builder-actions">
+            <ButtonLink to="/surveys/new" variant="ghost">Cancel</ButtonLink>
+            <Button type="submit" form="survey-details-form" loading={isSaving}>Save as draft</Button>
+          </div>
+        ) : undefined}
+      />
+      {loadError === 'not-found' ? (
         <div className="survey-error" role="alert">
-          <p>We couldn’t load this survey. Please try again.</p>
+          <p>Survey not found</p>
+          <Link to="/surveys/new">Back to create survey</Link>
+        </div>
+      ) : loadError === 'failed' ? (
+        <div className="survey-error" role="alert">
+          <p>We couldn&rsquo;t load this survey. Please try again.</p>
           <Button onClick={() => setAttempt((value) => value + 1)}>Try again</Button>
         </div>
       ) : survey ? (
-        <>
-          <div className="survey-draft-meta">
-            <SurveyStatusBadge status={survey.status} />
-            <span>{surveyTypes.find((option) => option.type === survey.type)?.title}</span>
-          </div>
-          <Card padded>
-            <p>Your draft is saved. Question editing will be available here next.</p>
+        <form id="survey-details-form" className="survey-builder-form" onSubmit={saveDraft} noValidate>
+          <Card padded className="survey-details-card">
+            <TextField
+              label="Survey title"
+              required
+              className="survey-title-input"
+              value={title}
+              error={fieldErrors.title}
+              disabled={isSaving}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                setFieldErrors((current) => ({ ...current, title: undefined }));
+              }}
+            />
+            <TextArea
+              label="Description (optional)"
+              rows={2}
+              value={description}
+              error={fieldErrors.description}
+              disabled={isSaving}
+              onChange={(event) => {
+                setDescription(event.target.value);
+                setFieldErrors((current) => ({ ...current, description: undefined }));
+              }}
+            />
           </Card>
-        </>
-      ) : <p role="status">Loading your survey…</p>}
+          {saveError ? <p className="survey-save-error" role="alert">{saveError}</p> : null}
+        </form>
+      ) : <p role="status">Loading your survey&hellip;</p>}
     </>
   );
 }

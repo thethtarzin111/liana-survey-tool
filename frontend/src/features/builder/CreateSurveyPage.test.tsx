@@ -5,7 +5,9 @@ import { ToastProvider } from '../../components/ui';
 import { BuilderPage } from './BuilderPage';
 import { CreateSurveyPage } from './CreateSurveyPage';
 
-const draft: Survey = { id: 'saved-survey', title: 'Untitled survey', type: 'nps', status: 'draft' };
+const draft: Survey = {
+  id: 'saved-survey', title: 'Untitled survey', description: null, type: 'nps', status: 'draft',
+};
 const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
@@ -53,9 +55,8 @@ test.each([
 ])('choosing %s saves the right type and opens the persisted draft', async (label, type) => {
   renderPage();
   fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${label.replace(/[()]/g, '\\$&')}`) }));
-  expect(await screen.findByText('Draft')).toBeInTheDocument();
+  expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
   expect(screen.getByRole('heading', { name: 'Build your survey' })).toBeInTheDocument();
-  expect(screen.getByText('Untitled survey')).toBeInTheDocument();
   expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/saved-survey');
   expect(fetchMock).toHaveBeenCalledWith('/api/v1/surveys', {
     method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
@@ -77,7 +78,7 @@ test('disables every card while saving and prevents duplicate requests', async (
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(screen.getByText('Saving your draft…')).toBeInTheDocument();
   complete(Response.json(draft));
-  expect(await screen.findByText('Draft')).toBeInTheDocument();
+  expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
 });
 
 test.each(['server', 'network'])('shows page and toast errors after a %s failure and allows retry', async (failure) => {
@@ -92,7 +93,7 @@ test.each(['server', 'network'])('shows page and toast errors after a %s failure
   const retry = screen.getByRole('button', { name: /^NPS survey/ });
   expect(retry).toBeEnabled();
   fireEvent.click(retry);
-  expect(await screen.findByText('Draft')).toBeInTheDocument();
+  expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
   expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(2);
 });
 
@@ -122,5 +123,5 @@ test('a draft URL loads the saved survey and can recover from a load failure', a
   expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t load this survey.');
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
   await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
-  expect(await screen.findByText('Draft')).toBeInTheDocument();
+  expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
 });

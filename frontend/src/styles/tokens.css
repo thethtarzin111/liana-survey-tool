@@ -48,6 +48,7 @@
   --text-xs: 11px;                 /* step numbers, small remove buttons */
   --text-icon: 13px;               /* the × in chips */
   --text-brand: 16px;              /* "LianaSurvey" in the header */
+  --text-title-input: 20px;        /* survey title field in the builder */
 
   --radius-sm: 3.43px;
   --radius-nav: 6.86px;
