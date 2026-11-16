@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { BuilderPage } from '../features/builder/BuilderPage';
+import { CreateSurveyPage } from '../features/builder/CreateSurveyPage';
 import { ContactRequestsPage } from '../features/contact-requests/ContactRequestsPage';
 import { FrontPage } from '../features/front/FrontPage';
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage';
@@ -50,7 +51,8 @@ export function App() {
           <Routes>
             <Route path="/" element={<FrontPage />} />
             <Route path="/surveys" element={<SurveysPage />} />
-            <Route path="/surveys/new" element={<BuilderPage />} />
+            <Route path="/surveys/new" element={<CreateSurveyPage />} />
+            <Route path="/surveys/:id" element={<BuilderPage />} />
             <Route path="/results" element={<ResultsPage />} />
             <Route path="/responses" element={<ResponsesPage />} />
             <Route path="/contact-requests" element={<ContactRequestsPage />} />
