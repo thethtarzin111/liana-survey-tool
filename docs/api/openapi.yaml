@@ -69,7 +69,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
-        '422': { description: Invalid body (unknown type, blank title, or a field the server sets) }
+        '422': { description: Invalid body (unknown type, blank or long title, long description, or a field the server sets) }
   /api/v1/surveys/{survey_id}:
     parameters:
       - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -85,7 +85,7 @@ paths:
         '404': { description: No such survey in this organisation }
     patch:
       tags: [surveys]
-      summary: Change the title or type; omitted fields stay the same
+      summary: Change the title, description or type; omitted fields stay the same
       description: Leave out fields that should not change. Sending a field as null is a 422.
       requestBody:
         required: true
@@ -125,18 +125,21 @@ components:
       properties:
         type: { $ref: '#/components/schemas/SurveyType' }
         title: { type: string, minLength: 1, maxLength: 200, default: Untitled survey, description: Trimmed }
+        description: { type: [string, 'null'], maxLength: 1000, description: Trimmed; an empty string is stored as null }
     SurveyUpdate:
       type: object
       additionalProperties: false
       properties:
         title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: string, maxLength: 1000, description: Trimmed; an empty string clears the description }
         type: { $ref: '#/components/schemas/SurveyType' }
     Survey:
       type: object
-      required: [id, title, type, status, anonymous, language, opens_at, closes_at, response_limit, created_at, updated_at]
+      required: [id, title, description, type, status, anonymous, language, opens_at, closes_at, response_limit, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         title: { type: string, example: Member NPS 2026 }
+        description: { type: [string, 'null'], example: Members' view of 2026 }
         type: { $ref: '#/components/schemas/SurveyType' }
         status: { $ref: '#/components/schemas/SurveyStatus' }
         anonymous: { type: boolean, description: True unless respondents opt in to be identified }
