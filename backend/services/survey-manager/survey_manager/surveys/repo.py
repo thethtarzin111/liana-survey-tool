@@ -13,6 +13,7 @@ COLUMN_NAMES = (
     "id",
     "title",
     "description",
+    "thank_you",
     "type",
     "status",
     "anonymous",
@@ -107,9 +108,10 @@ def duplicate(
     Responses, contact requests and totals belong to the original and are not copied."""
     row = conn.execute(
         f"""insert into surveys
-              (tenant_id, title, description, type, status, anonymous, language,
+              (tenant_id, title, description, thank_you, type, status, anonymous, language,
                response_limit, created_by)
-            select %s, %s, description, type, %s, anonymous, language, response_limit, %s
+            select %s, %s, description, thank_you, type, %s, anonymous, language,
+                   response_limit, %s
             from surveys where id = %s
             returning {COLUMNS}""",
         (tenant_id, title, SurveyStatus.draft.value, user_id, survey_id),

@@ -11,6 +11,7 @@ DEFAULT_TITLE = "Untitled survey"
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
+ThankYou = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
 
 
 class SurveyType(StrEnum):
@@ -56,9 +57,10 @@ class SurveyUpdate(BaseModel):
 
     title: Title | None = None
     description: Description | None = None
+    thank_you: ThankYou | None = None
     type: SurveyType | None = None
 
-    @field_validator("description", mode="before")
+    @field_validator("description", "thank_you", mode="before")
     @classmethod
     def empty_description_is_none(cls, value: Any) -> Any:
         if isinstance(value, str) and not value.strip():
@@ -79,6 +81,7 @@ class Survey(BaseModel):
     id: UUID
     title: str
     description: str | None
+    thank_you: str | None  # shown to readers after answering
     type: SurveyType
     status: SurveyStatus
     anonymous: bool
