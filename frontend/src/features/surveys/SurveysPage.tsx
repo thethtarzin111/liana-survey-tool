@@ -1,11 +1,258 @@
-import { PlaceholderPage } from '../../components/PlaceholderPage';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { api, ApiError, type SurveyListItem, type SurveyStatus, type SurveyType } from '../../api/client';
+import { PageHeader } from '../../components/PageHeader';
+import {
+  ActionMenu,
+  Button,
+  ButtonLink,
+  ConfirmDialog,
+  EmptyState,
+  SurveyStatusBadge,
+  Table,
+  TextButton,
+  ToggleChip,
+  icons,
+  useToast,
+  type Column,
+  type MenuAction,
+} from '../../components/ui';
+import './surveys.css';
+
+// Texts and labels follow the prototype's Surveys screen.
+const FILTERS: { label: string; status?: SurveyStatus }[] = [
+  { label: 'All' },
+  { label: 'Draft', status: 'draft' },
+  { label: 'Scheduled', status: 'scheduled' },
+  { label: 'Live', status: 'live' },
+  { label: 'Closed', status: 'closed' },
+];
+const STATUSES = new Set<string>(['draft', 'scheduled', 'live', 'closed']);
+const TYPE_LABEL: Record<SurveyType, string> = {
+  thumbs: 'Thumbs rating',
+  nps: 'NPS survey',
+  csat: 'CSAT survey',
+  custom: 'Custom survey',
+};
+const UNPUBLISH_ICON = 'M4 12h10M10 6l-6 6 6 6M20 4v16';
+const CLOSE_ICON = 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4';
+
+/** "member-nps-2026": the tag a live survey's answers get in Liana. */
+export function slug(text: string): string {
+  return text.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'campaign';
+}
+
+/** "Mon 01/12/2026" */
+function openDate(iso: string): string {
+  const d = new Date(iso);
+  const weekday = d.toLocaleDateString('en-GB', { weekday: 'short' });
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${weekday} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+}
+
+function note(survey: SurveyListItem): string {
+  if (survey.status === 'live') return `Tag ${slug(survey.title)}`;
+  if (survey.status === 'scheduled') return survey.opens_at ? `Opens ${openDate(survey.opens_at)}` : '';
+  if (survey.status === 'draft') return 'Not published yet';
+  return '';
+}
+
+function deleteText(survey: SurveyListItem): string {
+  return survey.answers
+    ? `The survey and its ${survey.answers} answers will be deleted. This cannot be undone. To keep the results, close the survey instead.`
+    : 'The survey will be deleted. This cannot be undone.';
+}
 
 export function SurveysPage() {
+  const [params, setParams] = useSearchParams();
+  const q = (params.get('q') ?? '').trim();
+  const statusParam = params.get('status') ?? '';
+  const status = STATUSES.has(statusParam) ? (statusParam as SurveyStatus) : undefined;
+
+  const toast = useToast();
+  const [organisation, setOrganisation] = useState('');
+  const [surveys, setSurveys] = useState<SurveyListItem[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
+  const [deleting, setDeleting] = useState<SurveyListItem | null>(null);
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+    api.me().then(
+      (user) => { if (mounted.current) setOrganisation(user.tenant_name); },
+      () => {},
+    );
+    return () => { mounted.current = false; };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setLoadError(false);
+    api.listSurveys({ q: q || undefined, status }).then(
+      (rows) => { if (active) setSurveys(rows); },
+      () => { if (active) setLoadError(true); },
+    );
+    return () => { active = false; };
+  }, [q, status, reload]);
+
+  function setFilter(changes: { q?: string; status?: string }) {
+    const next = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(changes)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    setParams(next);
+  }
+
+  /** Runs one action at a time, shows a toast, then reloads the list. */
+  async function run(action: () => Promise<unknown>, success: string, failure: string) {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    try {
+      await action();
+      if (mounted.current) toast(success);
+    } catch (error) {
+      // 404: it was already deleted elsewhere; the reload shows that.
+      if (mounted.current && !(error instanceof ApiError && error.status === 404)) toast(failure);
+    } finally {
+      pending.current = false;
+      if (mounted.current) {
+        setBusy(false);
+        setReload((n) => n + 1);
+      }
+    }
+  }
+
+  function actionsFor(survey: SurveyListItem): MenuAction[] {
+    const name = `“${survey.title}”`;
+    const items: MenuAction[] = [];
+    if (survey.status === 'live' || survey.status === 'scheduled') {
+      items.push({
+        label: 'Unpublish',
+        icon: UNPUBLISH_ICON,
+        onSelect: () => void run(
+          () => api.changeSurveyStatus(survey.id, 'unpublish'),
+          `${name} is unpublished. It is now a draft.`,
+          `We couldn’t unpublish ${name}. Please try again.`,
+        ),
+      });
+    }
+    if (survey.status === 'live') {
+      items.push({
+        label: 'Close survey',
+        icon: CLOSE_ICON,
+        onSelect: () => void run(
+          () => api.changeSurveyStatus(survey.id, 'close'),
+          `${name} is closed. It no longer takes answers.`,
+          `We couldn’t close ${name}. Please try again.`,
+        ),
+      });
+    }
+    items.push({ label: 'Delete', icon: icons.trash, danger: true, onSelect: () => setDeleting(survey) });
+    return items;
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    const survey = deleting;
+    await run(
+      () => api.deleteSurvey(survey.id),
+      `“${survey.title}” was deleted.`,
+      `We couldn’t delete “${survey.title}”. Please try again.`,
+    );
+    if (mounted.current) setDeleting(null);
+  }
+
+  const columns: Column<SurveyListItem>[] = [
+    {
+      key: 'name',
+      header: 'Name',
+      render: (s) => (
+        <>
+          <Link className="survey-name" to={`/surveys/${encodeURIComponent(s.id)}`}>{s.title}</Link>
+          {note(s) ? <div className="survey-note">{note(s)}</div> : null}
+        </>
+      ),
+    },
+    { key: 'type', header: 'Type', render: (s) => TYPE_LABEL[s.type] },
+    { key: 'status', header: 'Status', render: (s) => <SurveyStatusBadge status={s.status} /> },
+    { key: 'answers', header: 'Answers', numeric: true, render: (s) => s.answers },
+    // Scores arrive with the scoring rules (#22).
+    { key: 'score', header: 'Headline score', render: () => <strong>—</strong> },
+    {
+      key: 'actions',
+      header: 'Actions',
+      hideHeader: true,
+      render: (s) => <ActionMenu label={`Actions for ${s.title}`} items={actionsFor(s)} />,
+    },
+  ];
+
+  let body;
+  if (loadError) {
+    body = (
+      <div className="surveys-error" role="alert">
+        <p>We couldn’t load your surveys. Please try again.</p>
+        <Button onClick={() => setReload((n) => n + 1)}>Try again</Button>
+      </div>
+    );
+  } else if (surveys === null) {
+    body = <p role="status">Loading surveys…</p>;
+  } else if (surveys.length === 0 && !q && !status) {
+    body = (
+      <EmptyState
+        icon={icons.list}
+        title="No surveys yet."
+        actions={<ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>}
+      />
+    );
+  } else {
+    body = (
+      <Table
+        caption="Surveys"
+        columns={columns}
+        rows={surveys}
+        rowKey={(s) => s.id}
+        empty="No surveys match. Try another filter or search."
+      />
+    );
+  }
+
   return (
-    <PlaceholderPage
-      title="Surveys"
-      description="All your surveys: draft, scheduled, live and closed."
-      card="Survey list with statuses"
-    />
+    <div className="surveys-page">
+      <PageHeader
+        title="Surveys"
+        description={organisation ? `All surveys for ${organisation}.` : undefined}
+        actions={<ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>}
+      />
+      <div className="survey-filters" role="group" aria-label="Filter by status">
+        {FILTERS.map((f) => (
+          <ToggleChip key={f.label} selected={status === f.status} onChange={() => setFilter({ status: f.status })}>
+            {f.label}
+          </ToggleChip>
+        ))}
+      </div>
+      {q ? (
+        <p className="survey-search-note">
+          Showing surveys matching “{q}”.{' '}
+          <TextButton onClick={() => setFilter({ q: undefined })}>Clear search</TextButton>
+        </p>
+      ) : null}
+      {body}
+      <ConfirmDialog
+        open={deleting !== null}
+        title={deleting ? `Delete “${deleting.title}”?` : ''}
+        confirmLabel="Delete survey"
+        danger
+        busy={busy}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleting(null)}
+      >
+        {deleting ? deleteText(deleting) : ''}
+      </ConfirmDialog>
+    </div>
   );
 }

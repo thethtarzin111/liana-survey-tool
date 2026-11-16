@@ -1,6 +1,7 @@
-import { NavLink } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Icon } from '../components/Icon';
-import { ButtonLink, CountBadge, icons } from '../components/ui';
+import { ButtonLink, CountBadge, SearchInput, icons } from '../components/ui';
 import { footerNav, mainNav, type NavItem } from './nav';
 
 type Props = {
@@ -24,12 +25,37 @@ function Item({ item, badge }: { item: NavItem; badge?: number }) {
   );
 }
 
+/** "Search..." opens the Surveys list filtered by the typed text (any status). */
+function SurveySearch() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const [params] = useSearchParams();
+  const current = pathname === '/surveys' ? (params.get('q') ?? '') : '';
+  const [text, setText] = useState(current);
+
+  // Follow the list: "Clear search" there empties this box too.
+  useEffect(() => setText(current), [current]);
+
+  return (
+    <SearchInput
+      label="Search surveys"
+      value={text}
+      onChange={setText}
+      onSearch={(value) => {
+        const q = value.trim();
+        navigate(q ? `/surveys?${new URLSearchParams({ q })}` : '/surveys');
+      }}
+    />
+  );
+}
+
 export function Sidebar({ badges = {}, open = false }: Props) {
   return (
     <nav id="sideNav" className={open ? 'sidebar open' : 'sidebar'} aria-label="Sidebar">
       <ButtonLink to="/surveys/new" variant="primary" icon={icons.plus} block>
         Create survey
       </ButtonLink>
+      <SurveySearch />
       {mainNav.map((item) => (
         <Item key={item.to} item={item} badge={badges[item.to]} />
       ))}
