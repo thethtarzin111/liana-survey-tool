@@ -5,7 +5,7 @@
   display: flex; align-items: center; gap: 12px; padding: 6px 16px;
   background: var(--color-surface); border-bottom: 1px solid var(--color-border);
 }
-.header-brand { font: 700 16px var(--font-heading); color: var(--color-brand-dark); }
+.header-brand { font: 700 var(--text-brand) var(--font-heading); color: var(--color-brand-dark); }
 .header-spacer { flex: 1; }
 .header-user { color: var(--color-text-muted); }
 
@@ -24,7 +24,7 @@
   display: flex; flex-direction: column; gap: 2px; padding: 13.71px 8px;
   background: var(--color-surface); border-right: 1px solid var(--color-border);
 }
-.sidebar .btn { width: 100%; margin-bottom: 10px; }
+.sidebar .btn { margin-bottom: 10px; }
 .sidebar-divider { height: 1px; background: var(--color-border); margin: 12px -8px; }
 .sidebar-footer { display: flex; flex-direction: column; gap: 2px; }
 
@@ -38,12 +38,7 @@
 .nav-link.active { background: var(--color-bg); color: var(--color-text); font-weight: 600; }
 .nav-link.active svg { color: var(--color-brand); }
 
-.badge {
-  margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: var(--radius-pill); background: var(--color-brand-dark); color: var(--color-on-brand);
-  font-size: 10.8px; font-weight: 600; line-height: 1;
-}
+.nav-link .count-badge { margin-left: auto; }
 
 .main { flex: 1; overflow: auto; padding: 24px; }
 .page-header { margin-bottom: 16px; }
