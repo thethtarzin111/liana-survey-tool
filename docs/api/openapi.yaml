@@ -252,6 +252,39 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Question' }
         '404': { description: No such survey or question in this organisation }
+  /api/v1/templates:
+    get:
+      tags: [templates]
+      summary: Built-in templates and the organisation's own, in display order
+      description: >-
+        "{organisation}" in template text is replaced with the organisation's name.
+      parameters:
+        - name: type
+          in: query
+          required: false
+          description: Only templates of this survey type, as on "Pick a template"
+          schema: { $ref: '#/components/schemas/SurveyType' }
+      responses:
+        '200':
+          description: Templates
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Template' } }
+        '422': { description: Unknown survey type }
+  /api/v1/templates/{template_id}/surveys:
+    parameters:
+      - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [templates]
+      summary: Create a draft survey from a template
+      description: The survey gets the template's name as its title, its type, thank-you message and questions.
+      responses:
+        '201':
+          description: The new draft
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Survey' }
+        '404': { description: No such template for this organisation }
 components:
   schemas:
     CurrentUser:
@@ -284,14 +317,16 @@ components:
       properties:
         title: { type: string, minLength: 1, maxLength: 200 }
         description: { type: string, maxLength: 1000, description: Trimmed; an empty string clears the description }
+        thank_you: { type: string, maxLength: 500, description: Trimmed; an empty string clears the message }
         type: { $ref: '#/components/schemas/SurveyType' }
     Survey:
       type: object
-      required: [id, title, description, type, status, anonymous, language, opens_at, closes_at, response_limit, created_at, updated_at]
+      required: [id, title, description, thank_you, type, status, anonymous, language, opens_at, closes_at, response_limit, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         title: { type: string, example: Member NPS 2026 }
         description: { type: [string, 'null'], example: Members' view of 2026 }
+        thank_you: { type: [string, 'null'], description: Shown to readers after answering, example: Thank you. This takes our member work forward. }
         type: { $ref: '#/components/schemas/SurveyType' }
         status: { $ref: '#/components/schemas/SurveyStatus' }
         anonymous: { type: boolean, description: True unless respondents opt in to be identified }
@@ -311,13 +346,14 @@ components:
             answers: { type: integer, minimum: 0, description: Submitted responses so far }
     QuestionKind:
       type: string
-      enum: [single_choice, multiple_choice, dropdown, text, long_text, rating, nps, reasons]
+      enum: [single_choice, multiple_choice, dropdown, text, long_text, rating, nps, reasons, thumbs]
       description: >-
         The prototype's answer types. single_choice = Multiple choice (pick one),
         multiple_choice = Checkboxes, dropdown = Dropdown, text = Short answer (answers up
         to 500 characters), long_text = Paragraph (up to 5000), rating = Rating 1-5 (CSAT),
         nps = NPS 0-10, reasons = Reason bubbles (pick any; each becomes a Top reasons
-        category). Rating and NPS scales are fixed.
+        category), thumbs = Thumbs rating (0 Not for me, 1 Good, 2 Loved it; the main
+        question of a thumbs survey). Rating, NPS and thumbs scales are fixed.
     QuestionOptions:
       type: array
       maxItems: 20
@@ -367,3 +403,27 @@ components:
         prompt: { type: string }
         options: { $ref: '#/components/schemas/QuestionOptions' }
         required: { type: boolean }
+    TemplateQuestion:
+      type: object
+      required: [kind, prompt, options, required]
+      properties:
+        kind: { $ref: '#/components/schemas/QuestionKind' }
+        prompt: { type: string }
+        options: { $ref: '#/components/schemas/QuestionOptions' }
+        required: { type: boolean }
+    Template:
+      type: object
+      required: [id, name, type, description, thank_you, featured, questions]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: Member NPS }
+        type: { $ref: '#/components/schemas/SurveyType' }
+        description: { type: string, example: Yearly loyalty check for members }
+        thank_you: { type: string, description: Empty when the template has none }
+        featured: { type: boolean, description: Shown as a card on the Templates page }
+        questions:
+          type: array
+          description: >-
+            The first is the main question. Thumbs, NPS and CSAT templates follow it with
+            optional reason bubbles.
+          items: { $ref: '#/components/schemas/TemplateQuestion' }

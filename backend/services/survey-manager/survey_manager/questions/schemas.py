@@ -24,6 +24,9 @@ class QuestionKind(StrEnum):
     rating = "rating"  # Rating 1-5 (CSAT)
     nps = "nps"  # NPS 0-10
     reasons = "reasons"  # Reason bubbles (pick any; each becomes a Top reasons category)
+    thumbs = (
+        "thumbs"  # Thumbs rating: Not for me, Good, Loved it (main question of a thumbs survey)
+    )
 
 
 class QuestionCreate(BaseModel):

@@ -20,7 +20,11 @@ CHOICE_KINDS = frozenset(
 #: Types where more than one option may be picked.
 MULTI_KINDS = frozenset({QuestionKind.multiple_choice, QuestionKind.reasons})
 #: Fixed scales. They cannot be changed, so results stay comparable.
-SCALES = {QuestionKind.rating: range(1, 6), QuestionKind.nps: range(0, 11)}
+SCALES = {
+    QuestionKind.rating: range(1, 6),
+    QuestionKind.nps: range(0, 11),
+    QuestionKind.thumbs: range(0, 3),  # 0 Not for me, 1 Good, 2 Loved it
+}
 #: Longest accepted free-text answer per type.
 TEXT_LIMITS = {QuestionKind.text: 500, QuestionKind.long_text: 5000}
 
