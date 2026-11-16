@@ -1,14 +1,14 @@
 ## What
 <!-- One or two sentences. -->
 
-## Backlog card
-<!-- Link to the Trello card. -->
+## Issue
+Closes #<!-- issue number -->
 
 ## How to check it
 <!-- Steps a reviewer can follow, e.g. "docker compose up, open /results". -->
 
 ## Checklist
-- [ ] Only this card's scope
+- [ ] Only this issue's scope
 - [ ] `make lint` and `make test` pass
 - [ ] `docs/api/openapi.yaml` updated (if endpoints changed)
 - [ ] New tables have `tenant_id`, an RLS policy and a check in `db/tests/rls_check.sql`

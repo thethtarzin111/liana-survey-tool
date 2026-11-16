@@ -3,11 +3,11 @@
 Read `README.md` and `docs/architecture.md` first.
 
 ## How to work
-- Work on one backlog card at a time, on its own branch (`feat/<short-name>`).
+- Work on one issue at a time, on its own branch (`feat/<short-name>`).
   Open a pull request; never commit to or merge into `main`.
-- Before you say a card is done, run `make lint` and `make test` (or the commands
+- Before you say an issue is done, run `make lint` and `make test` (or the commands
   inside the Makefile on Windows) and report the real output.
-- Keep changes inside the card's scope. Write down anything else you notice in
+- Keep changes inside the issue's scope. Write down anything else you notice in
   the PR description instead of fixing it.
 
 ## Stack and rules
@@ -45,4 +45,4 @@ Read `README.md` and `docs/architecture.md` first.
 ## Reference
 - Prototype snapshot: `design/prototype/` (open the Claude Design artifact for
   the clickable version). Rebuild screens in React; never copy its code.
-- Backlog: Trello board (private), acceptance criteria are on each card.
+- Backlog: GitHub Project "survey-tool-backlog" (https://github.com/users/thethtarzin111/projects/1). Acceptance criteria are on each issue.

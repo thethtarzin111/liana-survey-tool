@@ -29,5 +29,5 @@ GitHub Actions only calls `make` targets (`make lint`, `make test`,
 targets.
 
 ## What is still open
-See the Trello board. Integration status is in `docs/integrations.md`, and
+See the open issues on the GitHub Project board (https://github.com/users/thethtarzin111/projects/1). Integration status is in `docs/integrations.md`, and
 open privacy questions are in `docs/gdpr.md`.

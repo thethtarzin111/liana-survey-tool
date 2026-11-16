@@ -7,7 +7,7 @@ newsletter or by link, and see NPS / CSAT results. "Contact me" requests can
 start a LianaAutomation flow.
 
 > **Status:** scaffolding only. Every page and service exists and starts, but
-> features are built one backlog card at a time. Uses demo data only
+> features are built one issue at a time. Uses demo data only
 > (Example Members Association, Anna Virtanen).
 
 ## Run it
@@ -21,7 +21,7 @@ docker compose up --build
 
 | What | URL |
 |---|---|
-| Admin app | http://localhost:8080 |
+| Admin app | http://localhost:4200 |
 | API docs (Swagger) | http://localhost:8000/docs |
 | RabbitMQ console | http://localhost:15672 |
 
@@ -39,7 +39,7 @@ make test-py
 # Frontend
 cd apps/admin-web
 npm install
-npm run dev                   # http://localhost:5173, talks to the API on :8000
+npm run dev                   # http://localhost:4200, talks to the API on :8000
 npm test
 ```
 
@@ -64,7 +64,7 @@ the commands from the `Makefile` by hand. CI only calls `make` targets.
 ## Working agreement
 
 - Work on a branch, open a pull request, never push to `main`.
-- One backlog card per PR. Link the Trello card in the PR.
+- One issue per PR. Link the GitHub issue in the PR (for example "Closes #24").
 - CI must be green: lint, unit tests, DB migrations + RLS check, E2E.
 - Never commit `.env` or any Liana staging login.
 

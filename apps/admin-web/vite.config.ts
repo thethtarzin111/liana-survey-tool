@@ -5,7 +5,8 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    port: 4200,
+    strictPort: true, // fail instead of silently moving to another port
     // `npm run dev` talks to the API running on your machine or in Docker.
     proxy: { '/api': 'http://localhost:8000' },
   },

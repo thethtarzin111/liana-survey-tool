@@ -1,5 +1,5 @@
 # Runs the whole system locally: docker compose up --build
-# Admin app: http://localhost:8080   API docs: http://localhost:8000/docs
+# Admin app: http://localhost:4200   API docs: http://localhost:8000/docs
 # RabbitMQ console: http://localhost:15672
 
 x-python-env: &python-env
@@ -98,7 +98,7 @@ services:
   # For day-to-day frontend work use `npm run dev` in apps/admin-web instead.
   admin-web:
     build: { context: apps/admin-web }
-    ports: ["8080:80"]
+    ports: ["4200:80"]
     depends_on:
       api: { condition: service_healthy }
 
