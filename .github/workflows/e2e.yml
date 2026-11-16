@@ -15,7 +15,7 @@ jobs:
       - name: Create .env from the example
         run: cp .env.example .env
       - name: Start the stack
-        run: docker compose up -d --build --wait api worker liana-connector admin-web
+        run: docker compose up -d --build --wait gateway survey-manager respondent data-analyzer worker liana-connector admin-web
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

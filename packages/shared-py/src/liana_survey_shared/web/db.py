@@ -12,9 +12,8 @@ import psycopg
 from fastapi import Depends
 from psycopg.rows import dict_row
 
-from liana_survey_shared.db import tenant_connection
-
-from .auth.dev_stub import CurrentUser, current_user
+from ..db import tenant_connection
+from .auth import CurrentUser, current_user
 
 
 def tenant_db(user: CurrentUser = Depends(current_user)) -> Iterator[psycopg.Connection]:

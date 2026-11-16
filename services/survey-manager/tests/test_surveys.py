@@ -16,9 +16,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from liana_survey_shared.db import ping
-from survey_api.auth.dev_stub import CurrentUser, current_user
-from survey_api.db import tenant_db
-from survey_api.main import app
+from liana_survey_shared.web.auth import CurrentUser, current_user
+from liana_survey_shared.web.db import tenant_db
+from survey_manager.main import app
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
 OTHER_TENANT = UUID("00000000-0000-4000-8000-0000000000ff")
