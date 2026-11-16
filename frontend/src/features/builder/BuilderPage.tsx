@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ApiError, api, type Survey } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
-import { Button, ButtonLink, Card, TextArea, TextField, useToast } from '../../components/ui';
+import { Button, ButtonLink, Card, Disclosure, TextArea, TextField, useToast } from '../../components/ui';
+import { BrandingFields } from './BrandingFields';
 import { EditPreviewPage } from './EditPreviewPage';
 import { QuestionList } from './QuestionList';
 import './builder.css';
@@ -43,6 +44,8 @@ export function BuilderPage() {
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [accent, setAccent] = useState('');
+  const [background, setBackground] = useState('');
   const [loadError, setLoadError] = useState<'not-found' | 'failed' | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saveError, setSaveError] = useState('');
@@ -64,6 +67,8 @@ export function BuilderPage() {
         setSurvey(saved);
         setTitle(saved.title);
         setDescription(saved.description ?? '');
+        setAccent(saved.accent_color);
+        setBackground(saved.background_color);
       },
       (error) => {
         if (active) setLoadError(error instanceof ApiError && error.status === 404 ? 'not-found' : 'failed');
@@ -80,9 +85,11 @@ export function BuilderPage() {
     setSaveError('');
     if (Object.keys(errors).length) return;
 
-    const changes: Partial<Pick<Survey, 'title' | 'description'>> = {};
+    const changes: Partial<Pick<Survey, 'title' | 'description' | 'accent_color' | 'background_color'>> = {};
     if (title !== survey.title) changes.title = title;
     if (description !== (survey.description ?? '')) changes.description = description;
+    if (accent !== survey.accent_color) changes.accent_color = accent;
+    if (background !== survey.background_color) changes.background_color = background;
     if (!Object.keys(changes).length) {
       toast('Saved as draft');
       return;
@@ -96,6 +103,8 @@ export function BuilderPage() {
       setSurvey(saved);
       setTitle(saved.title);
       setDescription(saved.description ?? '');
+      setAccent(saved.accent_color);
+      setBackground(saved.background_color);
       toast('Saved as draft');
     } catch (error) {
       if (!mounted.current) return;
@@ -168,6 +177,18 @@ export function BuilderPage() {
           {saveError ? <p className="survey-save-error" role="alert">{saveError}</p> : null}
         </form>
         <QuestionList surveyId={survey.id} />
+        <Card padded className="branding-card">
+          <Disclosure title={<><strong>Branding</strong> <span className="answer-hint">(optional)</span></>}>
+            <BrandingFields
+              survey={survey}
+              accent={accent}
+              background={background}
+              onAccentChange={setAccent}
+              onBackgroundChange={setBackground}
+              onLogoChange={setSurvey}
+            />
+          </Disclosure>
+        </Card>
         </div>
       ) : <p role="status">Loading your survey&hellip;</p>}
     </>

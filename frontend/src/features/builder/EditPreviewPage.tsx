@@ -3,6 +3,7 @@ import { ApiError, api, type Question, type QuestionInput, type QuestionKind, ty
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, Checkbox, InfoTip, Select, TextArea, TextField, useToast } from '../../components/ui';
 import { AnswerTypeControls } from './AnswerTypeControls';
+import { BrandingFields } from './BrandingFields';
 import { ANSWER_TYPES, changesForType, newOptionText } from './answerTypes';
 import { useSavedQuestions } from './useSavedQuestions';
 import './builder.css';
@@ -139,6 +140,8 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
   const [name, setName] = useState(survey.title);
   const [thanks, setThanks] = useState(survey.thank_you ?? '');
   const [options, setOptions] = useState<ReaderOptions>(() => readerOptionsOf(survey));
+  const [accent, setAccent] = useState(survey.accent_color);
+  const [background, setBackground] = useState(survey.background_color);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -189,7 +192,9 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
     setSaveError('');
     if (Object.keys(found).length) return;
 
-    const changes: { title?: string; thank_you?: string } & Partial<ReaderOptions> = {};
+    const changes: { title?: string; thank_you?: string; accent_color?: string; background_color?: string } & Partial<ReaderOptions> = {};
+    if (accent !== survey.accent_color) changes.accent_color = accent;
+    if (background !== survey.background_color) changes.background_color = background;
     if (name.trim() !== survey.title) changes.title = name;
     if (thanks.trim() !== (survey.thank_you ?? '')) changes.thank_you = thanks;
     for (const { key } of READER_OPTIONS) {
@@ -207,6 +212,8 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
       setName(saved.title);
       setThanks(saved.thank_you ?? '');
       setOptions(readerOptionsOf(saved));
+      setAccent(saved.accent_color);
+      setBackground(saved.background_color);
       onSaved(saved);
       toast('Saved as draft');
     } catch (error) {
@@ -346,6 +353,18 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
                 </div>
               ))}
             </fieldset>
+            <div className="edit-field">
+              <span className="edit-label">Brand</span>
+              <span className="answer-hint">Your logo and colour are used on the survey pages respondents see. Check the Preview.</span>
+              <BrandingFields
+                survey={survey}
+                accent={accent}
+                background={background}
+                onAccentChange={setAccent}
+                onBackgroundChange={setBackground}
+                onLogoChange={onSaved}
+              />
+            </div>
           </section>
         </Card>
         {saveError ? <p className="survey-save-error" role="alert">{saveError}</p> : null}

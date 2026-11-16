@@ -4,9 +4,10 @@ import type { Survey } from '../../api/client';
 import { ToastProvider } from '../../components/ui';
 import { BuilderPage } from './BuilderPage';
 import { CreateSurveyPage } from './CreateSurveyPage';
+import { DEFAULT_ACCENT, DEFAULT_BACKGROUND } from './branding';
 
 const draft: Survey = {
-  id: 'saved-survey', title: 'Untitled survey', description: null, thank_you: null, type: 'custom', status: 'draft', comment_field: true, show_results: true, contact_opt_in: true,
+  id: 'saved-survey', title: 'Untitled survey', description: null, thank_you: null, type: 'custom', status: 'draft', comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null,
 };
 const fetchMock = vi.fn<typeof fetch>();
 
