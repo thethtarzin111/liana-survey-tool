@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ApiError, api, type Survey } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, TextArea, TextField, useToast } from '../../components/ui';
+import { QuestionList } from './QuestionList';
 import './builder.css';
 
 type FieldErrors = { title?: string; description?: string };
@@ -131,6 +132,7 @@ export function BuilderPage() {
           <Button onClick={() => setAttempt((value) => value + 1)}>Try again</Button>
         </div>
       ) : survey ? (
+        <div className="survey-builder">
         <form id="survey-details-form" className="survey-builder-form" onSubmit={saveDraft} noValidate>
           <Card padded className="survey-details-card">
             <TextField
@@ -159,6 +161,8 @@ export function BuilderPage() {
           </Card>
           {saveError ? <p className="survey-save-error" role="alert">{saveError}</p> : null}
         </form>
+        <QuestionList surveyId={survey.id} />
+        </div>
       ) : <p role="status">Loading your survey&hellip;</p>}
     </>
   );
