@@ -131,3 +131,9 @@
   .edit-layout { grid-template-columns: minmax(0, 1fr); }
   .preview-panel { position: static; }
 }
+/* Preview screen tabs: equal widths across the panel, long labels wrap inside their tab. */
+.preview-panel .segmented { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; border-radius: var(--radius-nav); }
+.preview-panel .segment { min-height: 36px; padding: 4px 8px; border-radius: var(--radius-nav); text-align: center; line-height: 1.25; white-space: normal; }
+/* Survey and thank-you pages read from the left; only the email block is centred. */
+.preview-page { align-items: flex-start; text-align: left; }
+.preview-page .preview-chips, .preview-page .preview-thumbs { justify-content: flex-start; }
