@@ -1,0 +1,71 @@
+.shell { display: flex; flex-direction: column; height: 100%; }
+
+.header {
+  height: var(--header-height); flex: none;
+  display: flex; align-items: center; gap: 12px; padding: 6px 16px;
+  background: var(--color-surface); border-bottom: 1px solid var(--color-border);
+}
+.header-brand { font: 700 16px var(--font-heading); color: var(--color-brand-dark); }
+.header-spacer { flex: 1; }
+.header-user { color: var(--color-text-muted); }
+
+.body { position: relative; display: flex; flex: 1; min-height: 0; }
+
+.icon-button {
+  width: 44px; height: 44px; flex: none; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 10px; background: transparent; color: var(--color-text); cursor: pointer;
+}
+.icon-button:hover { background: var(--color-surface-muted); }
+.header-menu { display: none; }
+
+.sidebar {
+  width: var(--sidebar-width); flex: none; overflow: auto;
+  display: flex; flex-direction: column; gap: 2px; padding: 13.71px 8px;
+  background: var(--color-surface); border-right: 1px solid var(--color-border);
+}
+.sidebar .btn { width: 100%; margin-bottom: 10px; }
+.sidebar-divider { height: 1px; background: var(--color-border); margin: 12px -8px; }
+.sidebar-footer { display: flex; flex-direction: column; gap: 2px; }
+
+.nav-link {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 36px; padding: 0 7.84px; border-radius: var(--radius-nav);
+  font-size: var(--text-nav); line-height: 20.57px; color: var(--color-text); text-decoration: none;
+}
+.nav-link svg { flex: none; }
+.nav-link:hover { background: var(--color-surface-muted); }
+.nav-link.active { background: var(--color-bg); color: var(--color-text); font-weight: 600; }
+.nav-link.active svg { color: var(--color-brand); }
+
+.badge {
+  margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-pill); background: var(--color-brand-dark); color: var(--color-on-brand);
+  font-size: 10.8px; font-weight: 600; line-height: 1;
+}
+
+.main { flex: 1; overflow: auto; padding: 24px; }
+.page-header { margin-bottom: 16px; }
+.page-header p { margin: 4px 0 0; color: var(--color-text-muted); }
+
+/* Narrow screens (same breakpoint as the prototype): the sidebar becomes a
+   drawer that slides in from the left, opened by the header menu button. */
+@media (max-width: 959px) {
+  .header-menu { display: inline-flex; }
+  .sidebar {
+    position: absolute; top: 0; bottom: 0; left: 0; z-index: 50;
+    width: 280px; max-width: 85vw;
+    transform: translateX(-105%); visibility: hidden;
+    transition: transform 0.25s ease, visibility 0s 0.25s;
+    box-shadow: var(--shadow-drawer);
+  }
+  .sidebar.open { transform: none; visibility: visible; transition: transform 0.25s ease; }
+  .scrim { position: absolute; inset: 0; z-index: 45; background: var(--color-scrim); }
+  .main { padding: 20px 16px 48px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sidebar { transition: none; }
+}
+.page-header { display: flex; gap: 16px; align-items: flex-end; }
+.page-header > div { flex: 1; }

@@ -1,0 +1,33 @@
+name: E2E
+
+# Starts the whole system with docker compose and runs Playwright.
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create .env from the example
+        run: cp .env.example .env
+      - name: Start the stack
+        run: docker compose up -d --build --wait api worker liana-connector admin-web
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: make e2e
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v

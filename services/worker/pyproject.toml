@@ -1,0 +1,19 @@
+[project]
+name = "survey-worker"
+version = "0.1.0"
+description = "Reads answers from RabbitMQ, saves them and updates survey totals."
+requires-python = ">=3.12"
+dependencies = ["liana-survey-shared", "aio-pika>=9.4,<10"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<9", "ruff>=0.8,<1"]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["survey_worker*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,31 @@
+"""Settings read from environment variables (see .env.example)."""
+
+from functools import lru_cache
+from uuid import UUID
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Services connect as the app user, so row-level security applies.
+    database_url: str = "postgresql://survey_app:change-me-app@localhost:5432/survey"
+    rabbitmq_url: str = "amqp://survey:change-me-rabbit@localhost:5672/"
+
+    auth_mode: str = "dev"
+    dev_tenant_id: UUID = UUID("00000000-0000-4000-8000-000000000001")
+    dev_tenant_name: str = "Example Members Association"
+    dev_user_id: UUID = UUID("00000000-0000-4000-8000-000000000101")
+    dev_user_name: str = "Anna Virtanen"
+    dev_user_email: str = "anna.virtanen@example.org"
+
+    liana_adapter: str = "mock"
+    lianaautomation_base_url: str = "https://rest.automation.lianacloud.com/api/v1"
+    lianaautomation_client_id: str = ""
+    lianaautomation_client_secret: str = ""
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
