@@ -6,10 +6,13 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     ConfigDict,
+    Field,
     StrictBool,
     StringConstraints,
+    computed_field,
     field_validator,
     model_validator,
 )
@@ -19,6 +22,16 @@ DEFAULT_TITLE = "Untitled survey"
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
 ThankYou = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
+
+
+def _colour(value: str) -> str:
+    from .branding import normalise_colour
+
+    return normalise_colour(value)
+
+
+#: "#2b6450" or "2B6450", stored as "#2B6450".
+Colour = Annotated[str, AfterValidator(_colour)]
 
 
 class SurveyType(StrEnum):
@@ -70,6 +83,9 @@ class SurveyUpdate(BaseModel):
     comment_field: StrictBool | None = None
     show_results: StrictBool | None = None
     contact_opt_in: StrictBool | None = None
+    # Branding: accent colour (buttons) and page background.
+    accent_color: Colour | None = None
+    background_color: Colour | None = None
 
     @field_validator("description", "thank_you", mode="before")
     @classmethod
@@ -100,12 +116,25 @@ class Survey(BaseModel):
     comment_field: bool
     show_results: bool
     contact_opt_in: bool
+    #: Branding (#66). The logo is uploaded separately; see logo_url.
+    accent_color: str
+    background_color: str
+    logo_updated_at: datetime | None = Field(default=None, exclude=True)
     language: str
     opens_at: datetime | None
     closes_at: datetime | None
     response_limit: int | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def logo_url(self) -> str | None:
+        """Where to load the logo from, or None when there is none. The version
+        changes with every upload, so browsers never show an old logo."""
+        if self.logo_updated_at is None:
+            return None
+        return f"/api/v1/surveys/{self.id}/logo?v={int(self.logo_updated_at.timestamp())}"
 
 
 class SurveyListItem(Survey):
