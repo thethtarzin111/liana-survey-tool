@@ -1,4 +1,5 @@
 import { PageHeader } from './PageHeader';
+import { Card } from './ui';
 
 type Props = { title: string; description: string; card: string };
 
@@ -7,11 +8,11 @@ export function PlaceholderPage({ title, description, card }: Props) {
   return (
     <>
       <PageHeader title={title} description={description} />
-      <section className="card">
+      <Card padded>
         <p style={{ margin: 0 }}>
           Not built yet. Backlog card: <strong>{card}</strong>
         </p>
-      </section>
+      </Card>
     </>
   );
 }

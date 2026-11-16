@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { BuilderPage } from '../features/builder/BuilderPage';
 import { ContactRequestsPage } from '../features/contact-requests/ContactRequestsPage';
@@ -11,6 +11,11 @@ import { SupportPage } from '../features/support/SupportPage';
 import { SurveysPage } from '../features/surveys/SurveysPage';
 import { TemplatesPage } from '../features/templates/TemplatesPage';
 import { Header } from './Header';
+
+// Dev-only component preview; the import is dropped from production builds.
+const ComponentsPage = import.meta.env.DEV
+  ? lazy(() => import('../dev/ComponentsPage').then((m) => ({ default: m.ComponentsPage })))
+  : null;
 import { Sidebar } from './Sidebar';
 
 export function App() {
@@ -53,6 +58,16 @@ export function App() {
             <Route path="/integrations" element={<IntegrationsPage />} />
             <Route path="/support" element={<SupportPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            {ComponentsPage ? (
+              <Route
+                path="/dev/components"
+                element={
+                  <Suspense fallback={null}>
+                    <ComponentsPage />
+                  </Suspense>
+                }
+              />
+            ) : null}
             <Route path="*" element={<p>Page not found.</p>} />
           </Routes>
         </main>

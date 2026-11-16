@@ -1,5 +1,6 @@
-import { Link, NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { Icon } from '../components/Icon';
+import { ButtonLink, CountBadge, icons } from '../components/ui';
 import { footerNav, mainNav, type NavItem } from './nav';
 
 type Props = {
@@ -18,11 +19,7 @@ function Item({ item, badge }: { item: NavItem; badge?: number }) {
     >
       <Icon path={item.icon} size={16} />
       {item.label}
-      {badge ? (
-        <span className="badge" aria-label={`${badge} new`}>
-          {badge}
-        </span>
-      ) : null}
+      {badge ? <CountBadge count={badge} label={`${badge} new`} /> : null}
     </NavLink>
   );
 }
@@ -30,10 +27,9 @@ function Item({ item, badge }: { item: NavItem; badge?: number }) {
 export function Sidebar({ badges = {}, open = false }: Props) {
   return (
     <nav id="sideNav" className={open ? 'sidebar open' : 'sidebar'} aria-label="Sidebar">
-      <Link to="/surveys/new" className="btn btn-primary">
-        <Icon path="M12 5v14M5 12h14" size={16} strokeWidth={2.4} />
+      <ButtonLink to="/surveys/new" variant="primary" icon={icons.plus} block>
         Create survey
-      </Link>
+      </ButtonLink>
       {mainNav.map((item) => (
         <Item key={item.to} item={item} badge={badges[item.to]} />
       ))}
