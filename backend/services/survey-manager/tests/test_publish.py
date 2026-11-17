@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from liana_survey_shared import links
 from liana_survey_shared.config import get_settings
-from liana_survey_shared.db import ping
+from liana_survey_shared.db import ping, tenant_connection
 from liana_survey_shared.web.auth import CurrentUser, current_user
 from survey_manager.main import app
 from survey_manager.surveys.domain import (
@@ -84,6 +84,13 @@ def test_publish_makes_a_draft_live_with_a_public_link(client):
         client.get(f"/api/v1/surveys/{survey['id']}").json()["public_url"]
         == published["public_url"]
     )
+    # The respondent service can find the survey's organisation from its link (#42).
+    token = published["public_url"].rsplit("/", 1)[1]
+    with tenant_connection(get_settings().dev_tenant_id) as conn:
+        row = conn.execute(
+            "select survey_id::text from survey_links where link_token = %s", (token,)
+        ).fetchone()
+    assert row == (survey["id"],)
 
 
 @pytest.mark.db

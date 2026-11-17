@@ -14,6 +14,7 @@ and are visible to everyone.
 | `answers` | One answer to one question | number, text or choices |
 | `contact_requests` | "Contact me" requests | status `new/contacted/done` |
 | `survey_aggregates` | Totals kept by the worker | response count, score distribution |
+| `survey_links` | Public link token → survey and organisation | Lets the respondent service find a survey's tenant without a login, then read it with row-level security; anyone may look a token up, only the survey's own organisation may add one |
 | `survey_logos` | One survey's logo | PNG/JPEG/SVG/WebP up to 1 MB as `bytea` (no file storage needed for the demo); checked in `surveys/branding.py` |
 | `templates` | Ready-made surveys | `tenant_id` null = built-in (from migration `20261117090000`); `questions` JSON list, `thank_you`, `sort_order`, `featured` (Templates page card); `{organisation}` in text becomes the organisation's name |
 

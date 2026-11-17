@@ -50,6 +50,9 @@ jobs:
               - 'backend/db/**'
               - 'backend/infra/postgres/**'
               - 'backend/services/survey-manager/**'
+              - 'backend/services/worker/**'
+              - 'backend/services/respondent/**'
+              - 'backend/scripts/**'
               - 'backend/packages/shared-py/**'
 
   python:
@@ -83,11 +86,25 @@ jobs:
       - run: cd frontend && npm run build
 
   # Applies the migrations and seed data to a real Postgres and checks that
-  # row-level security hides other tenants' rows.
+  # row-level security hides other tenants' rows. RabbitMQ runs next to it for
+  # the answer path test (respondent -> survey.answers -> worker).
   db:
     needs: changes
     if: needs.changes.outputs.db == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
+    services:
+      rabbitmq:
+        image: rabbitmq:3.13-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: survey
+          RABBITMQ_DEFAULT_PASS: ci-rabbit
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 12
     env:
       PGHOST: localhost
       PGUSER: survey_owner
@@ -143,3 +160,15 @@ jobs:
           DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
           REQUIRE_DB: '1'
         run: cd backend/services/worker && python -m pytest -q -m db -rs
+      - name: Respondent tests against the database (answer links, open surveys)
+        env:
+          DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
+          REQUIRE_DB: '1'
+        run: cd backend/services/respondent && python -m pytest -q -m db -rs
+      - name: Answer path through RabbitMQ (tap -> queue -> worker -> saved once; broken -> dead letter)
+        env:
+          DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
+          RABBITMQ_URL: amqp://survey:ci-rabbit@localhost:5672/
+          REQUIRE_DB: '1'
+          REQUIRE_RABBITMQ: '1'
+        run: python -m pytest backend/scripts/tests/test_answer_queue.py -q -rs
