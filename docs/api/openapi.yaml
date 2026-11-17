@@ -354,13 +354,13 @@ components:
       required: [type]
       properties:
         type: { $ref: '#/components/schemas/SurveyType' }
-        title: { type: string, minLength: 1, maxLength: 200, default: Untitled survey, description: Trimmed }
+        title: { type: string, minLength: 1, maxLength: 80, default: Untitled survey, description: Trimmed }
         description: { type: [string, 'null'], maxLength: 1000, description: Trimmed; an empty string is stored as null }
     SurveyUpdate:
       type: object
       additionalProperties: false
       properties:
-        title: { type: string, minLength: 1, maxLength: 200 }
+        title: { type: string, minLength: 1, maxLength: 80 }
         description: { type: string, maxLength: 1000, description: Trimmed; an empty string clears the description }
         thank_you: { type: string, maxLength: 500, description: Trimmed; an empty string clears the message }
         type: { $ref: '#/components/schemas/SurveyType' }

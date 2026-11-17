@@ -1,13 +1,12 @@
 """Plain survey rules, no SQL or HTTP. Keeping them here keeps a later PHP port simple."""
 
-from .schemas import SurveyStatus, Title
+from .schemas import TITLE_MAX, SurveyStatus, Title
 
 # Which statuses each list action may start from, and where it leads.
 CLOSE_FROM = frozenset({SurveyStatus.live})
 UNPUBLISH_FROM = frozenset({SurveyStatus.live, SurveyStatus.scheduled})
 
 COPY_SUFFIX = " (copy)"
-TITLE_MAX = 200
 
 
 class StatusChangeNotAllowed(Exception):
@@ -32,5 +31,5 @@ def unpublished_status(current: SurveyStatus) -> SurveyStatus:
 
 
 def copy_title(title: Title) -> str:
-    """Title of a duplicated survey, kept within the 200-character limit."""
+    """Title of a duplicated survey, kept within the title limit."""
     return title[: TITLE_MAX - len(COPY_SUFFIX)].rstrip() + COPY_SUFFIX

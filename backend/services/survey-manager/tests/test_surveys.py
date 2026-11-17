@@ -60,7 +60,7 @@ def no_db(client):
         {},  # type is required
         {"type": "quiz"},  # unknown type
         {"type": "nps", "title": "   "},  # blank title
-        {"type": "nps", "title": "x" * 201},  # too long
+        {"type": "nps", "title": "x" * 81},  # too long
         {"type": "nps", "description": "x" * 1001},  # too long
         {"type": "nps", "status": "live"},  # status is set by the server
         {"type": "nps", "tenant_id": str(OTHER_TENANT)},  # tenant comes from the login
@@ -82,12 +82,12 @@ def test_update_rejects_blank_title_and_unknown_fields(no_db):
 
 def test_update_rejects_too_long_title_and_description(no_db):
     url = f"/api/v1/surveys/{uuid4()}"
-    title_error = no_db.patch(url, json={"title": "x" * 201})
+    title_error = no_db.patch(url, json={"title": "x" * 81})
     description_error = no_db.patch(url, json={"description": "x" * 1001})
 
     assert title_error.status_code == 422
     assert title_error.json()["detail"][0]["loc"] == ["body", "title"]
-    assert "at most 200 characters" in title_error.json()["detail"][0]["msg"]
+    assert "at most 80 characters" in title_error.json()["detail"][0]["msg"]
     assert description_error.status_code == 422
     assert description_error.json()["detail"][0]["loc"] == ["body", "description"]
     assert "at most 1000 characters" in description_error.json()["detail"][0]["msg"]
@@ -341,9 +341,9 @@ def test_duplicate_copies_survey_and_questions_as_a_draft(client):
 @pytest.mark.db
 @needs_db
 def test_duplicate_keeps_long_titles_within_the_limit(client):
-    original = make_survey(client, "x" * 200)
+    original = make_survey(client, "x" * 80)
     copy = client.post(f"/api/v1/surveys/{original['id']}/duplicate").json()
-    assert len(copy["title"]) == 200
+    assert len(copy["title"]) == 80
     assert copy["title"].endswith(" (copy)")
 
 
