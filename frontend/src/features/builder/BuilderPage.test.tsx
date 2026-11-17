@@ -162,3 +162,11 @@ test('Branding (optional) opens and its colours are saved with Save as draft', a
   expect(JSON.parse(String(patch?.[1]?.body))).toEqual({ background_color: BACKGROUND_SWATCHES[2].hex }); // Mint
 });
 
+
+test('the preview shows the title as it is typed', async () => {
+  renderPage();
+  const previewPanel = await screen.findByRole('region', { name: 'Preview' });
+  fireEvent.change(await screen.findByLabelText(/^Survey title/), { target: { value: 'Autumn poll' } });
+  expect(within(previewPanel).getByText('Autumn poll')).toBeInTheDocument();
+  expect(within(previewPanel).getByText('Submit')).toBeInTheDocument();
+});
