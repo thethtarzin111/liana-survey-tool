@@ -17,3 +17,4 @@ include = ["survey_worker*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["db: needs a migrated Postgres reached as the app role"]

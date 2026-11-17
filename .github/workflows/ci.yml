@@ -138,3 +138,8 @@ jobs:
           DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
           REQUIRE_DB: '1'
         run: cd backend/services/survey-manager && python -m pytest -q -m db -rs
+      - name: Worker tests against the database (answers saved per tenant, counted once)
+        env:
+          DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
+          REQUIRE_DB: '1'
+        run: cd backend/services/worker && python -m pytest -q -m db -rs
