@@ -20,6 +20,8 @@ COLUMN_NAMES = (
     "accent_color",
     "background_color",
     "logo_updated_at",
+    "link_token",
+    "published_at",
     "type",
     "status",
     "anonymous",
@@ -71,7 +73,8 @@ def list_all(
         params.append(status.value)
     clause = f"where {' and '.join(where)}" if where else ""
     return conn.execute(
-        f"""select {S_COLUMNS}, coalesce(a.response_count, 0) as answers
+        f"""select {S_COLUMNS}, coalesce(a.response_count, 0) as answers,
+                   coalesce(a.distribution, '{{}}'::jsonb) as distribution
             from surveys s left join survey_aggregates a on a.survey_id = s.id
             {clause}
             order by s.updated_at desc, s.id""",
@@ -103,6 +106,33 @@ def set_status(conn: psycopg.Connection, survey_id: UUID, status: SurveyStatus) 
         (status.value, survey_id),
     ).fetchone()
     assert row is not None
+    return row
+
+
+def question_kinds(conn: psycopg.Connection, survey_id: UUID) -> list[str]:
+    rows = conn.execute(
+        "select kind from questions where survey_id = %s order by position", (survey_id,)
+    ).fetchall()
+    return [row["kind"] for row in rows]
+
+
+def publish(conn: psycopg.Connection, survey_id: UUID, link_token: str) -> dict[str, Any]:
+    """Make the survey live. Its link token is set once and then kept."""
+    row = conn.execute(
+        f"""update surveys
+            set status = 'live', link_token = coalesce(link_token, %s),
+                published_at = now(), updated_at = now()
+            where id = %s returning {COLUMNS}""",
+        (link_token, survey_id),
+    ).fetchone()
+    assert row is not None
+    # The respondent service finds the survey's organisation from its link (#42).
+    conn.execute(
+        """insert into survey_links (link_token, survey_id, tenant_id)
+           select link_token, id, tenant_id from surveys where id = %s
+           on conflict do nothing""",
+        (survey_id,),
+    )
     return row
 
 

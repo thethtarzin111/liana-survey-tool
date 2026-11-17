@@ -295,12 +295,23 @@ def test_list_shows_answer_counts_from_totals(client):
     survey = make_survey(client, unique("Answered"), status="live")
     with tenant_connection(DEMO_TENANT) as conn:
         conn.execute(
-            """insert into survey_aggregates (survey_id, tenant_id, response_count)
-               values (%s, %s, 7)""",
+            """insert into survey_aggregates (survey_id, tenant_id, response_count, distribution)
+               values (%s, %s, 7, '{"9": 4, "10": 1, "7": 1, "3": 1}')""",
             (survey["id"], DEMO_TENANT),
         )
     found = client.get("/api/v1/surveys", params={"q": survey["title"]}).json()
     assert found[0]["answers"] == 7
+    # 5 promoters, 1 passive, 1 detractor of 7: NPS +57.
+    assert found[0]["headline"] == {"score": "NPS +57", "note": "scale −100 to +100"}
+
+
+@pytest.mark.db
+@needs_db
+def test_list_has_no_headline_before_answers(client):
+    survey = make_survey(client, unique("No answers yet"))
+    found = client.get("/api/v1/surveys", params={"q": survey["title"]}).json()
+    assert found[0]["headline"] is None
+    assert "distribution" not in found[0]
 
 
 @pytest.mark.db

@@ -6,8 +6,11 @@ import { ToastProvider } from '../../components/ui';
 import { SurveysPage } from './SurveysPage';
 import { DEFAULT_ACCENT, DEFAULT_BACKGROUND } from '../builder/branding';
 
-const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, answers: 0 } as const;
-const live: SurveyListItem = { ...base, id: 'live-1', title: 'Member NPS 2026', type: 'nps', status: 'live', answers: 132 };
+const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, answers: 0, headline: null } as const;
+const live: SurveyListItem = {
+  ...base, id: 'live-1', title: 'Member NPS 2026', type: 'nps', status: 'live', answers: 132,
+  headline: { score: 'NPS +42', note: 'scale −100 to +100' },
+};
 const draft: SurveyListItem = { ...base, id: 'draft-1', title: 'Course feedback', type: 'csat', status: 'draft' };
 const scheduled: SurveyListItem = {
   ...base, id: 'sched-1', title: 'Newsletter thumbs', type: 'thumbs', status: 'scheduled',
@@ -87,7 +90,9 @@ test('shows each survey with its type, status, answers, note and score', async (
   expect(within(row).getByText('NPS survey')).toBeInTheDocument();
   expect(within(row).getByText('Live')).toBeInTheDocument();
   expect(within(row).getByText('132')).toBeInTheDocument();
-  expect(within(row).getByText('—')).toBeInTheDocument();
+  expect(within(row).getByText('NPS +42')).toBeInTheDocument();
+  expect(within(row).getByText('scale −100 to +100')).toBeInTheDocument();
+  expect(within(await rowFor('Course feedback')).getByText('—')).toBeInTheDocument();
   expect(within(await rowFor('Newsletter thumbs')).getByText('Opens Tue 01/12/2026')).toBeInTheDocument();
   expect(within(await rowFor('Course feedback')).getByText('Not published yet')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Member NPS 2026' })).toHaveAttribute('href', '/surveys/live-1');

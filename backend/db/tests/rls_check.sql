@@ -33,6 +33,16 @@ begin
   delete from survey_logos where survey_id = '00000000-0000-4000-8000-000000000201';
   perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
 
+  -- 3c. A link can only be added by the survey's own organisation.
+  begin
+    insert into survey_links (link_token, survey_id, tenant_id)
+    values ('sneakysneakysneakysneaky', '00000000-0000-4000-8000-000000000201',
+            '00000000-0000-4000-8000-000000000001');
+    raise exception 'RLS: cross-tenant survey link was allowed';
+  exception when insufficient_privilege then
+    null; -- expected
+  end;
+
   -- 4. Writing a row for a different tenant is refused.
   begin
     insert into surveys (tenant_id, title, type)

@@ -182,8 +182,14 @@ export function SurveysPage() {
     { key: 'type', header: 'Type', render: (s) => TYPE_LABEL[s.type] },
     { key: 'status', header: 'Status', render: (s) => <SurveyStatusBadge status={s.status} /> },
     { key: 'answers', header: 'Answers', numeric: true, render: (s) => s.answers },
-    // Scores arrive with the scoring rules (#22).
-    { key: 'score', header: 'Headline score', render: () => <strong>—</strong> },
+    // From the scoring rules (#22), once the survey has answers.
+    {
+      key: 'score',
+      header: 'Headline score',
+      render: (s) => (s.headline
+        ? <><strong>{s.headline.score}</strong> <span className="survey-note">{s.headline.note}</span></>
+        : <strong>—</strong>),
+    },
     {
       key: 'actions',
       header: 'Actions',

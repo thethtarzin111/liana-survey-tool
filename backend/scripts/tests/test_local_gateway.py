@@ -44,3 +44,23 @@ def test_gateway_rejects_non_dev_auth(monkeypatch):
     monkeypatch.setattr(get_settings(), "auth_mode", "production")
     with TestClient(local_gateway.app) as client:
         assert client.get("/api/v1/me").status_code == 403
+
+
+def test_without_rabbitmq_answers_go_straight_to_the_worker_code(monkeypatch):
+    import asyncio
+
+    import survey_worker.handlers as handlers
+    from liana_survey_shared.messages import AnswerSubmitted
+
+    saved = []
+    monkeypatch.setattr(handlers, "handle_answer", lambda body: saved.append(body) or True)
+    message = AnswerSubmitted(
+        tenant_id=get_settings().dev_tenant_id,
+        survey_id=get_settings().dev_tenant_id,
+        link_token_hash="key",
+        answers=[],
+    )
+    asyncio.run(local_gateway.DirectAnswerQueue().publish(message))
+    assert saved == [message.model_dump_json().encode()]
+    # The respondent app in this process uses it (LOCAL_QUEUE_WORKERS is not 1 in tests).
+    assert isinstance(local_gateway.respondent.state.answer_queue, local_gateway.DirectAnswerQueue)
