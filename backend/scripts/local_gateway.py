@@ -1,5 +1,8 @@
 """Loopback-only development gateway for the native Python service apps."""
 
+import asyncio
+import os
+
 from starlette.responses import JSONResponse
 
 from data_analyzer.main import app as analyzer
@@ -9,6 +12,26 @@ from respondent_service.main import app as respondent
 from survey_manager.main import app as surveys
 
 IDENTITY = {b"x-tenant-id", b"x-user-id", b"x-tenant-name", b"x-user-name", b"x-user-email"}
+
+
+class DirectAnswerQueue:
+    """Local development without RabbitMQ: hands each answer straight to the
+    worker's save code in this process, instead of putting it on survey.answers.
+    The same code saves it as with the real queue (#23), so counting a reader
+    once, refusing bad answers and tenant isolation all behave the same.
+    Used unless LOCAL_QUEUE_WORKERS=1 (then a RabbitMQ and the worker run)."""
+
+    async def publish(self, message) -> None:
+        from survey_worker.handlers import handle_answer
+
+        await asyncio.to_thread(handle_answer, message.model_dump_json().encode())
+
+    async def close(self) -> None:
+        pass
+
+
+if os.environ.get("LOCAL_QUEUE_WORKERS") != "1":
+    respondent.state.answer_queue = DirectAnswerQueue()
 
 
 async def app(scope, receive, send):

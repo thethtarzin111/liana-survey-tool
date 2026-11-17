@@ -66,32 +66,23 @@ TLS and rate limiting must be configured separately. It does not add features
 missing from the scaffold (for example, the results and respondent endpoints
 are still placeholders).
 
-RabbitMQ is only needed for answers: the respondent service puts each answer on
-a queue and the worker saves it. Without it, the admin app works but answer
-links show "We couldn't save your answer right now". The local launcher does not
-change `.env`.
+Answers work without RabbitMQ locally: the local gateway hands each answer
+straight to the worker's save code in the same process (the same code the worker
+runs on the real queue). To use a real RabbitMQ and the worker and connector
+processes instead, install RabbitMQ, set `RABBITMQ_URL` in `.env` or your
+environment, and set `LOCAL_QUEUE_WORKERS=1` before `npm run dev`. The local
+launcher does not change `.env`.
 
 #### Try answering a survey
 
-1. Start Docker Desktop, then RabbitMQ with the default local login from
-   `.env.example`:
-
-   ```sh
-   docker run -d --name liana-rabbitmq -p 5672:5672 -p 15672:15672      -e RABBITMQ_DEFAULT_USER=survey -e RABBITMQ_DEFAULT_PASS=change-me-rabbit      rabbitmq:3.13-management
-   ```
-
-2. Start the backend with the worker: `LOCAL_QUEUE_WORKERS=1 npm run dev`
-   (PowerShell: `$env:LOCAL_QUEUE_WORKERS=1; npm run dev`).
-3. In http://localhost:8000/docs, create a survey from a template
-   (`POST /api/v1/templates/{id}/surveys`), publish it (`POST …/publish`) and get
-   answer links for made-up readers (`POST …/test-links`, local development only).
-4. Open a link with an answer added, e.g. `…&a=9` for NPS, `&a=2` for thumbs
+1. `npm run dev`, then open http://localhost:8000/docs.
+2. Create a survey from a template (`POST /api/v1/templates/{id}/surveys`),
+   publish it (`POST /api/v1/surveys/{id}/publish`) and get answer links for
+   made-up readers (`POST /api/v1/surveys/{id}/test-links`, local development only).
+3. Open a link with an answer added, e.g. `…&a=9` for NPS, `&a=2` for thumbs
    ("Loved it") or `&a=4` for CSAT. You get the thank-you page, and the survey's
    Answers and Headline score on the Surveys page count it. Opening the same
    link again does not count twice; each test link is a different reader.
-
-RabbitMQ's own admin page is at http://localhost:15672 (login survey /
-change-me-rabbit). Stop it with `docker stop liana-rabbitmq`.
 
 | What | URL |
 |---|---|
