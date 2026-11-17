@@ -18,8 +18,10 @@ from pydantic import (
 )
 
 DEFAULT_TITLE = "Untitled survey"
+#: Long enough for a clear name, short enough for the Surveys list (#115).
+TITLE_MAX = 80
 
-Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=TITLE_MAX)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
 ThankYou = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
 

@@ -170,3 +170,10 @@ test('the preview shows the title as it is typed', async () => {
   expect(within(previewPanel).getByText('Autumn poll')).toBeInTheDocument();
   expect(within(previewPanel).getByText('Submit')).toBeInTheDocument();
 });
+
+test('the title field stops at 80 characters, like the API', async () => {
+  renderPage();
+  const title = await screen.findByLabelText(/^Survey title/);
+  expect(title).toHaveAttribute('maxLength', '80');
+  expect(screen.getByText('Up to 80 characters.')).toBeInTheDocument();
+});

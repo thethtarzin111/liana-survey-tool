@@ -174,7 +174,7 @@ export function SurveysPage() {
       header: 'Name',
       render: (s) => (
         <>
-          <Link className="survey-name" to={`/surveys/${encodeURIComponent(s.id)}`}>{s.title}</Link>
+          <Link className="survey-name" title={s.title} to={`/surveys/${encodeURIComponent(s.id)}`}>{s.title}</Link>
           {note(s) ? <div className="survey-note">{note(s)}</div> : null}
         </>
       ),

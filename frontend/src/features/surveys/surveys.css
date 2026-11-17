@@ -11,5 +11,19 @@
 .surveys-table-card .table td { padding-top: 10px; padding-bottom: 10px; }
 .surveys-table-card .table td:last-child { width: 56px; padding: 6px 12px; text-align: right; }
 .surveys-table-card .menu-wrap .icon-button { width: 34px; height: 34px; }
-.survey-name { font-size: var(--text-section); text-decoration: underline; text-underline-offset: 3px; }
+.survey-name {
+  font-size: var(--text-section); text-decoration: underline; text-underline-offset: 3px;
+  /* Long names wrap, even without spaces, and stop after two lines (#115). */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+  overflow: hidden; overflow-wrap: anywhere;
+}
 .survey-note { margin-top: 2px; }
+/* Same column widths on every tab, so a long name never pushes the actions menu off the card. */
+@media (min-width: 700px) {
+  .surveys-table-card .table { table-layout: fixed; }
+  .surveys-table-card .table th:nth-child(2) { width: 110px; }
+  .surveys-table-card .table th:nth-child(3) { width: 120px; }
+  .surveys-table-card .table th:nth-child(4) { width: 100px; }
+  .surveys-table-card .table th:nth-child(5) { width: 200px; }
+  .surveys-table-card .table th:nth-child(6) { width: 56px; }
+}

@@ -9,6 +9,9 @@ import { QuestionList } from './QuestionList';
 import { CustomPreview } from './SurveyPreview';
 import './builder.css';
 
+/** Same cap as the API's survey title (#115). */
+const SURVEY_TITLE_MAX = 80;
+
 type FieldErrors = { title?: string; description?: string };
 
 function validationErrors(title: string, description: string): FieldErrors {
@@ -157,6 +160,8 @@ export function BuilderPage() {
               label="Survey title"
               required
               className="survey-title-input"
+              maxLength={SURVEY_TITLE_MAX}
+              hint={`Up to ${SURVEY_TITLE_MAX} characters.`}
               value={title}
               error={fieldErrors.title}
               disabled={isSaving}
