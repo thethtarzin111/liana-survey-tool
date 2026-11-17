@@ -71,7 +71,8 @@ def list_all(
         params.append(status.value)
     clause = f"where {' and '.join(where)}" if where else ""
     return conn.execute(
-        f"""select {S_COLUMNS}, coalesce(a.response_count, 0) as answers
+        f"""select {S_COLUMNS}, coalesce(a.response_count, 0) as answers,
+                   coalesce(a.distribution, '{{}}'::jsonb) as distribution
             from surveys s left join survey_aggregates a on a.survey_id = s.id
             {clause}
             order by s.updated_at desc, s.id""",

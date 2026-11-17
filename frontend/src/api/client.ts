@@ -178,6 +178,8 @@ export type SurveyListItem = Survey & {
   opens_at: string | null;
   /** Submitted responses so far. */
   answers: number;
+  /** "Headline score", e.g. { score: 'NPS +42', note: 'scale −100 to +100' }; null before answers. */
+  headline: { score: string; note: string } | null;
 };
 
 export type Template = {
