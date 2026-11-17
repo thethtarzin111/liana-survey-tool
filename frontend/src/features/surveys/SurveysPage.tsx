@@ -6,6 +6,7 @@ import {
   ActionMenu,
   Button,
   ButtonLink,
+  Card,
   ConfirmDialog,
   EmptyState,
   SurveyStatusBadge,
@@ -210,14 +211,17 @@ export function SurveysPage() {
       />
     );
   } else {
+    // On a white card with rounded corners, as in the prototype.
     body = (
-      <Table
-        caption="Surveys"
-        columns={columns}
-        rows={surveys}
-        rowKey={(s) => s.id}
-        empty="No surveys match. Try another filter or search."
-      />
+      <Card className="surveys-table-card">
+        <Table
+          caption="Surveys"
+          columns={columns}
+          rows={surveys}
+          rowKey={(s) => s.id}
+          empty="No surveys match. Try another filter or search."
+        />
+      </Card>
     );
   }
 
@@ -226,14 +230,16 @@ export function SurveysPage() {
       <PageHeader
         title="Surveys"
         description={organisation ? `All surveys for ${organisation}.` : undefined}
-        actions={<ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>}
       />
-      <div className="survey-filters" role="group" aria-label="Filter by status">
-        {FILTERS.map((f) => (
-          <ToggleChip key={f.label} selected={status === f.status} onChange={() => setFilter({ status: f.status })}>
-            {f.label}
-          </ToggleChip>
-        ))}
+      <div className="survey-toolbar">
+        <div className="survey-filters" role="group" aria-label="Filter by status">
+          {FILTERS.map((f) => (
+            <ToggleChip key={f.label} selected={status === f.status} onChange={() => setFilter({ status: f.status })}>
+              {f.label}
+            </ToggleChip>
+          ))}
+        </div>
+        <ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>
       </div>
       {q ? (
         <p className="survey-search-note">
