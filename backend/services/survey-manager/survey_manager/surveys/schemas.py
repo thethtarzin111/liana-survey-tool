@@ -120,12 +120,26 @@ class Survey(BaseModel):
     accent_color: str
     background_color: str
     logo_updated_at: datetime | None = Field(default=None, exclude=True)
+    #: Publishing (#5). The token itself only appears inside public_url.
+    link_token: str | None = Field(default=None, exclude=True)
+    published_at: datetime | None = None
     language: str
     opens_at: datetime | None
     closes_at: datetime | None
     response_limit: int | None
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def public_url(self) -> str | None:
+        """The survey's public link once it has been published, e.g.
+        https://survey.example.eu/r/Xq3...; answer links add the reader and answer."""
+        if self.link_token is None:
+            return None
+        from liana_survey_shared.config import get_settings
+
+        return f"{get_settings().public_base_url.rstrip('/')}/r/{self.link_token}"
 
     @computed_field
     @property
@@ -161,3 +175,16 @@ class SurveyListItem(Survey):
 
         result = headline(self.type.value, self.distribution)
         return Headline(score=result.score, note=result.note) if result else None
+
+
+class TestLinksRequest(BaseModel):
+    """How many test answer links to make (local development only)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    count: Annotated[int, Field(ge=1, le=20)] = 3
+
+
+class TestLinks(BaseModel):
+    #: One per test reader; add &a=<answer> to answer the main question, e.g. &a=9.
+    links: list[str]

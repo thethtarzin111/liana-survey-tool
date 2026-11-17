@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     database_url: str = "postgresql://survey_app:change-me-app@localhost:5432/survey"
     rabbitmq_url: str = "amqp://survey:change-me-rabbit@localhost:5672/"
 
+    # Answer links (#5, #42): where readers open them, and the key that signs them.
+    # Set LINK_SIGNING_SECRET to a long random value outside local development.
+    public_base_url: str = "http://localhost:8000"
+    link_signing_secret: str = "change-me-link-secret"
+
     auth_mode: str = "dev"
     dev_tenant_id: UUID = UUID("00000000-0000-4000-8000-000000000001")
     dev_tenant_name: str = "Example Members Association"

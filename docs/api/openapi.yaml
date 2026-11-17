@@ -135,6 +135,56 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such survey in this organisation }
+  /api/v1/surveys/{survey_id}/publish:
+    parameters:
+      - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [surveys]
+      summary: Make a draft live and give it its public link
+      description: >-
+        The survey needs at least one question; thumbs, NPS and CSAT surveys need their main
+        question (thumbs, nps or rating) first. The public token is set on the first publish and
+        kept, so links already sent keep working after unpublishing and publishing again.
+      responses:
+        '200':
+          description: The live survey, with public_url
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Survey' }
+        '404': { description: No such survey in this organisation }
+        '409': { description: Not a draft, or missing its questions }
+  /api/v1/surveys/{survey_id}/test-links:
+    parameters:
+      - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [surveys]
+      summary: Signed answer links for made-up readers (local development only)
+      description: >-
+        To try a live survey before the LianaMailer snippet (#40) exists. Only with AUTH_MODE=dev;
+        404 otherwise. Add &a=<answer> to answer the main question, e.g. &a=9 for NPS.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                count: { type: integer, minimum: 1, maximum: 20, default: 3 }
+      responses:
+        '200':
+          description: One link per test reader
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [links]
+                properties:
+                  links:
+                    type: array
+                    items: { type: string, example: 'http://localhost:8000/r/hmZXsmjjAuMpgevPRmIhdA?r=test-da836f-1&s=aEIY...' }
+        '404': { description: No such survey, or not in local development }
+        '409': { description: The survey is not live }
   /api/v1/surveys/{survey_id}/close:
     parameters:
       - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -371,7 +421,7 @@ components:
         background_color: { type: string, pattern: '^#?[0-9A-Fa-f]{6}$', description: 'Branding: page background. Stored as "#RRGGBB"' }
     Survey:
       type: object
-      required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, accent_color, background_color, logo_url, language, opens_at, closes_at, response_limit, created_at, updated_at]
+      required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, accent_color, background_color, logo_url, public_url, published_at, language, opens_at, closes_at, response_limit, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         title: { type: string, example: Member NPS 2026 }
@@ -390,6 +440,13 @@ components:
             contact reference, never an e-mail address.
         accent_color: { type: string, pattern: '^#[0-9A-F]{6}$', example: '#0F6A5E', description: Default Teal (#0F6A5E) }
         background_color: { type: string, pattern: '^#[0-9A-F]{6}$', example: '#FFFFFF', description: Default White (#FFFFFF) }
+        public_url:
+          type: [string, 'null']
+          description: >-
+            The survey's public link (/r/<token>) once it has been published, else null. Answer
+            links add the reader (r), its signature (s) and the answer (a).
+          example: https://survey.example.eu/r/hmZXsmjjAuMpgevPRmIhdA
+        published_at: { type: [string, 'null'], format: date-time, description: When it was last published }
         logo_url:
           type: [string, 'null']
           description: Where to load the logo from (changes with every upload), or null when there is none
