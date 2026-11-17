@@ -20,6 +20,8 @@ COLUMN_NAMES = (
     "accent_color",
     "background_color",
     "logo_updated_at",
+    "link_token",
+    "published_at",
     "type",
     "status",
     "anonymous",
@@ -102,6 +104,26 @@ def set_status(conn: psycopg.Connection, survey_id: UUID, status: SurveyStatus) 
         f"""update surveys set status = %s, updated_at = now() where id = %s
             returning {COLUMNS}""",
         (status.value, survey_id),
+    ).fetchone()
+    assert row is not None
+    return row
+
+
+def question_kinds(conn: psycopg.Connection, survey_id: UUID) -> list[str]:
+    rows = conn.execute(
+        "select kind from questions where survey_id = %s order by position", (survey_id,)
+    ).fetchall()
+    return [row["kind"] for row in rows]
+
+
+def publish(conn: psycopg.Connection, survey_id: UUID, link_token: str) -> dict[str, Any]:
+    """Make the survey live. Its link token is set once and then kept."""
+    row = conn.execute(
+        f"""update surveys
+            set status = 'live', link_token = coalesce(link_token, %s),
+                published_at = now(), updated_at = now()
+            where id = %s returning {COLUMNS}""",
+        (link_token, survey_id),
     ).fetchone()
     assert row is not None
     return row

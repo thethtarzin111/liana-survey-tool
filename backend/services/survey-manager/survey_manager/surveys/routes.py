@@ -1,5 +1,6 @@
 """Survey manager endpoints: /api/v1/surveys."""
 
+import secrets
 from collections.abc import Callable
 from typing import Annotated
 from uuid import UUID
@@ -7,11 +8,21 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.concurrency import run_in_threadpool
 
+from liana_survey_shared import links
+from liana_survey_shared.config import get_settings
 from liana_survey_shared.web.auth import CurrentUser, current_user
 from liana_survey_shared.web.db import TenantDB, tenant_db
 
 from . import branding, domain, repo
-from .schemas import Survey, SurveyCreate, SurveyListItem, SurveyStatus, SurveyUpdate
+from .schemas import (
+    Survey,
+    SurveyCreate,
+    SurveyListItem,
+    SurveyStatus,
+    SurveyUpdate,
+    TestLinks,
+    TestLinksRequest,
+)
 
 router = APIRouter(prefix="/api/v1/surveys", tags=["surveys"])
 
@@ -78,6 +89,55 @@ def duplicate_survey(
             raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
         title = domain.copy_title(original["title"])
         return repo.duplicate(conn, user.tenant_id, user.user_id, survey_id, title)
+
+
+@router.post("/{survey_id}/publish", response_model=Survey)
+def publish_survey(survey_id: UUID, db: TenantDB = Depends(tenant_db)) -> dict:
+    """Make a draft live and give it its public link. Other statuses, and drafts
+    missing their questions, get 409."""
+    with db() as conn:
+        row = repo.get_for_update(conn, survey_id)
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
+        try:
+            domain.published_status(
+                SurveyStatus(row["status"]), row["type"], repo.question_kinds(conn, survey_id)
+            )
+        except (domain.StatusChangeNotAllowed, domain.NotReadyToPublish) as error:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+        return repo.publish(conn, survey_id, domain.new_link_token())
+
+
+@router.post("/{survey_id}/test-links", response_model=TestLinks)
+def make_test_links(
+    survey_id: UUID,
+    data: TestLinksRequest | None = None,
+    db: TenantDB = Depends(tenant_db),
+) -> dict:
+    """Answer links for made-up readers, to try a live survey before the
+    LianaMailer snippet (#40) exists. Local development (AUTH_MODE=dev) only."""
+    settings = get_settings()
+    if settings.auth_mode != "dev":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    with db() as conn:
+        row = repo.get(conn, survey_id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
+    if row["status"] != SurveyStatus.live.value or not row["link_token"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Publish the survey first.")
+    count = (data or TestLinksRequest()).count
+    batch = secrets.token_hex(3)
+    return {
+        "links": [
+            links.answer_link(
+                settings.public_base_url,
+                settings.link_signing_secret,
+                row["link_token"],
+                f"test-{batch}-{n}",
+            )
+            for n in range(1, count + 1)
+        ]
+    }
 
 
 @router.post("/{survey_id}/close", response_model=Survey)
