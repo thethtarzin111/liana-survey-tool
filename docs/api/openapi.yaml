@@ -405,9 +405,18 @@ components:
       allOf:
         - { $ref: '#/components/schemas/Survey' }
         - type: object
-          required: [answers]
+          required: [answers, headline]
           properties:
             answers: { type: integer, minimum: 0, description: Submitted responses so far }
+            headline:
+              type: [object, 'null']
+              description: >-
+                The "Headline score" for thumbs, NPS and CSAT surveys, worded as in the prototype
+                (liana_survey_shared.scoring); null for custom surveys and before the first answer.
+              required: [score, note]
+              properties:
+                score: { type: string, example: NPS +42 }
+                note: { type: string, example: scale −100 to +100 }
     QuestionKind:
       type: string
       enum: [single_choice, multiple_choice, dropdown, text, long_text, rating, nps, reasons, thumbs]

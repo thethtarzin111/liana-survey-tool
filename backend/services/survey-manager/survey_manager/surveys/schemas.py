@@ -139,7 +139,25 @@ class Survey(BaseModel):
         return f"/api/v1/surveys/{self.id}/logo?v={version}"
 
 
+class Headline(BaseModel):
+    """The Surveys list's "Headline score", e.g. "NPS +42" / "scale −100 to +100"."""
+
+    score: str
+    note: str
+
+
 class SurveyListItem(Survey):
     """A survey as shown on the Surveys list."""
 
     answers: int  # submitted responses, from the worker's totals
+    # Answers per value of the main question, from the worker's totals.
+    distribution: dict[str, int] = Field(default_factory=dict, exclude=True)
+
+    @computed_field
+    @property
+    def headline(self) -> Headline | None:
+        """Score for thumbs, NPS and CSAT surveys once they have answers (#22)."""
+        from liana_survey_shared.scoring import headline
+
+        result = headline(self.type.value, self.distribution)
+        return Headline(score=result.score, note=result.note) if result else None
