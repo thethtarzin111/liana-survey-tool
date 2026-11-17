@@ -247,3 +247,19 @@ def test_the_queue_is_made_on_first_use_without_a_lifespan():
     queue = get_answer_queue(request)
     assert isinstance(queue, AnswerQueue)
     assert get_answer_queue(request) is queue
+
+
+@pytest.mark.db
+@needs_db
+def test_the_link_lookup_finds_only_the_organisation(make_survey):
+    # The one query before the tenant is known (liana_survey_shared.db.tenant_for_link).
+    import psycopg
+
+    from liana_survey_shared.db import tenant_for_link
+
+    survey_id, _, token = make_survey()
+    assert tenant_for_link(token) == DEMO_TENANT
+    assert tenant_for_link("x" * 22) is None
+    # Without a tenant, the same kind of connection still sees no surveys.
+    with psycopg.connect(get_settings().database_url) as conn:
+        assert conn.execute("select count(*) from surveys").fetchone() == (0,)

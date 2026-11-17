@@ -1,24 +1,18 @@
 """SQL for the answer path. Readers have no login: the survey's organisation is
-found from its public token in survey_links, then the survey is read through
-tenant_connection() with row-level security as everywhere else."""
+found from its public token with the shared tenant_for_link(), then the survey is
+read through tenant_connection() with row-level security as everywhere else."""
 
 from typing import Any
 from uuid import UUID
 
-import psycopg
 from psycopg.rows import dict_row
 
-from liana_survey_shared.config import get_settings
-from liana_survey_shared.db import tenant_connection
+from liana_survey_shared.db import tenant_connection, tenant_for_link
 
 
 def tenant_for_token(link_token: str) -> UUID | None:
     """The organisation a public link belongs to, or None for unknown links."""
-    with psycopg.connect(get_settings().database_url) as conn:
-        row = conn.execute(
-            "select tenant_id from survey_links where link_token = %s", (link_token,)
-        ).fetchone()
-    return row[0] if row else None
+    return tenant_for_link(link_token)
 
 
 def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
