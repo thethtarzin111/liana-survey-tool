@@ -8,7 +8,7 @@ and are visible to everyone.
 |---|---|---|
 | `tenants` | A Liana customer organisation | |
 | `users` | Marketers in a tenant | Dev stub: one demo user |
-| `surveys` | One survey | required title (1–200 characters); optional description (up to 1000 characters); optional thank-you message (up to 500); reader options `comment_field`, `show_results`, `contact_opt_in` (all default true); branding `accent_color` (default `#0F6A5E`), `background_color` (default `#FFFFFF`), `logo_updated_at`; type `thumbs/nps/csat/custom` (custom = start from scratch); status `draft/scheduled/live/closed`; `anonymous` defaults to true; language `fi/sv/en`; optional open/close dates and response limit |
+| `surveys` | One survey | required title (1–200 characters); optional description (up to 1000 characters); optional thank-you message (up to 500); reader options `comment_field`, `show_results`, `contact_opt_in` (all default true); branding `accent_color` (default `#0F6A5E`), `background_color` (default `#FFFFFF`), `logo_updated_at`; `link_token` (random public token set on first publish, kept after unpublishing) and `published_at`; type `thumbs/nps/csat/custom` (custom = start from scratch); status `draft/scheduled/live/closed`; `anonymous` defaults to true; language `fi/sv/en`; optional open/close dates and response limit |
 | `questions` | Questions of a survey, ordered by `position` | kind `single_choice/multiple_choice/dropdown/text/long_text/rating/nps/reasons` (rules in `survey_manager/questions/domain.py`); `options` is a JSON list of texts, only for the four choice kinds |
 | `responses` | One submitted response | `link_token_hash` stops double counting; `contact_ref` only in identified mode |
 | `answers` | One answer to one question | number, text or choices |
