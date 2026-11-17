@@ -126,6 +126,13 @@ def publish(conn: psycopg.Connection, survey_id: UUID, link_token: str) -> dict[
         (link_token, survey_id),
     ).fetchone()
     assert row is not None
+    # The respondent service finds the survey's organisation from its link (#42).
+    conn.execute(
+        """insert into survey_links (link_token, survey_id, tenant_id)
+           select link_token, id, tenant_id from surveys where id = %s
+           on conflict do nothing""",
+        (survey_id,),
+    )
     return row
 
 

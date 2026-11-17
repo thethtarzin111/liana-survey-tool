@@ -380,6 +380,28 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such template for this organisation }
+  /r/{link_token}:
+    get:
+      tags: [respondent]
+      summary: One-tap answer link from the email (public, no login)
+      description: >-
+        Records the answer to the survey's main question (thumbs 0-2, NPS 0-10, CSAT 1-5), puts it
+        on the survey.answers queue for the worker, and returns a plain HTML thank-you page with the
+        survey's thank-you message. Answers stay anonymous: only a key derived from the reader is
+        stored, so the same reader's second tap is not counted. Pages are sent with
+        Cache-Control no-store and Referrer-Policy no-referrer.
+      parameters:
+        - { name: link_token, in: path, required: true, schema: { type: string } }
+        - { name: r, in: query, required: true, description: Reader reference, schema: { type: string } }
+        - { name: s, in: query, required: true, description: Signature of the token and reader, schema: { type: string } }
+        - { name: a, in: query, required: true, description: The tapped answer, schema: { type: integer } }
+      responses:
+        '200': { description: Thank-you page (HTML), content: { text/html: {} } }
+        '400': { description: Link not complete or not valid, or an answer that is not one of the choices (HTML) }
+        '403': { description: The survey is not open yet (HTML) }
+        '404': { description: Unknown link (HTML) }
+        '410': { description: The survey is closed (HTML) }
+        '503': { description: The answer could not be queued; the reader is asked to try again (HTML) }
 components:
   schemas:
     CurrentUser:

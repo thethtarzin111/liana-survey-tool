@@ -5,6 +5,7 @@ description = "Respondent Survey Service: public answer path (verify link token,
 requires-python = ">=3.12"
 dependencies = [
   "liana-survey-shared[web]",
+  "aio-pika>=9.4,<10",
   "fastapi>=0.115,<1",
   "uvicorn[standard]>=0.32,<1",
 ]
@@ -21,3 +22,4 @@ include = ["respondent_service*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["db: needs a migrated Postgres reached as the app role"]
