@@ -194,6 +194,12 @@ class SurveyListItem(Survey):
 
     @computed_field
     @property
+    def answer_counts(self) -> dict[str, int]:
+        """Anonymous main-question counts for dashboard distribution charts."""
+        return self.distribution
+
+    @computed_field
+    @property
     def headline(self) -> Headline | None:
         """Score for thumbs, NPS and CSAT surveys once they have answers (#22)."""
         from liana_survey_shared.scoring import headline

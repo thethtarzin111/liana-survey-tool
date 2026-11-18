@@ -535,12 +535,17 @@ components:
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     SurveyListItem:
+      # answer_counts exposes only anonymous aggregate counts for dashboard charts.
       description: A survey on the Surveys list
       allOf:
         - { $ref: '#/components/schemas/Survey' }
         - type: object
-          required: [answers, headline]
+          required: [answers, headline, answer_counts]
           properties:
+            answer_counts:
+              type: object
+              additionalProperties: { type: integer, minimum: 0 }
+              description: Anonymous main-question counts used by dashboard distribution charts
             answers: { type: integer, minimum: 0, description: Submitted responses so far }
             headline:
               type: [object, 'null']
