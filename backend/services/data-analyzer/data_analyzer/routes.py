@@ -37,3 +37,38 @@ def get_result(
         "headline": {"score": score.score, "note": score.note} if score else None,
         "split": [share.__dict__ for share in answer_split(row["distribution"], scale)],
     }
+
+
+@router.get("/{survey_id}/reasons")
+def get_reasons(
+    survey_id: UUID, segment: Segment = "all", db: TenantDB = Depends(tenant_db)
+) -> list[dict]:
+    """Reason questions and ranked option counts for the selected segment."""
+    with db() as conn:
+        _require_survey(conn, survey_id)
+        questions = repo.question_charts(conn, survey_id, segment)
+    return [
+        {
+            **question,
+            "options": sorted(
+                question["options"], key=lambda option: (-option["count"], option["label"])
+            ),
+        }
+        for question in questions
+        if question["kind"] == "reasons"
+    ]
+
+
+@router.get("/{survey_id}/comments")
+def get_comments(
+    survey_id: UUID, segment: Segment = "all", db: TenantDB = Depends(tenant_db)
+) -> list[dict]:
+    """Latest 100 nonblank comments with answer, segment and submission time."""
+    with db() as conn:
+        _require_survey(conn, survey_id)
+        return repo.comments(conn, survey_id, segment)
+
+
+def _require_survey(conn, survey_id: UUID) -> None:
+    if conn.execute("select id from surveys where id = %s", (survey_id,)).fetchone() is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Survey not found")

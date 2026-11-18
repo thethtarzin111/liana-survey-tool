@@ -428,6 +428,36 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SurveyResult' }
         '404': { description: No such survey for this organisation }
+  /api/v1/results/{survey_id}/reasons:
+    get:
+      tags: [results]
+      summary: Reason questions with ranked option counts
+      parameters:
+        - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: segment, in: query, schema: { type: string, default: all, pattern: '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$' } }
+      responses:
+        '200':
+          description: Reason questions with id, kind, prompt, answers and options containing label and count
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+        '404': { description: Survey not found for this tenant }
+        '422': { description: Invalid survey ID or segment }
+  /api/v1/results/{survey_id}/comments:
+    get:
+      tags: [results]
+      summary: Latest 100 nonblank comments, newest first
+      parameters:
+        - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: segment, in: query, schema: { type: string, default: all, pattern: '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$' } }
+      responses:
+        '200':
+          description: Comments with id, comment, main numeric answer, segment and submitted_at
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
+        '404': { description: Survey not found for this tenant }
+        '422': { description: Invalid survey ID or segment }
   /r/{link_token}:
     get:
       tags: [respondent]
