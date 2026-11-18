@@ -6,6 +6,7 @@ survey-manager's tests); they delete the surveys they create.
 
 import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -103,12 +104,14 @@ def make_survey():
     """Creates surveys for the demo tenant and deletes them afterwards."""
     made: list[UUID] = []
 
-    def create(kind: str = "nps", survey_type: str = "nps") -> tuple[UUID, UUID, UUID]:
+    def create(
+        kind: str = "nps", survey_type: str = "nps", *, closes_at=None, response_limit=None
+    ) -> tuple[UUID, UUID, UUID]:
         with tenant_connection(DEMO_TENANT) as conn:
             survey_id = conn.execute(
-                """insert into surveys (tenant_id, title, type)
-                   values (%s, 'Worker test', %s) returning id""",
-                (DEMO_TENANT, survey_type),
+                """insert into surveys (tenant_id, title, type, closes_at, response_limit)
+                   values (%s, 'Worker test', %s, %s, %s) returning id""",
+                (DEMO_TENANT, survey_type, closes_at, response_limit),
             ).fetchone()[0]
             main = conn.execute(
                 """insert into questions (tenant_id, survey_id, position, kind, prompt)
@@ -308,3 +311,43 @@ def test_a_message_cannot_write_into_another_tenants_survey(make_survey):
     with pytest.raises(BadMessage, match="unknown survey"):
         handle_answer(message(survey_id, nps(main, 9), tenant=OTHER_TENANT))
     assert totals(survey_id) == (0, {})
+
+
+@pytest.mark.db
+@needs_db
+def test_answers_tapped_from_the_close_date_on_are_not_saved(make_survey):
+    closes = datetime.now(UTC)
+    survey_id, main, _ = make_survey(closes_at=closes)
+    before = closes - timedelta(seconds=1)
+    assert handle_answer(message(survey_id, nps(main, 9), reader="anna", at=before)) is True
+    # Queued before the close and saved late: still counts (the tap time decides).
+    assert handle_answer(message(survey_id, nps(main, 7), reader="ben", at=before)) is True
+    # Tapped on or after the close: neither new readers nor changed answers.
+    assert handle_answer(message(survey_id, nps(main, 3), reader="cleo", at=closes)) is False
+    later = closes + timedelta(hours=1)
+    assert handle_answer(message(survey_id, nps(main, 0), reader="anna", at=later)) is False
+    assert totals(survey_id) == (2, {"9": 1, "7": 1})
+
+
+@pytest.mark.db
+@needs_db
+def test_a_full_survey_takes_no_new_readers_but_answers_can_still_change(make_survey):
+    survey_id, main, _ = make_survey(response_limit=2)
+    assert handle_answer(message(survey_id, nps(main, 9), reader="anna")) is True
+    assert handle_answer(message(survey_id, nps(main, 8), reader="ben")) is True
+    assert handle_answer(message(survey_id, nps(main, 3), reader="cleo")) is False
+    assert handle_answer(message(survey_id, nps(main, 10), reader="anna")) is True
+    assert totals(survey_id) == (2, {"10": 1, "8": 1})
+    assert [row[1] for row in stored(survey_id)] == [8, 10]
+
+
+@pytest.mark.db
+@needs_db
+def test_readers_answering_at_the_same_time_never_go_past_the_limit(make_survey):
+    survey_id, main, _ = make_survey(response_limit=3)
+    bodies = [message(survey_id, nps(main, 9), reader=f"r{n}") for n in range(12)]
+    with ThreadPoolExecutor(max_workers=6) as pool:
+        saved = list(pool.map(handle_answer, bodies))
+    assert saved.count(True) == 3
+    assert totals(survey_id) == (3, {"9": 3})
+    assert len(stored(survey_id)) == 3

@@ -30,6 +30,7 @@ COLUMN_NAMES = (
     "opens_at",
     "closes_at",
     "response_limit",
+    "notify_on_response",
     "created_at",
     "updated_at",
 )
@@ -160,10 +161,10 @@ def duplicate(
     row = conn.execute(
         f"""insert into surveys
               (tenant_id, title, description, thank_you, type, status, anonymous, language,
-               response_limit, comment_field, show_results, contact_opt_in,
+               response_limit, notify_on_response, comment_field, show_results, contact_opt_in,
                accent_color, background_color, logo_updated_at, created_by)
             select %s, %s, description, thank_you, type, %s, anonymous, language,
-                   response_limit, comment_field, show_results, contact_opt_in,
+                   response_limit, notify_on_response, comment_field, show_results, contact_opt_in,
                    accent_color, background_color, logo_updated_at, %s
             from surveys where id = %s
             returning {COLUMNS}""",

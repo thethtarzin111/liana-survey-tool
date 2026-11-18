@@ -1,5 +1,7 @@
 """Answer rules for the one-tap links (#42). Plain Python, no SQL or HTTP."""
 
+from datetime import datetime
+
 from liana_survey_shared.scoring import CSAT_SCALE, NPS_SCALE, THUMBS_SCALE
 
 #: The main question of a thumbs, NPS or CSAT survey and the answers its buttons send.
@@ -14,12 +16,31 @@ class AnswerProblem(Exception):
         self.status_code = status_code
 
 
-def check_open(status: str) -> None:
-    """Only live surveys take answers."""
-    if status == "closed":
-        raise AnswerProblem("This survey is closed and no longer takes answers.", 410)
+CLOSED = "This survey is closed and no longer takes answers."
+FULL = "This survey has all the answers it needs. Thank you for wanting to answer."
+
+
+def check_open(
+    status: str,
+    *,
+    closes_at: datetime | None = None,
+    now: datetime | None = None,
+    full: bool = False,
+) -> None:
+    """Only live surveys take answers: not after their close date (#47), and not
+    from new readers once the response limit is reached (`full`)."""
+    if status == "closed" or (closes_at is not None and now is not None and now >= closes_at):
+        raise AnswerProblem(CLOSED, 410)
     if status != "live":
         raise AnswerProblem("This survey is not open yet.", 403)
+    if full:
+        raise AnswerProblem(FULL, 410)
+
+
+def limit_reached(response_limit: int | None, response_count: int) -> bool:
+    """True when the survey has as many readers as its response limit. A reader who
+    already answered may still change their answer (#126), so check that next."""
+    return response_limit is not None and response_count >= response_limit
 
 
 def one_tap_answer(main_kind: str | None, raw: str | None) -> int:
