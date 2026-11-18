@@ -15,7 +15,7 @@ test('counts all answered surveys while limiting latest results to three', async
     headline: { score: `NPS +${index}`, note: 'scale' },
   })));
   await screen.findByRole('heading', { name: 'Overall statistics' });
-  expect(screen.getByText('Responses').parentElement).toHaveTextContent('10');
+  expect(within(screen.getByRole('region', { name: 'Overall statistics' })).getByText('Responses').parentElement).toHaveTextContent('10');
   expect(screen.getAllByRole('link', { name: 'See results' })).toHaveLength(3);
 });
 
