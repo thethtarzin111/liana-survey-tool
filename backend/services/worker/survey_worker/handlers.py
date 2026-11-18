@@ -58,7 +58,7 @@ def handle_answer(body: bytes, connect: Connect = tenant_connection) -> bool:
     except (psycopg.errors.ForeignKeyViolation, psycopg.errors.DataError) as error:
         raise BadMessage(f"answer does not fit the survey: {error.diag.message_primary}") from error
     log.info("answer %s survey=%s message=%s", outcome, msg.survey_id, msg.message_id)
-    return outcome != "kept"
+    return outcome in ("saved", "replaced")
 
 
 def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
