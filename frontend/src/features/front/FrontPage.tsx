@@ -73,8 +73,8 @@ export function FrontPage() {
         <Card className="front-overview" aria-labelledby="overall-statistics-title"><CardHeader id="overall-statistics-title" title="Overall statistics" actions={<ButtonLink size="sm" to="/results">View all results →</ButtonLink>} /><div className="front-stats">
           <div><span className="front-stat-icon"><Icon path={icons.list} size={32} /></span><span>Live surveys</span><strong>{live}</strong><ButtonLink size="sm" to="/surveys?status=live">View surveys</ButtonLink></div>
           <div><span className="front-stat-icon"><Icon path={icons.chart} size={32} /></span><span>Responses</span><strong>{responses}</strong><ButtonLink size="sm" to="/responses">View responses</ButtonLink></div>
-          <div><span className="front-stat-icon"><Icon path={icons.list} size={32} /></span><span>Surveys</span><strong>{surveys.length}</strong><ButtonLink size="sm" to="/surveys">View all surveys</ButtonLink></div>
-          <div><span className="front-stat-icon"><Icon path={icons.chart} size={32} /></span><span>With results</span><strong>{answered.length}</strong><ButtonLink size="sm" to="/results">View performance</ButtonLink></div>
+          <div><span className="front-stat-icon"><Icon path={icons.chart} size={32} /></span><span>Average response rate</span><strong>—</strong><small>live surveys</small><ButtonLink size="sm" to="/results">View performance</ButtonLink></div>
+          <div><span className="front-stat-icon"><Icon path={icons.chart} size={32} /></span><span>Member NPS</span><strong>{surveys.find((survey) => survey.type === 'nps' && survey.headline)?.headline?.score.replace('NPS ', '') ?? '—'}</strong><small>scale −100 to +100</small><ButtonLink size="sm" to="/results">View NPS results</ButtonLink></div>
         </div></Card>
         <h2 className="section-header">Results</h2>
         <div className="front-results-grid">
