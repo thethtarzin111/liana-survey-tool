@@ -210,7 +210,7 @@ paths:
         - name: segment
           in: query
           required: false
-          description: Segment tag
+          description: Segment tag. none and other are reserved (they are the Results filter values) and give 422.
           schema: { type: string, pattern: '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$', default: all, example: members }
       responses:
         '200':

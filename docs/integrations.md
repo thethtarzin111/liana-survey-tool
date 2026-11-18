@@ -70,5 +70,6 @@ stores it on the response, and survey performance (#12) groups by it.
 
 `AnswerSubmitted` also carries `segment` (default `all`), from the link's `seg`
 parameter: a newsletter segment tag such as `members`. `none` and `other` are
-reserved (they are the Results filter values) and refused. The worker stores it on the
+reserved (they are the Results filter values). An invalid or reserved `seg` shows
+the incomplete-link page (400), and the snippet endpoint refuses them too. The worker stores it on the
 response, and the Results page (#15) filters by it.

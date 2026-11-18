@@ -125,6 +125,13 @@ def test_tags_default_to_the_survey_name_and_all(client):
     assert (body["campaign"], body["segment"]) == (campaign_tag(survey["title"]), "all")
 
 
+@pytest.mark.parametrize("segment", ["none", "other"])
+def test_reserved_segment_names_are_refused_before_any_lookup(client, segment):
+    r = client.post(f"/api/v1/surveys/{uuid4()}/snippet", params={"segment": segment})
+    assert r.status_code == 422
+    assert r.json()["detail"] == "none and other are reserved segment names"
+
+
 @pytest.mark.db
 @needs_db
 def test_drafts_bad_tags_and_unknown_surveys_get_no_snippet(client):
