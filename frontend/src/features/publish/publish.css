@@ -17,3 +17,12 @@
 }
 .reader-answer:hover { border-color: var(--color-brand); background: var(--color-mint-light); }
 .reader-answer:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+/* Share outside email (#6) */
+.share-row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+.share-link { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.share-link-input { display: flex; gap: 8px; }
+.share-link-input .input { flex: 1; min-width: 0; }
+.share-status { min-height: 1.4em; margin: 0; color: var(--color-text-muted); font-size: var(--text-hint); }
+.share-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.share-qr img { display: block; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
