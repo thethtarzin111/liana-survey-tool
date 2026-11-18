@@ -6,6 +6,8 @@ import json
 
 from liana_survey_shared.messages import AnswerValue
 
+from .styles import READER_STYLES
+
 
 def render(survey: dict, questions: list[dict], key: str) -> str:
     escape = html.escape
@@ -38,7 +40,7 @@ def render(survey: dict, questions: list[dict], key: str) -> str:
         )
     config = json.dumps({"key": key}).replace("<", "\\u003c")
     return f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(title)}</title>
-<style>body{{font:16px/1.5 Arial;margin:24px;background:{survey["background_color"]}}}main{{max-width:650px;margin:auto;background:white;padding:24px}}label{{display:block;margin:8px}}fieldset{{margin:20px 0}}textarea{{width:95%;min-height:70px}}button{{padding:12px 24px}}</style>
+<style>{READER_STYLES} :root {{ --reader-background: {survey["background_color"]}; --reader-accent: {survey.get("accent_color", "#2B6450")}; }}</style>
 <main><h1>{escape(title)}</h1><p>{escape(survey["description"] or "")}</p>
 <div aria-label="Survey progress">
   <label for="survey-progress">Questions answered</label>
