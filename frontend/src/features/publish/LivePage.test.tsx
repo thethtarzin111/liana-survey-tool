@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Survey } from '../../api/client';
+import { ToastProvider } from '../../components/ui';
 import { DEFAULT_ACCENT, DEFAULT_BACKGROUND } from '../builder/branding';
 import { LivePage } from './LivePage';
 
@@ -31,11 +32,13 @@ afterEach(() => vi.unstubAllGlobals());
 
 function renderPage() {
   render(
-    <MemoryRouter initialEntries={['/surveys/nps-1/live']}>
-      <Routes>
-        <Route path="/surveys/:id/live" element={<LivePage />} />
-      </Routes>
-    </MemoryRouter>,
+    <ToastProvider>
+      <MemoryRouter initialEntries={['/surveys/nps-1/live']}>
+        <Routes>
+          <Route path="/surveys/:id/live" element={<LivePage />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
   );
 }
 
@@ -47,6 +50,7 @@ test('shows the survey is live with its public link', async () => {
   expect(screen.getByRole('link', { name: 'Back to surveys' })).toHaveAttribute('href', '/surveys');
   expect(screen.getByRole('link', { name: 'Edit survey' })).toHaveAttribute('href', '/surveys/nps-1');
   expect(screen.getByRole('heading', { name: 'Newsletter snippet' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Survey settings' })).toBeInTheDocument();
   expect(await screen.findByLabelText('Campaign tag')).toHaveValue('member-nps');
 });
 
