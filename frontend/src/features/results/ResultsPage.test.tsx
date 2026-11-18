@@ -335,5 +335,5 @@ test('a failed survey list offers to try again', async () => {
 test('the Responses tab shows the number of responses', async () => {
   renderPage('/results?survey=nps-1&tab=responses');
   expect(await screen.findByRole('tab', { name: 'Responses 12' })).toHaveAttribute('aria-selected', 'true');
-  expect(screen.getByText('Responses arrive with #54')).toBeInTheDocument();
+  expect(screen.getByText('Responses will appear here soon.')).toBeInTheDocument();
 });

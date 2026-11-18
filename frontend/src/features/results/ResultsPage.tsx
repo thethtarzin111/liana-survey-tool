@@ -44,7 +44,7 @@ function OverviewTab({ overview }: { overview: SurveyOverview }) {
 function ResponsesTab({ surveyId, segment }: { surveyId: string; segment: string }) {
   return (
     <Card padded data-survey={surveyId} data-segment={segment}>
-      <p>Responses arrive with #54</p>
+      <p>Responses will appear here soon.</p>
     </Card>
   );
 }
