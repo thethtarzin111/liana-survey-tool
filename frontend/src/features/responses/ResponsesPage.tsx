@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, getJson } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
+import './responses.css';
 import { Button, ButtonLink, Card, EmptyState, Table, icons, type Column } from '../../components/ui';
 
 type ResponseRow = { id: string; survey_id: string; survey: string; segment: string; submitted_at: string; answer: number | null; comment: string | null };
@@ -52,7 +53,7 @@ export function ResponsesPage() {
     { key: 'action', header: 'Action', render: (row) => <ButtonLink size="sm" to={`/results?${new URLSearchParams({ survey: row.survey_id, segment: row.segment })}`}>See results</ButtonLink> },
   ];
   const filtered = rows?.filter((row) => (!survey || row.survey_id === survey) && (!segment || row.segment === segment)) ?? [];
-  return <><PageHeader title="Responses" description="The latest answers and comments across your surveys." />
+  return <div className="responses-page"><PageHeader title="Responses" description="The latest answers and comments across your surveys." />
     <div className="result-toolbar">
       <label className="field"><span>Survey</span><select className="input" value={survey} onChange={(e) => filter('survey', e.target.value)}><option value="">All surveys</option>{surveys.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
       <label className="field"><span>Segment</span><input className="input" list="response-segments" value={segment} placeholder="All segments" onChange={(e) => filter('segment', e.target.value)} /><datalist id="response-segments">{segments.map((item) => <option key={item} value={item} />)}</datalist></label>
@@ -60,5 +61,5 @@ export function ResponsesPage() {
     </div>
     {failed ? <Card padded role="alert"><p>We couldn’t load responses.</p><Button onClick={() => setRetry((n) => n + 1)}>Try again</Button></Card> : rows === null ? <p role="status">Loading responses…</p> : !rows.length ? <Card><EmptyState icon={icons.chart} title="No responses yet." text="Share a survey to start collecting answers." /></Card> : <Card><Table caption="Responses" columns={columns} rows={filtered} rowKey={(row) => row.id} empty="No responses match these filters." /></Card>}
     {rows !== null && !failed ? <nav aria-label="Response pages"><Button disabled={page === 0} onClick={() => filter('page', String(page - 1))}>Previous</Button><span> Page {page + 1} </span><Button disabled={!hasNext} onClick={() => filter('page', String(page + 1))}>Next</Button></nav> : null}
-  </>;
+  </div>;
 }
