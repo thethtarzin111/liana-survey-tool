@@ -17,7 +17,7 @@ export function useResultsParams() {
   const group = params.get('group') || '';
 
   const set = useCallback(
-    (changes: ResultsChanges) => {
+    (changes: ResultsChanges, options: { replace?: boolean } = {}) => {
       setParams((current) => {
         const next = new URLSearchParams(current);
         const apply = (key: string, value: string | undefined, empty: string) => {
@@ -36,7 +36,7 @@ export function useResultsParams() {
         apply('q', changes.q, '');
         apply('group', changes.group, '');
         return next;
-      });
+      }, { replace: options.replace });
     },
     [setParams],
   );

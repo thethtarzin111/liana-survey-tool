@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { api, responsesCsvUrl, type ResponseRow } from '../../api/client';
+import { api, ApiError, responsesCsvUrl, type ResponseRow } from '../../api/client';
 import { Button, Card, EmptyState, SearchInput, Tag, ToggleChip, icons } from '../../components/ui';
 import { Icon } from '../../components/Icon';
 import { THUMBS_LABEL } from './groups';
@@ -44,26 +44,38 @@ type Props = {
 
 /** Every response of one survey, newest first, with search, answer-group chips and a side panel per response. */
 export function ResponsesTab({ surveyId, segment, scale }: Props) {
-  const { q, group, set } = useResultsParams();
+  const { q, group: urlGroup, set } = useResultsParams();
   const [draft, setDraft] = useState(q);
   const [page, setPage] = useState<Page | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<'refused' | 'error' | null>(null);
   const [more, setMore] = useState<'idle' | 'busy' | 'failed'>('idle');
   const [reload, setReload] = useState(0);
   const [openId, setOpenId] = useState<string | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
 
+  const chips = scale ? CHIPS[scale] : [];
+  // A group from a stale or shared link that this survey has no chip for is never sent.
+  const group = chips.some((c) => c.group === urlGroup) ? urlGroup : '';
+  useEffect(() => {
+    if (urlGroup && !group) set({ group: '' }, { replace: true });
+  }, [urlGroup, group, set]);
+
   const key = JSON.stringify([surveyId, segment, q, group]);
+  const keyRef = useRef(key);
+  keyRef.current = key;
 
   useEffect(() => setDraft(q), [q]);
 
   useEffect(() => {
     let active = true;
-    setFailed(false);
+    setFailed(null);
     setMore('idle');
     api.responses(surveyId, { segment, q, group, limit: PAGE, offset: 0 }).then(
       (data) => { if (active) setPage({ key, rows: data.rows, total: data.total }); },
-      () => { if (active) setFailed(true); },
+      (error: unknown) => {
+        if (!active) return;
+        setFailed(error instanceof ApiError && (error.status === 400 || error.status === 422) ? 'refused' : 'error');
+      },
     );
     return () => { active = false; };
   }, [key, surveyId, segment, q, group, reload]);
@@ -76,9 +88,9 @@ export function ResponsesTab({ surveyId, segment, scale }: Props) {
     api.responses(surveyId, { segment, q, group, limit: PAGE, offset: current.rows.length }).then(
       (data) => {
         setPage((prev) => (prev && prev.key === key ? { ...prev, rows: [...prev.rows, ...data.rows], total: data.total } : prev));
-        setMore('idle');
+        if (keyRef.current === key) setMore('idle');
       },
-      () => setMore('failed'),
+      () => { if (keyRef.current === key) setMore('failed'); },
     );
   };
 
@@ -96,8 +108,6 @@ export function ResponsesTab({ surveyId, segment, scale }: Props) {
   };
 
   const filtered = Boolean(q || group);
-  const chips = scale ? CHIPS[scale] : [];
-
   const toolbar = (
     <div className="responses-toolbar">
       <SearchInput label="Search comments" placeholder="Search comments…" value={draft} onChange={setDraft} onSearch={(v) => set({ q: v.trim() })} />
@@ -133,7 +143,17 @@ export function ResponsesTab({ surveyId, segment, scale }: Props) {
   );
 
   let body;
-  if (failed) {
+  if (failed === 'refused') {
+    body = (
+      <Card>
+        <EmptyState
+          icon={icons.search}
+          title="No responses match."
+          actions={<Button onClick={() => set({ q: '', group: '' })}>Clear filters</Button>}
+        />
+      </Card>
+    );
+  } else if (failed) {
     body = (
       <Card padded role="alert" className="results-error">
         <strong>We couldn’t load the responses.</strong>

@@ -25,14 +25,18 @@ const detail: ResponseDetail = {
 const fetchMock = vi.fn<typeof fetch>();
 let pageRows: ResponseRow[];
 let total: number;
+let failWith: ((url: URL) => number | null) | null = null;
 
 beforeEach(() => {
   pageRows = [row(1), row(2)];
   total = 2;
+  failWith = null;
   fetchMock.mockReset().mockImplementation(async (input) => {
     const url = new URL(String(input), 'http://localhost');
     if (/\/responses\/[^/]+$/.test(url.pathname)) return Response.json(detail);
     if (url.pathname.endsWith('/responses')) {
+      const status = failWith?.(url);
+      if (status) return new Response(JSON.stringify({ detail: 'x' }), { status });
       const offset = Number(url.searchParams.get('offset') ?? 0);
       const rows = offset ? many(offset + 1, 3) : pageRows;
       return Response.json({ total, rows });
@@ -193,4 +197,73 @@ test('the anonymised notice links to Contact requests', async () => {
   renderTab();
   expect(await screen.findByText(/Anonymised\. No names or emails are shown\./)).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Contact requests' })).toHaveAttribute('href', '/contact-requests');
+});
+
+const responseCalls = () =>
+  fetchMock.mock.calls.map(([i]) => new URL(String(i), 'http://localhost')).filter((u) => u.pathname.endsWith('/responses'));
+
+test('a stale group for another scale is dropped from the URL before any request', async () => {
+  renderTab('/results?survey=s1&tab=responses&q=hi&group=detractors', 'thumbs');
+  await screen.findByRole('table');
+  expect(location()).toBe('/results?survey=s1&tab=responses&q=hi');
+  expect(responseCalls().every((u) => !u.searchParams.has('group'))).toBe(true);
+});
+
+test('a group on a survey without a scale question is dropped', async () => {
+  renderTab('/results?survey=s1&tab=responses&group=high', null);
+  await screen.findByRole('table');
+  expect(location()).toBe('/results?survey=s1&tab=responses');
+  expect(responseCalls().every((u) => !u.searchParams.has('group'))).toBe(true);
+});
+
+test.each([400, 422])('a %i answer shows "No responses match." and Clear filters reloads', async (status) => {
+  failWith = (u) => (u.searchParams.get('q') ? status : null);
+  renderTab('/results?survey=s1&tab=responses&q=bad');
+  expect(await screen.findByText('No responses match.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+  await waitFor(() => expect(location()).toBe('/results?survey=s1&tab=responses'));
+  expect(await screen.findByRole('table')).toBeInTheDocument();
+});
+
+test('a 500 shows the generic error and Try again refetches', async () => {
+  let down = true;
+  failWith = () => (down ? 500 : null);
+  renderTab();
+  expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t load the responses.');
+  down = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+  expect(await screen.findByRole('table')).toBeInTheDocument();
+});
+
+test('a failing Load more says so and keeps the rows', async () => {
+  pageRows = many(1, 50);
+  total = 80;
+  renderTab();
+  await screen.findByText('Showing 50 of 80 responses, newest first');
+  failWith = (u) => (u.searchParams.get('offset') === '50' ? 500 : null);
+  fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+  expect(await screen.findByText('We couldn’t load more responses.')).toBeInTheDocument();
+  expect(screen.getByText('R-1001')).toBeInTheDocument();
+});
+
+test('a late Load more failure from old filters is not shown under new ones', async () => {
+  pageRows = many(1, 50);
+  total = 80;
+  let release: () => void = () => {};
+  renderTab();
+  await screen.findByText('Showing 50 of 80 responses, newest first');
+  const gate = new Promise<void>((r) => { release = r; });
+  const base = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (input, init) => {
+    const url = new URL(String(input), 'http://localhost');
+    if (url.searchParams.get('offset') === '50') { await gate; return new Response(null, { status: 500 }); }
+    return base(input, init);
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Detractors' }));
+  await waitFor(() => expect(location()).toContain('group=detractors'));
+  release();
+  await screen.findByRole('table');
+  await new Promise((r) => setTimeout(r, 20));
+  expect(screen.queryByText('We couldn’t load more responses.')).not.toBeInTheDocument();
 });
