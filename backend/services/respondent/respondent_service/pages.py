@@ -26,6 +26,7 @@ def page(heading: str, text: str, accent: str | None = None, background: str | N
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
+<link rel="icon" href="data:,">
 <title>{html.escape(heading)}</title>
 <style>
   body {{ margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;

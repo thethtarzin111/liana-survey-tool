@@ -301,3 +301,19 @@ def test_a_snippet_link_lianamailer_did_not_fill_in_is_refused(client, queue, ma
     assert r.status_code == 400
     assert "not complete or not valid" in r.text
     assert queue.messages == []
+
+
+def test_pages_tell_the_browser_there_is_no_icon():
+    # Otherwise every answer page also asks the server for /favicon.ico (a 404).
+    assert '<link rel="icon" href="data:,">' in page("Hi", "x")
+
+
+@pytest.mark.db
+@needs_db
+def test_the_plain_public_link_says_to_answer_from_the_email(client, queue, make_survey):
+    _, _, token = make_survey()
+    r = client.get(f"/r/{token}")
+    assert r.status_code == 400
+    assert "Answer from your email" in r.text
+    assert "tap an answer there" in r.text
+    assert queue.messages == []
