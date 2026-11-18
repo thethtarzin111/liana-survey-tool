@@ -560,6 +560,10 @@ components:
       type: object
       required: [survey_id, title, type, status, answers, segment, segments, headline, split]
       properties:
+        questions:
+          type: array
+          description: Choice and rating question charts; counts per option and number of respondents answering the question.
+          items: { type: object }
         survey_id: { type: string, format: uuid }
         title: { type: string }
         type: { $ref: '#/components/schemas/SurveyType' }

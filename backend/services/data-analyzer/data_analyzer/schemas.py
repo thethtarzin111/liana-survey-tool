@@ -25,3 +25,4 @@ class SurveyResult(BaseModel):
     segments: list[str]
     headline: Headline | None
     split: list[AnswerShare]
+    questions: list[dict] = []

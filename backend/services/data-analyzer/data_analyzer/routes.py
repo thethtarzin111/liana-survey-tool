@@ -32,6 +32,7 @@ def get_result(
         "answers": row["answers"],
         "segment": segment,
         "segments": row["segments"],
+        "questions": row["questions"],
         "headline": {"score": score.score, "note": score.note} if score else None,
         "split": [share.__dict__ for share in answer_split(row["distribution"], scale)],
     }

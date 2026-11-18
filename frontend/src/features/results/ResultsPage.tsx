@@ -32,7 +32,10 @@ export function ResultsPage() {
     setResult(null);
     setFailed(false);
     api.result(selected, segment).then((data) => { if (active) setResult(data); }, () => { if (active) setFailed(true); });
-    return () => { active = false; };
+    const timer = window.setInterval(() => {
+      api.result(selected, segment).then((data) => { if (active) setResult(data); }, () => {});
+    }, 30_000);
+    return () => { active = false; window.clearInterval(timer); };
   }, [selected, segment, reload]);
 
   function choose(changes: { survey?: string; segment?: string }) {
@@ -58,6 +61,14 @@ export function ResultsPage() {
     </div>
     <div className="tabs" role="tablist" aria-label="Result views"><button className="tab" role="tab" aria-selected="true">In short</button></div>
     <section role="tabpanel" className="result-summary">
+      {result.questions?.map((question) => <Card padded key={question.id}>
+        <h2>{question.prompt}</h2>
+        <p>{question.answers} answers · Percentages of respondents answering this question</p>
+        {question.options.map((option) => <div key={option.label}>
+          <strong>{option.label}</strong> — {option.count} answers ({question.answers ? Math.round(option.count / question.answers * 100) : 0}%)
+          <div className="progress" aria-hidden="true"><div className="progress-fill" style={{ width: `${question.answers ? option.count / question.answers * 100 : 0}%` }} /></div>
+        </div>)}
+      </Card>)}
       <div className="result-metrics">
         <Card padded><span>Headline score</span><strong>{result.headline?.score}</strong><small>{result.headline?.note}</small></Card>
         <Card padded><span>Answers</span><strong>{result.answers}</strong><small>{segment === 'all' ? 'All segments' : `Segment: ${segment}`}</small></Card>

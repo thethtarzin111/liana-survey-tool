@@ -48,4 +48,49 @@ def survey_result(conn: psycopg.Connection, survey_id: UUID, segment: str) -> di
         "answers": response_count,
         "distribution": {str(int(row["value_number"])): row["count"] for row in rows},
         "segments": segments,
+        "questions": question_charts(conn, survey_id, segment),
     }
+
+
+def question_charts(conn: psycopg.Connection, survey_id: UUID, segment: str) -> list[dict]:
+    questions = conn.execute(
+        "select id, prompt, kind, options from questions where survey_id = %s order by position",
+        (survey_id,),
+    ).fetchall()
+    charts = []
+    for question in questions:
+        kind = question["kind"]
+        scales = {"thumbs": range(3), "nps": range(11), "rating": range(1, 6)}
+        if kind not in scales and kind not in {
+            "single_choice",
+            "multiple_choice",
+            "dropdown",
+            "reasons",
+        }:
+            continue
+        answers = conn.execute(
+            """select a.value_number, a.value_choices from answers a
+               join responses r on r.id = a.response_id
+               where a.question_id = %s and (%s = 'all' or r.segment = %s)""",
+            (question["id"], segment, segment),
+        ).fetchall()
+        labels = [str(value) for value in scales[kind]] if kind in scales else question["options"]
+        counts = dict.fromkeys(labels, 0)
+        for answer in answers:
+            values = (
+                [str(int(answer["value_number"]))]
+                if answer["value_number"] is not None
+                else answer["value_choices"] or []
+            )
+            for value in set(values):
+                if value in counts:
+                    counts[value] += 1
+        charts.append(
+            {
+                "id": str(question["id"]),
+                "prompt": question["prompt"],
+                "answers": len(answers),
+                "options": [{"label": label, "count": count} for label, count in counts.items()],
+            }
+        )
+    return charts
