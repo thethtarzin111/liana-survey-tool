@@ -11,9 +11,9 @@ derived from the reader reference is stored, to count each reader once.
 
 import logging
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse
 
@@ -59,6 +59,7 @@ async def answer(
     r: str | None = None,
     s: str | None = None,
     a: str | None = None,
+    seg: Annotated[str, Query(pattern=r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")] = "all",
     ch: Literal["email", "link", "qr"] | None = None,
     queue: AnswerQueue = Depends(get_answer_queue),
 ) -> HTMLResponse:
@@ -107,6 +108,7 @@ async def answer(
         survey_id=survey["id"],
         link_token_hash=response_key,
         channel=channel,
+        segment=seg,
         answers=[AnswerValue(question_id=survey["main_id"], number=value)],
     )
     try:

@@ -26,7 +26,9 @@ needs_db = pytest.mark.skipif(
 )
 
 
-def message(survey_id, answers, *, reader="reader-1", tenant=DEMO_TENANT, at=None) -> bytes:
+def message(
+    survey_id, answers, *, reader="reader-1", tenant=DEMO_TENANT, at=None, segment=None
+) -> bytes:
     return (
         AnswerSubmitted(
             tenant_id=tenant,
@@ -34,6 +36,7 @@ def message(survey_id, answers, *, reader="reader-1", tenant=DEMO_TENANT, at=Non
             link_token_hash=f"key-{reader}",
             answers=answers,
             **({"created_at": at} if at else {}),
+            **({"segment": segment} if segment else {}),
         )
         .model_dump_json()
         .encode()
@@ -174,6 +177,19 @@ def test_an_answer_is_saved_for_its_tenant_and_counted(make_survey):
     assert handle_answer(body) is True
     assert stored(survey_id) == [(DEMO_TENANT, 9, None), (DEMO_TENANT, None, ["Price"])]
     assert totals(survey_id) == (1, {"9": 1})
+
+
+@pytest.mark.db
+@needs_db
+def test_the_worker_stores_the_segment(make_survey):
+    survey_id, main, _ = make_survey()
+    assert handle_answer(message(survey_id, nps(main, 9), reader="a", segment="members")) is True
+    assert handle_answer(message(survey_id, nps(main, 7), reader="b")) is True
+    with tenant_connection(DEMO_TENANT) as conn:
+        rows = conn.execute(
+            "select segment from responses where survey_id = %s order by segment", (survey_id,)
+        ).fetchall()
+    assert rows == [("all",), ("members",)]
 
 
 @pytest.mark.db

@@ -224,6 +224,19 @@ def test_a_tap_queues_the_answer_and_shows_the_thank_you_page(client, queue, mak
 
 @pytest.mark.db
 @needs_db
+def test_the_segment_from_the_link_is_queued(client, queue, make_survey):
+    _, _, token = make_survey()
+    assert client.get(link(token, reader="anna", answer=9) + "&seg=members").status_code == 200
+    assert client.get(link(token, reader="ben", answer=9)).status_code == 200
+    assert [m.segment for m in queue.messages] == ["members", "all"]
+
+    r = client.get(link(token, reader="carl", answer=9) + "&seg=Bad!")
+    assert r.status_code == 422
+    assert len(queue.messages) == 2
+
+
+@pytest.mark.db
+@needs_db
 def test_the_same_link_twice_gives_the_same_key(client, queue, make_survey):
     _, _, token = make_survey()
     client.get(link(token, answer=9))

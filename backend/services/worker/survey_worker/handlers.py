@@ -101,8 +101,8 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
 
     inserted = conn.execute(
         """insert into responses
-             (tenant_id, survey_id, submitted_at, link_token_hash, contact_ref, channel)
-           values (%s, %s, %s, %s, %s, %s)
+             (tenant_id, survey_id, submitted_at, link_token_hash, contact_ref, channel, segment)
+           values (%s, %s, %s, %s, %s, %s, %s)
            on conflict (survey_id, link_token_hash) do nothing
            returning id""",
         (
@@ -112,6 +112,7 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
             msg.link_token_hash,
             msg.contact_ref,
             msg.channel,
+            msg.segment,
         ),
     ).fetchone()
     if inserted is not None:
