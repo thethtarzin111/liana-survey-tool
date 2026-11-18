@@ -62,6 +62,7 @@ function renderPage(path = '/surveys') {
         <Routes>
           <Route path="/surveys" element={<SurveysPage />} />
           <Route path="/surveys/:id" element={<h1>Builder</h1>} />
+          <Route path="/surveys/:id/live" element={<h1>Live page</h1>} />
           <Route path="/surveys/new" element={<h1>New survey</h1>} />
         </Routes>
       </ToastProvider>
@@ -95,7 +96,8 @@ test('shows each survey with its type, status, answers, note and score', async (
   expect(within(await rowFor('Course feedback')).getByText('—')).toBeInTheDocument();
   expect(within(await rowFor('Newsletter thumbs')).getByText('Opens Tue 01/12/2026')).toBeInTheDocument();
   expect(within(await rowFor('Course feedback')).getByText('Not published yet')).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Member NPS 2026' })).toHaveAttribute('href', '/surveys/live-1');
+  // Live surveys open their "is live" page (#117).
+  expect(screen.getByRole('link', { name: 'Member NPS 2026' })).toHaveAttribute('href', '/surveys/live-1/live');
 });
 
 test('status chips filter through the API and keep the choice in the URL', async () => {
@@ -149,7 +151,7 @@ test('menus offer only the actions the status allows', async () => {
   };
   expect(await items('Member NPS 2026')).toEqual(['Unpublish', 'Close survey', 'Delete']);
   expect(await items('Newsletter thumbs')).toEqual(['Unpublish', 'Delete']);
-  expect(await items('Course feedback')).toEqual(['Delete']);
+  expect(await items('Course feedback')).toEqual(['Publish', 'Delete']);
 });
 
 test('close and unpublish call the API, toast and refresh the row', async () => {
@@ -205,4 +207,33 @@ test('a failed load can be retried', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t load your surveys.');
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
   expect(await screen.findByRole('link', { name: 'Member NPS 2026' })).toBeInTheDocument();
+});
+
+test('a draft is published from its menu, then its live page opens (#117)', async () => {
+  renderPage();
+  await openMenu('Course feedback');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Publish' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Publish “Course feedback”?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }));
+  expect(await screen.findByRole('heading', { name: 'Live page' })).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith('/api/v1/surveys/draft-1/publish', expect.objectContaining({ method: 'POST' }));
+  expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/draft-1/live');
+  expect(await screen.findByText('“Course feedback” is live.')).toBeInTheDocument();
+});
+
+test('a draft that is not ready keeps the dialog open with the reason', async () => {
+  const listOnly = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (input, init) => {
+    if (init?.method === 'POST' && String(input).endsWith('/publish')) {
+      return Response.json({ detail: 'Add the survey’s main question before publishing.' }, { status: 409 });
+    }
+    return listOnly(input, init);
+  });
+  renderPage();
+  await openMenu('Course feedback');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Publish' }));
+  fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Publish' }));
+  expect(await screen.findByText('Add the survey’s main question before publishing.')).toBeInTheDocument();
+  expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Live page' })).not.toBeInTheDocument();
 });

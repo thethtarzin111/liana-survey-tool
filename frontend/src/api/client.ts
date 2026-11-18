@@ -69,6 +69,11 @@ export const api = {
   changeSurveyStatus: (id: string, action: 'close' | 'unpublish') =>
     send<Survey>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/${action}`),
   deleteSurvey: (id: string) => send<void>('DELETE', `/api/v1/surveys/${encodeURIComponent(id)}`),
+  /** Draft → live, with a public link (#5). 409 with a reason in `detail` when it isn't ready. */
+  publishSurvey: (id: string) => send<Survey>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/publish`),
+  /** Signed answer links for made-up readers. Local development only: 404 elsewhere. */
+  testLinks: (id: string, count = 3) =>
+    send<{ links: string[] }>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/test-links`, { count }),
 
   questions: (surveyId: string) => getJson<Question[]>(questionsPath(surveyId)),
   addQuestion: (surveyId: string, question: QuestionInput) =>
@@ -155,6 +160,9 @@ export type Survey = {
   thank_you: string | null;
   type: SurveyType;
   status: SurveyStatus;
+  /** The survey's public link, set when it is first published (#5). */
+  public_url?: string | null;
+  published_at?: string | null;
 } & ReaderOptions & Branding;
 
 /** Branding: colours as "#RRGGBB", and where to load the logo (null when there is none). */
@@ -193,3 +201,10 @@ export type Template = {
   /** The first is the main question; thumbs, NPS and CSAT templates follow it with reason bubbles. */
   questions: Pick<Question, 'kind' | 'prompt' | 'options' | 'required'>[];
 };
+
+/** The `detail` text of an API error (e.g. a 409 "Add a question before publishing."), if any. */
+export function errorDetail(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  const body = error.body as { detail?: unknown } | null;
+  return typeof body?.detail === 'string' ? body.detail : null;
+}

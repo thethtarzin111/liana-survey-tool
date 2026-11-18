@@ -1,0 +1,19 @@
+/* "<name> is live" (#117), following the prototype's "Survey is live" screen. */
+.live-layout { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+.live-card { display: flex; flex-direction: column; gap: 12px; }
+.live-card .card-header { padding: 0; }
+.live-hint { margin: 0; color: var(--color-text-muted); font-size: var(--text-hint); }
+.publish-problem { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.publish-error { margin: 12px 0 0; color: var(--color-error-text); }
+
+.reader-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 12px; }
+.reader-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.reader-name { min-width: 72px; font-weight: 600; }
+.reader-answers { display: flex; flex-wrap: wrap; gap: 6px; }
+.reader-answer {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 36px;
+  padding: 0 10px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill);
+  background: var(--color-surface); color: var(--color-text); text-decoration: none;
+}
+.reader-answer:hover { border-color: var(--color-brand); background: var(--color-mint-light); }
+.reader-answer:focus-visible { outline: none; box-shadow: var(--focus-ring); }
