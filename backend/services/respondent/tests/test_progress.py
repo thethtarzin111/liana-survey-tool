@@ -51,7 +51,8 @@ process.stdin.on('end', async () => {
   const next = buttons.find(button => button.textContent === 'Next');
   const previous = buttons.find(button => button.textContent === 'Previous');
   next.click(); await tick();
-  if (![...d.querySelectorAll('[role="status"]')].some(node => node.textContent.includes('Question 2'))) throw Error('Next failed');
+  const statuses = [...d.querySelectorAll('[role="status"]')];
+  if (!statuses.some(node => node.textContent.includes('Question 2'))) throw Error('Next failed');
   previous.click(); await tick();
   if (!bad.checked) throw Error('Answer lost on Previous');
   if (!previous.disabled) throw Error('Previous must stop at first question');
