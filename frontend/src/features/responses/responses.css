@@ -1,0 +1,10 @@
+.responses-page { max-width: 1056px; margin: 8px auto 40px; display: flex; flex-direction: column; gap: 20px; }
+.responses-page .page-header { margin: 0; }
+.responses-page .result-toolbar { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+.responses-page .field { min-width: 160px; }
+.responses-page .table td:nth-child(2) { max-width: 380px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-nav); line-height: 1.5; }
+.responses-page .table td:nth-child(4) { text-transform: capitalize; }
+.responses-page .table th:first-child, .responses-page .table td:first-child { padding-left: 16px; }
+.responses-page .table td:last-child { text-align: right; }
+.responses-page nav[aria-label='Response pages'] { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
+@media(max-width:699px) { .responses-page .table td:last-child { text-align: left; } .responses-page .field { flex: 1; } }
