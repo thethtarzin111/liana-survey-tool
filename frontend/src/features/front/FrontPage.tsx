@@ -5,6 +5,7 @@ import { api, type SurveyListItem, type SurveyType } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, CardBody, CardHeader, EmptyState, SurveyStatusBadge, Table, icons, type Column } from '../../components/ui';
 import './front.css';
+import { WelcomeBanner } from './WelcomeBanner';
 
 const TYPE_LABEL: Record<SurveyType, string> = { thumbs: 'Thumbs rating', nps: 'NPS survey', csat: 'CSAT survey', custom: 'Custom survey' };
 const NEWS = [
@@ -65,6 +66,7 @@ export function FrontPage() {
   ];
 
   return <div className="front-page">
+    <WelcomeBanner />
     <PageHeader title={user ? `Welcome, ${user.name.split(' ')[0]}` : 'Welcome'} description="Your surveys and the latest results at a glance." actions={<ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>} />
     {failed ? <Card padded className="front-error" role="alert"><strong>We couldn’t load your dashboard.</strong><p>Your survey information is temporarily unavailable.</p><Button onClick={() => window.location.reload()}>Try again</Button></Card>
       : surveys === null ? <p role="status">Loading dashboard…</p>
