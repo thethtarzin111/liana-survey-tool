@@ -6,8 +6,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from liana_survey_shared.scoring import CSAT_SCALE, NPS_SCALE, THUMBS_SCALE, answer_split, headline
 from liana_survey_shared.web.db import TenantDB, tenant_db
 
-from . import repo
-from .schemas import SurveyResult
+from . import domain, repo
+from .schemas import PerformanceRow, SurveyResult
 
 router = APIRouter(prefix="/api/v1/results", tags=["results"])
 Segment = Annotated[str, Query(pattern=r"^(?:all|[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?)$")]
@@ -21,6 +21,22 @@ def response_feed(db: TenantDB = Depends(tenant_db)) -> list[dict]:
         return repo.response_feed(conn)
 
 
+@router.get("/performance", response_model=list[PerformanceRow])
+def survey_performance(
+    limit: Annotated[
+        int | None, Query(ge=1, le=100, description="Surveys to include; all when left out")
+    ] = None,
+    offset: Annotated[int, Query(ge=0, description="Surveys to skip")] = 0,
+    db: TenantDB = Depends(tenant_db),
+) -> list[dict]:
+    """Views, responses and response rate for every used survey channel. Surveys with
+    the latest views or answers come first; `limit` counts surveys, not rows."""
+    with db() as conn:
+        rows = repo.performance_rows(conn, limit=limit, offset=offset)
+    return [domain.performance_row(row) for row in rows]
+
+
+# After /responses and /performance, so those paths are not read as survey ids.
 @router.get("/{survey_id}", response_model=SurveyResult)
 def get_result(
     survey_id: UUID, segment: Segment = "all", db: TenantDB = Depends(tenant_db)
