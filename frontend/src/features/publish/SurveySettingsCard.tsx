@@ -96,7 +96,6 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
           checked={form.notify}
           onChange={(e) => setForm({ ...form, notify: e.target.checked })}
         />
-        <p className="live-hint">The setting is saved now. The emails start in a later update.</p>
         <p className="settings-privacy">
           Answers are anonymous. Readers who tick “Contact me” share their contact so you can follow up.
         </p>
