@@ -17,11 +17,6 @@ export const mainNav: NavItem[] = [
   },
   { to: '/results', label: 'Results', icon: 'M4 20V10M10 20V4M16 20v-8M2 20h20' },
   {
-    to: '/responses',
-    label: 'Responses',
-    icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 9h8M8 13h5',
-  },
-  {
     to: '/contact-requests',
     label: 'Contact requests',
     icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',

@@ -6,7 +6,7 @@ import { ToastProvider } from '../../components/ui';
 import { SurveysPage } from './SurveysPage';
 import { DEFAULT_ACCENT, DEFAULT_BACKGROUND } from '../builder/branding';
 
-const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, closes_at: null, answers: 0, headline: null } as const;
+const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, closes_at: null, answers: 0, last_answer_at: null, headline: null } as const;
 const live: SurveyListItem = {
   ...base, id: 'live-1', title: 'Member NPS 2026', type: 'nps', status: 'live', answers: 132,
   headline: { score: 'NPS +42', note: 'scale −100 to +100' },
@@ -149,7 +149,7 @@ test('menus offer only the actions the status allows', async () => {
     await openMenu(title);
     return within(await rowFor(title)).getAllByRole('menuitem').map((item) => item.textContent);
   };
-  expect(await items('Member NPS 2026')).toEqual(['Edit', 'Unpublish', 'Close survey', 'Delete']);
+  expect(await items('Member NPS 2026')).toEqual(['Edit', 'See results', 'Unpublish', 'Close survey', 'Delete']);
   expect(await items('Newsletter thumbs')).toEqual(['Edit', 'Unpublish', 'Delete']);
   expect(await items('Course feedback')).toEqual(['Edit', 'Publish', 'Delete']);
 });
@@ -244,4 +244,11 @@ test('Edit in the menu opens the editor, also for live surveys', async () => {
   fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
   expect(await screen.findByRole('heading', { name: 'Builder' })).toBeInTheDocument();
   expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/live-1');
+});
+
+test('See results opens /results?survey=<id>', async () => {
+  renderPage();
+  await openMenu('Member NPS 2026');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'See results' }));
+  expect(screen.getByLabelText('Current location')).toHaveTextContent('/results?survey=live-1');
 });

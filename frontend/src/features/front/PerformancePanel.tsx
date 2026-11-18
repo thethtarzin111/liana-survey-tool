@@ -4,7 +4,7 @@ import { Button, ButtonLink, Card, CardHeader, EmptyState, Table, icons, type Co
 
 const CHANNEL = { email: 'Email', link: 'Link', qr: 'QR code' } as const;
 const REFRESH_MS = 30_000;
-/** Surveys on the front page; the Results page has the full report. */
+/** Surveys on the front page; the Surveys list has them all. */
 const FRONT_PAGE_SURVEYS = 5;
 
 const columns: Column<PerformanceRow>[] = [
@@ -74,7 +74,7 @@ export function PerformancePanel() {
       <CardHeader
         id="performance-title"
         title="Survey performance"
-        actions={<ButtonLink size="sm" to="/results">View all →</ButtonLink>}
+        actions={<ButtonLink size="sm" to="/surveys">View all →</ButtonLink>}
       />
       {content}
     </Card>

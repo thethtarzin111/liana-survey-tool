@@ -13,6 +13,7 @@ import {
   icons,
   type Column,
 } from '../../components/ui';
+import { dayDate } from '../results/format';
 import { LatestSplit } from './LatestSplit';
 import { PerformancePanel } from './PerformancePanel';
 import './front.css';
@@ -53,14 +54,6 @@ const INSPIRATION: Article[] = [
     tone: 'muted',
   },
 ];
-
-/** "Mon 01/12/2026" */
-function dayDate(iso: string): string {
-  const d = new Date(iso);
-  const weekday = d.toLocaleDateString('en-GB', { weekday: 'short' });
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${weekday} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-}
 
 function closesText(survey: SurveyListItem): string {
   switch (survey.status) {
@@ -198,7 +191,7 @@ export function FrontPage() {
 
   const stats = [
     { label: 'Live surveys', icon: icons.list, value: String(live), note: '', cta: 'View surveys', to: '/surveys?status=live' },
-    { label: 'Responses', icon: icons.message, value: String(responses), note: '', cta: 'View responses', to: '/responses' },
+    { label: 'Responses', icon: icons.message, value: String(responses), note: '', cta: 'View responses', to: '/results?tab=responses' },
     // Needs the sent and viewed counts from survey performance (#12).
     { label: 'Average response rate', icon: icons.trend, value: '—', note: 'live surveys', cta: 'View performance', to: '/results' },
     {

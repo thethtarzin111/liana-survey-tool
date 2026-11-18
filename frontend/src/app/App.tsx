@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { BuilderPage } from '../features/builder/BuilderPage';
 import { LivePage } from '../features/publish/LivePage';
 import { CreateSurveyPage } from '../features/builder/CreateSurveyPage';
@@ -7,7 +7,6 @@ import { TemplatePickerPage } from '../features/builder/TemplatePickerPage';
 import { ContactRequestsPage } from '../features/contact-requests/ContactRequestsPage';
 import { FrontPage } from '../features/front/FrontPage';
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage';
-import { ResponsesPage } from '../features/responses/ResponsesPage';
 import { ResultsPage } from '../features/results/ResultsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { SupportPage } from '../features/support/SupportPage';
@@ -58,7 +57,7 @@ export function App() {
             <Route path="/surveys/:id" element={<BuilderPage />} />
             <Route path="/surveys/:id/live" element={<LivePage />} />
             <Route path="/results" element={<ResultsPage />} />
-            <Route path="/responses" element={<ResponsesPage />} />
+            <Route path="/responses" element={<Navigate to="/results?tab=responses" replace />} />
             <Route path="/contact-requests" element={<ContactRequestsPage />} />
             <Route path="/templates" element={<TemplatesPage />} />
             <Route path="/integrations" element={<IntegrationsPage />} />

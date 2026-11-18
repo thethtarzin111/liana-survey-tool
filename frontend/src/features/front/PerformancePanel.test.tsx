@@ -80,5 +80,5 @@ test('asks for the 5 surveys with the latest activity and links to the full repo
   renderPanel();
   await screen.findByRole('table', { name: 'Survey performance' });
   expect(String(fetchMock.mock.calls[0][0])).toBe('/api/v1/results/performance?limit=5');
-  expect(screen.getByRole('link', { name: 'View all →' })).toHaveAttribute('href', '/results');
+  expect(screen.getByRole('link', { name: 'View all →' })).toHaveAttribute('href', '/surveys');
 });

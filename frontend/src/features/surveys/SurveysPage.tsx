@@ -141,6 +141,13 @@ export function SurveysPage() {
     const items: MenuAction[] = [
       { label: 'Edit', icon: icons.edit, onSelect: () => navigate(`/surveys/${encodeURIComponent(survey.id)}`) },
     ];
+    if (survey.answers > 0) {
+      items.push({
+        label: 'See results',
+        icon: icons.chart,
+        onSelect: () => navigate(`/results?survey=${encodeURIComponent(survey.id)}`),
+      });
+    }
     if (survey.status === 'draft') {
       items.push({ label: 'Publish', icon: PUBLISH_ICON, onSelect: () => setPublishing(survey) });
     }
