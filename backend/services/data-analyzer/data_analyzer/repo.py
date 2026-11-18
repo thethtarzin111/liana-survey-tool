@@ -4,6 +4,24 @@ from uuid import UUID
 import psycopg
 
 
+def response_feed(conn: psycopg.Connection) -> list[dict]:
+    return conn.execute(
+        """select r.id, r.survey_id, s.title as survey, r.segment, r.submitted_at,
+                  main.value_number as answer,
+                  (select string_agg(a.value_text, E'\\n' order by q.position)
+                   from answers a join questions q on q.id = a.question_id
+                   where a.response_id = r.id and nullif(trim(a.value_text), '') is not null
+                  ) as comment
+           from responses r join surveys s on s.id = r.survey_id
+           left join lateral (
+             select a.value_number from questions q
+             left join answers a on a.question_id = q.id and a.response_id = r.id
+             where q.survey_id = s.id order by q.position limit 1
+           ) main on true
+           order by r.submitted_at desc, r.id limit 500"""
+    ).fetchall()
+
+
 def survey_result(conn: psycopg.Connection, survey_id: UUID, segment: str) -> dict[str, Any] | None:
     survey = conn.execute(
         """select s.id, s.title, s.type, s.status, q.id as main_question_id

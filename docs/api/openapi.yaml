@@ -458,6 +458,16 @@ paths:
               schema: { type: array, items: { type: object } }
         '404': { description: Survey not found for this tenant }
         '422': { description: Invalid survey ID or segment }
+  /api/v1/results/responses:
+    get:
+      tags: [results]
+      summary: Latest 500 responses across the current organisation, newest first
+      responses:
+        '200':
+          description: Rows with id, survey_id, survey, segment, submitted_at, numeric answer and comment
+          content:
+            application/json:
+              schema: { type: array, items: { type: object } }
   /r/{link_token}:
     get:
       tags: [respondent]

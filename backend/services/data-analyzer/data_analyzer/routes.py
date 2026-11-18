@@ -14,6 +14,13 @@ Segment = Annotated[str, Query(pattern=r"^(?:all|[a-z0-9](?:[a-z0-9-]{0,38}[a-z0
 SCALES = {"thumbs": THUMBS_SCALE, "nps": NPS_SCALE, "csat": CSAT_SCALE}
 
 
+@router.get("/responses")
+def response_feed(db: TenantDB = Depends(tenant_db)) -> list[dict]:
+    """Latest 500 responses across the signed-in organisation's surveys."""
+    with db() as conn:
+        return repo.response_feed(conn)
+
+
 @router.get("/{survey_id}", response_model=SurveyResult)
 def get_result(
     survey_id: UUID, segment: Segment = "all", db: TenantDB = Depends(tenant_db)
