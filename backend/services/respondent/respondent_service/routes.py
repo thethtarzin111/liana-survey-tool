@@ -88,9 +88,8 @@ async def answer(
         return _page(pages.problem(text("link_not_complete", language), language), 400)
     # Not the reader reference itself: anonymous answers keep no link to the reader.
     response_key = links.response_key(settings.link_signing_secret, link_token, r or "")
-    full = domain.limit_reached(
-        survey["response_limit"], survey["response_count"]
-    ) and not await run_in_threadpool(repo.answered_before, tenant_id, survey["id"], response_key)
+    answered = await run_in_threadpool(repo.answered_before, tenant_id, survey["id"], response_key)
+    full = domain.limit_reached(survey["response_limit"], survey["response_count"]) and not answered
     try:
         domain.check_open(
             survey["status"], closes_at=survey["closes_at"], now=datetime.now(UTC), full=full
@@ -99,7 +98,9 @@ async def answer(
     except domain.AnswerProblem as problem:
         return _page(pages.problem(problem.message(language), language), problem.status_code)
 
-    await run_in_threadpool(repo.record_view, tenant_id, survey["id"], channel)
+    # A reader's later taps change their answer, not the reach: count their first only.
+    if not answered:
+        await run_in_threadpool(repo.record_view, tenant_id, survey["id"], channel)
 
     message = AnswerSubmitted(
         tenant_id=tenant_id,
