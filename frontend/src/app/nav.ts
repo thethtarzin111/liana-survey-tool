@@ -1,4 +1,5 @@
-// Sidebar items and icon paths, copied from the prototype (same order).
+// Sidebar items and icon paths, copied from the prototype. Templates sit right under
+// Surveys, where surveys start (#123).
 
 export type NavItem = { to: string; label: string; icon: string };
 
@@ -8,6 +9,11 @@ export const mainNav: NavItem[] = [
     to: '/surveys',
     label: 'Surveys',
     icon: 'M8 6h12M8 12h12M8 18h12M3.5 6h.01M3.5 12h.01M3.5 18h.01',
+  },
+  {
+    to: '/templates',
+    label: 'Templates',
+    icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   },
   { to: '/results', label: 'Results', icon: 'M4 20V10M10 20V4M16 20v-8M2 20h20' },
   {
@@ -19,11 +25,6 @@ export const mainNav: NavItem[] = [
     to: '/contact-requests',
     label: 'Contact requests',
     icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
-  },
-  {
-    to: '/templates',
-    label: 'Templates',
-    icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   },
   {
     to: '/integrations',
