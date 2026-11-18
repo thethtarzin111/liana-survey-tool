@@ -15,7 +15,9 @@ Newsletter snippet links (#40) are the same without the signature:
 LianaMailer replaces the `$id$` placeholder with each contact's id when it sends,
 so every reader still counts once. A pasted snippet is the same HTML for everyone
 and LianaMailer cannot sign per reader, so these links are not signed: someone
-who edits a link by hand can answer again under a made-up id. Signed newsletter
+who edits a link by hand can answer again under a made-up id. Only surveys whose
+snippet was made accept them (surveys.newsletter_links); all others keep needing
+the signature. Signed newsletter
 links through the LianaMailer API are #118. c and seg are the campaign and
 segment tags results are compared by.
 
@@ -70,13 +72,16 @@ def check_signature(secret: str, survey_token: str, reader_ref: str, sig: str) -
         raise LinkError("this link is not valid")
 
 
-def check_link(secret: str, survey_token: str, reader_ref: str, sig: str | None) -> None:
-    """Raise LinkError unless the link can be answered: a signed link must carry
-    its reader's signature; a newsletter snippet link (no signature) needs a reader
-    reference that LianaMailer filled in (an unreplaced `$id$` is refused)."""
+def check_link(
+    secret: str, survey_token: str, reader_ref: str, sig: str | None, *, unsigned_allowed: bool
+) -> None:
+    """Raise LinkError unless the link can be answered. A signed link must carry its
+    reader's signature. A newsletter snippet link (no signature) is only accepted for
+    surveys whose snippet was made (unsigned_allowed), and needs a reader reference
+    that LianaMailer filled in (an unreplaced `$id$` is refused)."""
     if sig:
         check_signature(secret, survey_token, reader_ref, sig)
-    elif not READER_REF.fullmatch(reader_ref or ""):
+    elif not unsigned_allowed or not READER_REF.fullmatch(reader_ref or ""):
         raise LinkError("this link is not complete")
 
 

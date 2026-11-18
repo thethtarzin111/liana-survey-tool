@@ -77,15 +77,23 @@ def test_snippet_tags_must_be_slugs(tag):
 
 
 def test_unsigned_links_need_a_filled_in_reader():
-    links.check_link(SECRET, "tok", "12345", None)  # LianaMailer put in the contact id
-    links.check_link(SECRET, "tok", "12345", "")
+    # LianaMailer put in the contact id.
+    links.check_link(SECRET, "tok", "12345", None, unsigned_allowed=True)
+    links.check_link(SECRET, "tok", "12345", "", unsigned_allowed=True)
     for reader in ("$id$", "", "a b"):  # placeholder not replaced, or missing
         with pytest.raises(links.LinkError):
-            links.check_link(SECRET, "tok", reader, None)
+            links.check_link(SECRET, "tok", reader, None, unsigned_allowed=True)
+
+
+def test_unsigned_links_only_work_for_surveys_with_a_snippet():
+    # From review: dropping &s= from any signed link must not skip the check.
+    with pytest.raises(links.LinkError):
+        links.check_link(SECRET, "tok", "12345", None, unsigned_allowed=False)
 
 
 def test_signed_links_still_need_their_own_signature():
     good = links.signature(SECRET, "tok", "reader-1")
-    links.check_link(SECRET, "tok", "reader-1", good)
-    with pytest.raises(links.LinkError):
-        links.check_link(SECRET, "tok", "reader-2", good)
+    for allowed in (True, False):
+        links.check_link(SECRET, "tok", "reader-1", good, unsigned_allowed=allowed)
+        with pytest.raises(links.LinkError):
+            links.check_link(SECRET, "tok", "reader-2", good, unsigned_allowed=allowed)

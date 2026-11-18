@@ -142,8 +142,8 @@ def make_test_links(
     }
 
 
-@router.get("/{survey_id}/snippet", response_model=Snippet)
-def get_snippet(
+@router.post("/{survey_id}/snippet", response_model=Snippet)
+def make_snippet(
     survey_id: UUID,
     campaign: Annotated[
         str | None,
@@ -154,28 +154,27 @@ def get_snippet(
 ) -> dict:
     """The LianaMailer newsletter snippet for a live thumbs, NPS or CSAT survey:
     its main question and one link per answer, tagged with the campaign and
-    segment. Make one per segment. 409 when the survey isn't live, is custom or
-    has no main question."""
+    segment. Make one per segment. Its links are not signed per reader, so making
+    a snippet also lets this survey (and only this one) accept them. 409 when the
+    survey isn't live, is custom or has no main question."""
     with db() as conn:
-        row = repo.get(conn, survey_id)
+        row = repo.get_for_update(conn, survey_id)
         if row is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
         main = repo.main_question(conn, survey_id)
-    settings = get_settings()
-    tag = campaign or domain.campaign_tag(row["title"])
-    is_main = main is not None and main["kind"] == domain.MAIN_QUESTION_KIND.get(row["type"])
-    question = main["prompt"].strip() if is_main else None
-    link = (
-        links.snippet_link(
+        is_main = main is not None and main["kind"] == domain.MAIN_QUESTION_KIND.get(row["type"])
+        question = main["prompt"].strip() if is_main else None
+        try:
+            domain.check_snippet(row["type"], SurveyStatus(row["status"]), question)
+        except domain.NoSnippet as error:
+            raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+        settings = get_settings()
+        tag = campaign or domain.campaign_tag(row["title"])
+        link = links.snippet_link(
             settings.public_base_url, row["link_token"], settings.mailer_reader_tag, tag, segment
         )
-        if row["link_token"]
-        else ""
-    )
-    try:
         html = domain.snippet_html(row["type"], SurveyStatus(row["status"]), question, link)
-    except domain.NoSnippet as error:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+        repo.allow_newsletter_links(conn, survey_id)
     return {"campaign": tag, "segment": segment, "html": html}
 
 

@@ -125,6 +125,8 @@ class Survey(BaseModel):
     #: Publishing (#5). The token itself only appears inside public_url.
     link_token: str | None = Field(default=None, exclude=True)
     published_at: datetime | None = None
+    #: A newsletter snippet was made, so unsigned snippet links are accepted (#40).
+    newsletter_links: bool = False
     language: str
     opens_at: datetime | None
     closes_at: datetime | None

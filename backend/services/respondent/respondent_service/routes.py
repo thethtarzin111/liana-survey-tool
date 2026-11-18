@@ -67,14 +67,19 @@ async def answer(
     if r is None and s is None and a is None:
         # The plain public link (copied, or from the QR code): the full survey page is #105.
         return _page(pages.page("Answer from your email", FROM_EMAIL), 400)
-    try:
-        links.check_link(settings.link_signing_secret, link_token, r or "", s)
-    except links.LinkError:
-        return _page(pages.problem(NOT_COMPLETE), 400)
-
     survey = await run_in_threadpool(repo.survey_for_token, tenant_id, link_token)
     if survey is None:
         return _page(pages.problem(NOT_VALID), 404)
+    try:
+        links.check_link(
+            settings.link_signing_secret,
+            link_token,
+            r or "",
+            s,
+            unsigned_allowed=survey["newsletter_links"],
+        )
+    except links.LinkError:
+        return _page(pages.problem(NOT_COMPLETE), 400)
     try:
         domain.check_open(survey["status"])
         value = domain.one_tap_answer(survey["main_kind"], a)

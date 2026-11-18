@@ -3,6 +3,7 @@
 import html
 import re
 import secrets
+import unicodedata
 
 from .schemas import TITLE_MAX, SurveyStatus, Title
 
@@ -85,8 +86,12 @@ SNIPPET_FOOTER = "One tap. Anonymous unless you ask to be contacted."
 
 def campaign_tag(title: str) -> str:
     """The default campaign tag: the survey name as a slug, e.g. "member-nps-2026"
-    (the "Tag …" shown for live surveys in the list)."""
-    tag = re.sub(r"[^a-z0-9]+", "-", title.strip().lower()).strip("-")[:40].strip("-")
+    (the "Tag …" shown for live surveys in the list). Keep in sync with the
+    frontend's src/utils/slug.ts."""
+    plain = "".join(
+        c for c in unicodedata.normalize("NFKD", title) if not unicodedata.combining(c)
+    )  # ä → a, é → e (as slug() in the frontend)
+    tag = re.sub(r"[^a-z0-9]+", "-", plain.strip().lower()).strip("-")[:40].strip("-")
     return tag or "campaign"
 
 
@@ -94,16 +99,21 @@ class NoSnippet(Exception):
     """The survey cannot be answered from an email (yet)."""
 
 
-def snippet_html(survey_type: str, status: SurveyStatus, question: str | None, link: str) -> str:
-    """The HTML block for a LianaMailer newsletter: the main question and one link
-    per answer. Plain tables and inline styles, as email clients need; `link` is
-    the snippet link without the answer."""
+def check_snippet(survey_type: str, status: SurveyStatus, question: str | None) -> None:
+    """Raise NoSnippet unless the survey can be answered from a newsletter."""
     if status is not SurveyStatus.live:
         raise NoSnippet("Publish the survey first.")
     if survey_type not in SNIPPET_ANSWERS:
         raise NoSnippet("Custom surveys can't be answered from an email yet.")
     if not question:
         raise NoSnippet("Write the survey's main question first.")
+
+
+def snippet_html(survey_type: str, status: SurveyStatus, question: str | None, link: str) -> str:
+    """The HTML block for a LianaMailer newsletter: the main question and one link
+    per answer. Plain tables and inline styles, as email clients need; `link` is
+    the snippet link without the answer."""
+    check_snippet(survey_type, status, question)
     answers = SNIPPET_ANSWERS[survey_type]
     padding = {"nps": "10px 13px", "thumbs": "14px 20px"}.get(survey_type, "12px 18px")
     cells = [

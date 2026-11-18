@@ -108,13 +108,20 @@ def make_survey():
     """A published survey for the demo tenant; deleted afterwards."""
     made: list[UUID] = []
 
-    def create(status="live", kind="nps", survey_type="nps", thank_you_text="Thanks a lot!"):
+    def create(
+        status="live",
+        kind="nps",
+        survey_type="nps",
+        thank_you_text="Thanks a lot!",
+        newsletter_links=False,
+    ):
         token = secrets.token_urlsafe(16)
         with tenant_connection(DEMO_TENANT) as conn:
             survey_id = conn.execute(
-                """insert into surveys (tenant_id, title, type, status, thank_you, link_token)
-                   values (%s, 'Answer test', %s, %s, %s, %s) returning id""",
-                (DEMO_TENANT, survey_type, status, thank_you_text, token),
+                """insert into surveys
+                     (tenant_id, title, type, status, thank_you, link_token, newsletter_links)
+                   values (%s, 'Answer test', %s, %s, %s, %s, %s) returning id""",
+                (DEMO_TENANT, survey_type, status, thank_you_text, token, newsletter_links),
             ).fetchone()[0]
             main_id = conn.execute(
                 """insert into questions (tenant_id, survey_id, position, kind, prompt)
@@ -280,7 +287,7 @@ def snippet_link(token, reader="12345", answer=9):
 def test_a_tap_from_the_newsletter_snippet_is_queued_and_counted_per_reader(
     client, queue, make_survey
 ):
-    survey_id, main_id, token = make_survey()
+    survey_id, main_id, token = make_survey(newsletter_links=True)
     r = client.get(snippet_link(token))
     assert r.status_code == 200
     assert "Thank you!" in r.text
@@ -295,7 +302,7 @@ def test_a_tap_from_the_newsletter_snippet_is_queued_and_counted_per_reader(
 @pytest.mark.db
 @needs_db
 def test_a_snippet_link_lianamailer_did_not_fill_in_is_refused(client, queue, make_survey):
-    _, _, token = make_survey()
+    _, _, token = make_survey(newsletter_links=True)
     # e.g. the snippet opened from the editor preview: the placeholder is still there.
     r = client.get(snippet_link(token, reader="$id$"))
     assert r.status_code == 400
@@ -316,4 +323,18 @@ def test_the_plain_public_link_says_to_answer_from_the_email(client, queue, make
     assert r.status_code == 400
     assert "Answer from your email" in r.text
     assert "tap an answer there" in r.text
+    assert queue.messages == []
+
+
+@pytest.mark.db
+@needs_db
+def test_unsigned_links_are_refused_for_surveys_without_a_snippet(client, queue, make_survey):
+    # From review: removing &s= from a signed link must not let anyone answer as anyone.
+    _, _, token = make_survey()
+    assert client.get(snippet_link(token)).status_code == 400
+    unsigned = link(token, answer=9).replace("contact-42", "contact-43")
+    unsigned = "&".join(part for part in unsigned.split("&") if not part.startswith("s="))
+    r = client.get(unsigned)
+    assert r.status_code == 400
+    assert "not complete or not valid" in r.text
     assert queue.messages == []

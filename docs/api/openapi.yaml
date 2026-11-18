@@ -189,7 +189,7 @@ paths:
   /api/v1/surveys/{survey_id}/snippet:
     parameters:
       - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
-    get:
+    post:
       tags: [surveys]
       summary: LianaMailer newsletter snippet (#40)
       description: >-
@@ -197,7 +197,8 @@ paths:
         link per answer (thumbs, NPS or CSAT). Plain tables and inline styles. Each link carries
         LianaMailer's contact id placeholder (MAILER_READER_TAG, default $id$) as the reader, so
         each reader counts once, plus the campaign and segment tags. The links are not signed (a
-        pasted snippet is the same for every reader); see #118. Make one snippet per segment.
+        pasted snippet is the same for every reader); see #118. Making a snippet sets the survey's
+        newsletter_links, and only such surveys accept unsigned links. Make one snippet per segment.
       parameters:
         - name: campaign
           in: query
@@ -420,7 +421,7 @@ paths:
       description: >-
         Signed links carry the reader and its signature (s). Newsletter snippet links (#40) have no
         signature: the reader is the contact id LianaMailer filled in, and an unreplaced placeholder
-        such as $id$ is refused. Records the answer to the survey's main question (thumbs 0-2, NPS 0-10, CSAT 1-5), puts it
+        such as $id$ is refused. Only surveys with newsletter_links accept them. Records the answer to the survey's main question (thumbs 0-2, NPS 0-10, CSAT 1-5), puts it
         on the survey.answers queue for the worker, and returns a plain HTML thank-you page with the
         survey's thank-you message. Answers stay anonymous: only a key derived from the reader is
         stored, so the same reader's second tap is not counted. Pages are sent with
@@ -513,6 +514,7 @@ components:
             links add the reader (r), its signature (s) and the answer (a).
           example: https://survey.example.eu/r/hmZXsmjjAuMpgevPRmIhdA
         published_at: { type: [string, 'null'], format: date-time, description: When it was last published }
+        newsletter_links: { type: boolean, description: 'A newsletter snippet was made, so unsigned snippet links are accepted (#40)' }
         logo_url:
           type: [string, 'null']
           description: Where to load the logo from (changes with every upload), or null when there is none

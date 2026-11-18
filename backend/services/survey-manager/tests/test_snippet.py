@@ -63,7 +63,10 @@ def test_only_live_template_surveys_with_a_question_have_a_snippet():
 
 def test_campaign_tags_are_slugs_of_the_survey_name():
     assert campaign_tag("Member NPS 2026") == "member-nps-2026"
-    assert campaign_tag("  Kesä/Summer -- feedback! ") == "kes-summer-feedback"
+    assert campaign_tag("  Kesä/Summer -- feedback! ") == "kesa-summer-feedback"
+    # Finnish and Swedish letters keep their base letter (from review), as in the frontend.
+    assert campaign_tag("Jäsenkysely") == "jasenkysely"
+    assert campaign_tag("Öppna frågor") == "oppna-fragor"
     assert campaign_tag("???") == "campaign"
     assert len(campaign_tag("x" * 80)) == 40
 
@@ -86,7 +89,7 @@ def published(client) -> dict:
 @needs_db
 def test_the_snippet_links_carry_the_reader_placeholder_and_tags(client):
     survey = published(client)
-    r = client.get(
+    r = client.post(
         f"/api/v1/surveys/{survey['id']}/snippet",
         params={"campaign": "spring-24", "segment": "members"},
     )
@@ -102,7 +105,7 @@ def test_the_snippet_links_carry_the_reader_placeholder_and_tags(client):
 @needs_db
 def test_tags_default_to_the_survey_name_and_all(client):
     survey = published(client)
-    body = client.get(f"/api/v1/surveys/{survey['id']}/snippet").json()
+    body = client.post(f"/api/v1/surveys/{survey['id']}/snippet").json()
     assert (body["campaign"], body["segment"]) == (campaign_tag(survey["title"]), "all")
 
 
@@ -110,11 +113,26 @@ def test_tags_default_to_the_survey_name_and_all(client):
 @needs_db
 def test_drafts_bad_tags_and_unknown_surveys_get_no_snippet(client):
     draft = client.post(f"/api/v1/templates/{MEMBER_NPS}/surveys").json()
-    r = client.get(f"/api/v1/surveys/{draft['id']}/snippet")
+    r = client.post(f"/api/v1/surveys/{draft['id']}/snippet")
     assert (r.status_code, r.json()["detail"]) == (409, "Publish the survey first.")
     survey = published(client)
     for params in ({"campaign": "Spring 24"}, {"segment": "x" * 41}):
         assert (
-            client.get(f"/api/v1/surveys/{survey['id']}/snippet", params=params).status_code == 422
+            client.post(f"/api/v1/surveys/{survey['id']}/snippet", params=params).status_code == 422
         )
-    assert client.get(f"/api/v1/surveys/{uuid4()}/snippet").status_code == 404
+    assert client.post(f"/api/v1/surveys/{uuid4()}/snippet").status_code == 404
+
+
+@pytest.mark.db
+@needs_db
+def test_making_a_snippet_lets_only_that_survey_take_unsigned_links(client):
+    survey = published(client)
+    other = published(client)
+    assert survey["newsletter_links"] is False
+    client.post(f"/api/v1/surveys/{survey['id']}/snippet")
+    assert client.get(f"/api/v1/surveys/{survey['id']}").json()["newsletter_links"] is True
+    assert client.get(f"/api/v1/surveys/{other['id']}").json()["newsletter_links"] is False
+    # A refused snippet changes nothing.
+    draft = client.post(f"/api/v1/templates/{MEMBER_NPS}/surveys").json()
+    client.post(f"/api/v1/surveys/{draft['id']}/snippet")
+    assert client.get(f"/api/v1/surveys/{draft['id']}").json()["newsletter_links"] is False
