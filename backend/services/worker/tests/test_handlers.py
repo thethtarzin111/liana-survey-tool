@@ -6,6 +6,7 @@ survey-manager's tests); they delete the surveys they create.
 
 import asyncio
 import os
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
 import psycopg
@@ -24,13 +25,14 @@ needs_db = pytest.mark.skipif(
 )
 
 
-def message(survey_id, answers, *, reader="reader-1", tenant=DEMO_TENANT) -> bytes:
+def message(survey_id, answers, *, reader="reader-1", tenant=DEMO_TENANT, at=None) -> bytes:
     return (
         AnswerSubmitted(
             tenant_id=tenant,
             survey_id=survey_id,
             link_token_hash=f"key-{reader}",
             answers=answers,
+            **({"created_at": at} if at else {}),
         )
         .model_dump_json()
         .encode()
@@ -180,12 +182,83 @@ def test_the_same_message_twice_is_counted_once(make_survey):
 
 @pytest.mark.db
 @needs_db
-def test_the_same_reader_answering_again_is_counted_once(make_survey):
+def test_a_readers_later_answer_replaces_the_earlier_one(make_survey):
+    survey_id, main, reasons = make_survey()
+    handle_answer(
+        message(
+            survey_id,
+            nps(main, 3) + [AnswerValue(question_id=reasons, choices=["Price"])],
+            reader="anna",
+        )
+    )
+    handle_answer(message(survey_id, nps(main, 7), reader="ben"))
+    # A new message (new message_id) for the same link: still one response, now 9.
+    assert handle_answer(message(survey_id, nps(main, 9), reader="anna")) is True
+    assert totals(survey_id) == (2, {"7": 1, "9": 1})
+    assert stored(survey_id) == [(DEMO_TENANT, 7, None), (DEMO_TENANT, 9, None)]
+
+
+@pytest.mark.db
+@needs_db
+def test_a_scanner_opening_every_link_does_not_beat_the_readers_tap(make_survey):
     survey_id, main, _ = make_survey()
-    handle_answer(message(survey_id, nps(main, 3), reader="anna"))
-    # A new message (new message_id) for the same link: still one answer.
-    assert handle_answer(message(survey_id, nps(main, 9), reader="anna")) is False
-    assert totals(survey_id) == (1, {"3": 1})
+    delivered = datetime.now(UTC)
+    # A mail scanner opens all 11 answer links on delivery, within a second.
+    for score in range(11):
+        handle_answer(
+            message(
+                survey_id,
+                nps(main, score),
+                reader="anna",
+                at=delivered + timedelta(milliseconds=score * 50),
+            )
+        )
+    assert totals(survey_id) == (1, {"10": 1})
+    # Anna taps 9 when she reads the email.
+    handle_answer(
+        message(survey_id, nps(main, 9), reader="anna", at=delivered + timedelta(hours=2))
+    )
+    assert totals(survey_id) == (1, {"9": 1})
+    assert stored(survey_id) == [(DEMO_TENANT, 9, None)]
+
+
+@pytest.mark.db
+@needs_db
+def test_an_older_answer_arriving_late_does_not_replace_a_newer_one(make_survey):
+    survey_id, main, _ = make_survey()
+    now = datetime.now(UTC)
+    handle_answer(message(survey_id, nps(main, 9), reader="anna", at=now))
+    # Queued earlier, delivered later (e.g. retried after a database outage).
+    assert (
+        handle_answer(
+            message(survey_id, nps(main, 2), reader="anna", at=now - timedelta(minutes=1))
+        )
+        is False
+    )
+    assert totals(survey_id) == (1, {"9": 1})
+
+
+@pytest.mark.db
+@needs_db
+def test_tapping_the_same_answer_again_changes_nothing_in_the_totals(make_survey):
+    survey_id, main, _ = make_survey()
+    handle_answer(message(survey_id, nps(main, 9), reader="anna"))
+    handle_answer(message(survey_id, nps(main, 9), reader="anna"))
+    assert totals(survey_id) == (1, {"9": 1})
+
+
+@pytest.mark.db
+@needs_db
+def test_custom_surveys_replace_answers_without_a_scale(make_survey):
+    survey_id, main, _ = make_survey("single_choice", "custom")
+    handle_answer(
+        message(survey_id, [AnswerValue(question_id=main, choices=["Yes"])], reader="anna")
+    )
+    handle_answer(
+        message(survey_id, [AnswerValue(question_id=main, choices=["No"])], reader="anna")
+    )
+    assert totals(survey_id) == (1, {})
+    assert stored(survey_id) == [(DEMO_TENANT, None, ["No"])]
 
 
 @pytest.mark.db
