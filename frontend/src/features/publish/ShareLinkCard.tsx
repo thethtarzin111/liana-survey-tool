@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from 'react';
 import QRCode from 'qrcode';
 import { Button, Card, CardHeader } from '../../components/ui';
-import { slug } from '../surveys/SurveysPage';
+import { slug } from '../../utils/slug';
 import { useCopy } from './useCopy';
 
 /** "Share outside email": the public link with Copy, and its QR code to show or download (#6). */
