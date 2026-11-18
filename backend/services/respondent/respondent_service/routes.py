@@ -10,6 +10,7 @@ derived from the reader reference is stored, to count each reader once.
 """
 
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
@@ -80,8 +81,15 @@ async def answer(
         )
     except links.LinkError:
         return _page(pages.problem(NOT_COMPLETE), 400)
+    # Not the reader reference itself: anonymous answers keep no link to the reader.
+    response_key = links.response_key(settings.link_signing_secret, link_token, r or "")
+    full = domain.limit_reached(
+        survey["response_limit"], survey["response_count"]
+    ) and not await run_in_threadpool(repo.answered_before, tenant_id, survey["id"], response_key)
     try:
-        domain.check_open(survey["status"])
+        domain.check_open(
+            survey["status"], closes_at=survey["closes_at"], now=datetime.now(UTC), full=full
+        )
         value = domain.one_tap_answer(survey["main_kind"], a)
     except domain.AnswerProblem as problem:
         return _page(pages.problem(str(problem)), problem.status_code)
@@ -89,8 +97,7 @@ async def answer(
     message = AnswerSubmitted(
         tenant_id=tenant_id,
         survey_id=survey["id"],
-        # Not the reader reference itself: anonymous answers keep no link to the reader.
-        link_token_hash=links.response_key(settings.link_signing_secret, link_token, r or ""),
+        link_token_hash=response_key,
         answers=[AnswerValue(question_id=survey["main_id"], number=value)],
     )
     try:

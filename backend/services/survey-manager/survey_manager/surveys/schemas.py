@@ -7,10 +7,12 @@ from uuid import UUID
 
 from pydantic import (
     AfterValidator,
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
     StrictBool,
+    StrictInt,
     StringConstraints,
     computed_field,
     field_validator,
@@ -31,6 +33,10 @@ def _colour(value: str) -> str:
 
     return normalise_colour(value)
 
+
+#: Most answers a survey takes. Large enough for any newsletter, small enough to catch typos.
+RESPONSE_LIMIT_MAX = 1_000_000
+ResponseLimit = Annotated[StrictInt, Field(ge=1, le=RESPONSE_LIMIT_MAX)]
 
 #: "#2b6450" or "2B6450", stored as "#2B6450".
 Colour = Annotated[str, AfterValidator(_colour)]
@@ -72,7 +78,8 @@ class SurveyUpdate(BaseModel):
     """Fields that can change. Omitted fields stay as they are.
 
     Sending a field as null is an error (422), not a silent no-op: title and
-    type can never be empty.
+    type can never be empty. Only the close date and the response limit take
+    null, which removes them.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -88,6 +95,10 @@ class SurveyUpdate(BaseModel):
     # Branding: accent colour (buttons) and page background.
     accent_color: Colour | None = None
     background_color: Colour | None = None
+    # Settings (#47): no answers after closes_at or once response_limit answers are in.
+    closes_at: AwareDatetime | None = None
+    response_limit: ResponseLimit | None = None
+    notify_on_response: StrictBool | None = None
 
     @field_validator("description", "thank_you", mode="before")
     @classmethod
@@ -100,10 +111,14 @@ class SurveyUpdate(BaseModel):
     @classmethod
     def no_nulls(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            nulls = sorted(k for k, v in data.items() if v is None)
+            nulls = sorted(k for k, v in data.items() if v is None and k not in CLEARABLE)
             if nulls:
                 raise ValueError(f"{', '.join(nulls)} cannot be null; leave the field out instead")
         return data
+
+
+#: SurveyUpdate fields where null means "remove it".
+CLEARABLE = frozenset({"closes_at", "response_limit"})
 
 
 class Survey(BaseModel):
@@ -131,6 +146,8 @@ class Survey(BaseModel):
     opens_at: datetime | None
     closes_at: datetime | None
     response_limit: int | None
+    #: "Notify me of new responses by email" (#47); the emails themselves are #128.
+    notify_on_response: bool = False
     created_at: datetime
     updated_at: datetime
 

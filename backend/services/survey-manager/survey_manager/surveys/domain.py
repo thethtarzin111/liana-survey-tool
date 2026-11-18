@@ -4,6 +4,7 @@ import html
 import re
 import secrets
 import unicodedata
+from datetime import datetime
 
 from .schemas import TITLE_MAX, SurveyStatus, Title
 
@@ -137,3 +138,14 @@ def snippet_html(survey_type: str, status: SurveyStatus, question: str | None, l
             "</table>",
         ]
     )
+
+
+class BadSettings(Exception):
+    """A survey setting that can't be saved; the message says why."""
+
+
+def check_close_date(closes_at: datetime | None, now: datetime) -> None:
+    """A new close date must be in the future: a past one would close the survey
+    the moment it is saved. None removes the close date."""
+    if closes_at is not None and closes_at <= now:
+        raise BadSettings("The close date must be in the future.")

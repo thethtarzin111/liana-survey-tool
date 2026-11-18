@@ -97,8 +97,10 @@ paths:
         '404': { description: No such survey in this organisation }
     patch:
       tags: [surveys]
-      summary: Change the title, description or type; omitted fields stay the same
-      description: Leave out fields that should not change. Sending a field as null is a 422.
+      summary: Change the survey's fields and settings; omitted fields stay the same
+      description: >-
+        Leave out fields that should not change. Sending a field as null is a 422, except
+        closes_at and response_limit, where null removes the close date or the limit.
       requestBody:
         required: true
         content:
@@ -111,7 +113,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such survey in this organisation }
-        '422': { description: Invalid body }
+        '422': { description: 'Invalid body, or a close date that is not in the future' }
     delete:
       tags: [surveys]
       summary: Delete a survey with its questions, responses and answers
@@ -487,9 +489,12 @@ components:
         contact_opt_in: { type: boolean, description: 'Reader option: "Contact me about this by email" opt-in' }
         accent_color: { type: string, pattern: '^#?[0-9A-Fa-f]{6}$', description: 'Branding: buttons and highlights. Stored as "#RRGGBB"' }
         background_color: { type: string, pattern: '^#?[0-9A-Fa-f]{6}$', description: 'Branding: page background. Stored as "#RRGGBB"' }
+        closes_at: { type: [string, 'null'], format: date-time, description: 'Setting: no answers after this time; must be in the future and include a time zone; null removes it' }
+        response_limit: { type: [integer, 'null'], minimum: 1, maximum: 1000000, description: 'Setting: no new readers once this many have answered (a reader can still change their answer); null removes it' }
+        notify_on_response: { type: boolean, description: 'Setting: "Notify me of new responses by email". Stored only; the emails are #128' }
     Survey:
       type: object
-      required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, accent_color, background_color, logo_url, public_url, published_at, language, opens_at, closes_at, response_limit, created_at, updated_at]
+      required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, accent_color, background_color, logo_url, public_url, published_at, language, opens_at, closes_at, response_limit, notify_on_response, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         title: { type: string, example: Member NPS 2026 }
@@ -524,6 +529,7 @@ components:
         opens_at: { type: [string, 'null'], format: date-time }
         closes_at: { type: [string, 'null'], format: date-time }
         response_limit: { type: [integer, 'null'], minimum: 1 }
+        notify_on_response: { type: boolean, description: '"Notify me of new responses by email" (#47)' }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     SurveyListItem:

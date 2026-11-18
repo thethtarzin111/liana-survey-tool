@@ -45,9 +45,12 @@ def handle_answer(body: bytes, connect: Connect = tenant_connection) -> bool:
     totals move with it. Mail scanners open every link on delivery; the person
     taps later, so their answer is the one kept.
 
-    Returns False when nothing changed: the same message delivered twice, or an
-    older answer arriving after a newer one. Raises BadMessage for messages that
-    can never be saved."""
+    No answers are taken from the survey's close date on, and no new readers once
+    its response limit is reached (#47).
+
+    Returns False when nothing changed: the same message delivered twice, an
+    older answer arriving after a newer one, or a closed or full survey. Raises
+    BadMessage for messages that can never be saved."""
     msg = parse(body)
     try:
         with connect(msg.tenant_id) as conn:
@@ -55,15 +58,24 @@ def handle_answer(body: bytes, connect: Connect = tenant_connection) -> bool:
     except (psycopg.errors.ForeignKeyViolation, psycopg.errors.DataError) as error:
         raise BadMessage(f"answer does not fit the survey: {error.diag.message_primary}") from error
     log.info("answer %s survey=%s message=%s", outcome, msg.survey_id, msg.message_id)
-    return outcome != "kept"
+    return outcome in ("saved", "replaced")
 
 
 def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
-    """ "saved", "replaced" or "kept" (the stored answer is as new or newer)."""
+    """What happened: "saved" or "replaced", or why nothing changed: "kept" (the
+    stored answer is as new or newer), "closed" (tapped on or after the close
+    date) or "full" (a new reader once the response limit is reached)."""
     # Row-level security limits this connection to the message's tenant, so a
     # survey of another tenant looks like an unknown survey.
-    if conn.execute("select 1 from surveys where id = %s", (msg.survey_id,)).fetchone() is None:
+    survey = conn.execute(
+        "select closes_at, response_limit from surveys where id = %s", (msg.survey_id,)
+    ).fetchone()
+    if survey is None:
         raise BadMessage("unknown survey")
+    closes_at, response_limit = survey
+    # The reader's tap time decides, not when the worker gets to the message.
+    if closes_at is not None and msg.created_at >= closes_at:
+        return "closed"
     main = _main_question(conn, msg.survey_id)
     new_count = _main_count(main, [(a.question_id, a.number) for a in msg.answers])
 
@@ -75,8 +87,10 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
         (msg.tenant_id, msg.survey_id, msg.created_at, msg.link_token_hash, msg.contact_ref),
     ).fetchone()
     if inserted is not None:
+        if not _add_to_totals(conn, msg, new_count, new_reader=True, limit=response_limit):
+            conn.execute("delete from responses where id = %s", (inserted[0],))
+            return "full"
         _save_answers(conn, msg, inserted[0])
-        _add_to_totals(conn, msg, responses=1, distribution=new_count)
         return "saved"
 
     # This reader answered before. Lock their response so two taps at the same
@@ -103,7 +117,7 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
     change = dict(new_count)
     for value, count in old_count.items():
         change[value] = change.get(value, 0) - count
-    _add_to_totals(conn, msg, responses=0, distribution=change)
+    _add_to_totals(conn, msg, change, new_reader=False)
     return "replaced"
 
 
@@ -129,15 +143,27 @@ def _save_answers(conn: psycopg.Connection, msg: AnswerSubmitted, response_id: U
 
 
 def _add_to_totals(
-    conn: psycopg.Connection, msg: AnswerSubmitted, *, responses: int, distribution: dict[str, int]
-) -> None:
-    """Add to the response count and to the count per value. Values that reach 0
-    are left out of the distribution."""
+    conn: psycopg.Connection,
+    msg: AnswerSubmitted,
+    distribution: dict[str, int],
+    *,
+    new_reader: bool,
+    limit: int | None = None,
+) -> bool:
+    """Add to the count per value and, for a new reader, to the response count.
+    Values that reach 0 are left out of the distribution.
+
+    Returns False, changing nothing, when a new reader would go past `limit`. The
+    check and the update are one statement on the locked totals row, so two
+    answers at the same time can't both take the last place."""
     conn.execute(
-        """insert into survey_aggregates (survey_id, tenant_id, response_count, distribution)
-           values (%s, %s, %s, %s)
-           on conflict (survey_id) do update set
-             response_count = survey_aggregates.response_count + excluded.response_count,
+        """insert into survey_aggregates (survey_id, tenant_id) values (%s, %s)
+           on conflict (survey_id) do nothing""",
+        (msg.survey_id, msg.tenant_id),
+    )
+    updated = conn.execute(
+        """update survey_aggregates set
+             response_count = response_count + %(added)s,
              distribution = (
                select coalesce(jsonb_object_agg(key, total), '{}'::jsonb)
                from (
@@ -145,15 +171,24 @@ def _add_to_totals(
                  from (
                    select * from jsonb_each_text(survey_aggregates.distribution)
                    union all
-                   select * from jsonb_each_text(excluded.distribution)
+                   select * from jsonb_each_text(%(change)s)
                  ) as both_counts
                  group by key
                  having sum(value::int) <> 0
                ) as summed
              ),
-             updated_at = now()""",
-        (msg.survey_id, msg.tenant_id, responses, Jsonb(distribution)),
-    )
+             updated_at = now()
+           where survey_id = %(survey)s
+             and (%(limit)s::int is null or response_count + %(added)s <= %(limit)s)
+           returning 1""",
+        {
+            "added": 1 if new_reader else 0,
+            "change": Jsonb(distribution),
+            "survey": msg.survey_id,
+            "limit": limit if new_reader else None,
+        },
+    ).fetchone()
+    return updated is not None
 
 
 def _main_question(conn: psycopg.Connection, survey_id: UUID) -> UUID | None:
