@@ -148,3 +148,7 @@ the commands from the `Makefile` by hand. CI uses the same native tools and Make
 ## For Liana's developers
 
 Start with [`docs/handoff.md`](docs/handoff.md).
+
+## Design prototype
+
+Link: https://claude.ai/artifact/UFF9k3NRNRJoUHiHmyJqer#play-15dd8cd198dd
