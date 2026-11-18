@@ -41,7 +41,7 @@ def survey_overview(
             raise HTTPException(404, "Survey not found")
         stored = None
         if segment != "all":
-            stored = domain.stored_segments(domain.segment_groups(counts), segment)
+            stored = domain.stored_segments(domain.available_groups(counts), segment)
             if stored is None:
                 raise HTTPException(400, "Segment not available")
         rows = repo.overview_rows(conn, survey_id, stored, domain.TIME_ZONE.key)

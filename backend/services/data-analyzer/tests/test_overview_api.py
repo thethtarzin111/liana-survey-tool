@@ -112,6 +112,57 @@ def survey():
 
 
 @pytest.fixture
+def segmented():
+    """Makes an NPS survey with the given responses per stored segment."""
+    made = []
+
+    def create(counts):
+        with tenant_connection(DEMO_TENANT) as conn:
+            survey_id = _make_survey(conn, "Segment rule test")
+            nps = _make_question(conn, survey_id, 1, "nps", "Recommend us?")
+            i = 0
+            for segment, n in counts.items():
+                for _ in range(n):
+                    i += 1
+                    response_id = conn.execute(
+                        """insert into responses (tenant_id, survey_id, link_token_hash, segment)
+                           values (%s, %s, %s, %s) returning id""",
+                        (DEMO_TENANT, survey_id, f"s{i}", segment),
+                    ).fetchone()[0]
+                    conn.execute(
+                        """insert into answers (tenant_id, response_id, question_id, value_number)
+                           values (%s, %s, %s, %s)""",
+                        (DEMO_TENANT, response_id, nps, i % 11),
+                    )
+        made.append(survey_id)
+        return survey_id
+
+    yield create
+    for survey_id in made:
+        _delete(survey_id)
+
+
+@pytest.mark.db
+@needs_db
+def test_hidden_small_segment_switches_segments_off(segmented):
+    survey_id = segmented({"members": 10, "partners": 3})
+    body = overview(survey_id).json()
+    assert body["responses"] == 13
+    assert body["segments"] == [] and body["by_segment"] == []
+    assert overview(survey_id, segment="members").status_code == 400
+
+
+@pytest.mark.db
+@needs_db
+def test_two_large_segments_are_listed_and_filterable(segmented):
+    survey_id = segmented({"members": 5, "volunteers": 5})
+    body = overview(survey_id).json()
+    assert [s["value"] for s in body["segments"]] == ["members", "volunteers"]
+    assert len(body["by_segment"]) == 2
+    assert overview(survey_id, segment="volunteers").json()["responses"] == 5
+
+
+@pytest.fixture
 def empty_survey():
     with tenant_connection(DEMO_TENANT) as conn:
         survey_id = _make_survey(conn, "Empty overview test", "draft")

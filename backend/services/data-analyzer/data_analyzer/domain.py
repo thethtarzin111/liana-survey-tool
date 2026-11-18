@@ -73,6 +73,20 @@ def segment_groups(counts: dict[str, int]) -> list[SegmentGroup]:
     return shown
 
 
+def segments_enabled(groups: list[SegmentGroup], total: int) -> bool:
+    """Segments may be shown or filtered only when 2 or more groups cover every response.
+
+    Otherwise a reader could subtract the shown groups from the total and learn the
+    size and answers of a hidden small segment."""
+    return len(groups) >= 2 and sum(g.answers for g in groups) == total
+
+
+def available_groups(counts: dict[str, int]) -> list[SegmentGroup]:
+    """The groups readers may see and filter by: empty when segments are not enabled."""
+    groups = segment_groups(counts)
+    return groups if segments_enabled(groups, sum(counts.values())) else []
+
+
 def stored_segments(groups: list[SegmentGroup], value: str) -> tuple[str, ...] | None:
     """The stored values a filter value stands for, None for an unknown or small segment."""
     for group in groups:
@@ -145,7 +159,7 @@ def overview(rows: dict[str, Any], segment: str) -> dict[str, Any]:
     the main score by month and by segment. `segment` is the chosen filter value."""
     survey = rows["survey"]
     segment_counts = rows["segment_counts"]
-    groups = segment_groups(segment_counts)
+    groups = available_groups(segment_counts)
     chosen = None if segment == "all" else stored_segments(groups, segment)
     responses = sum(n for stored, n in segment_counts.items() if chosen is None or stored in chosen)
     views = rows["views"]
@@ -187,7 +201,7 @@ def overview(rows: dict[str, Any], segment: str) -> dict[str, Any]:
                         "answers": sum(in_month.values()),
                     }
                 )
-        if len(groups) >= 2:
+        if groups:
             for group in groups:
                 own = _sum_counts(
                     [r for r in rows["main_rows"] if r["segment"] in group.members], scale
@@ -226,7 +240,7 @@ def overview(rows: dict[str, Any], segment: str) -> dict[str, Any]:
         "segment": segment,
         "segments": (
             [{"value": g.value, "label": g.label, "answers": g.answers} for g in groups]
-            if len(groups) >= 2
+            if groups
             else []
         ),
         "responses": responses,

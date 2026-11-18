@@ -145,3 +145,22 @@ def test_change_is_hidden_without_earlier_answers():
     result = overview(rows, "all")
     assert result["main"]["change"] is None
     assert result["trend"] == []
+
+
+def test_segments_need_groups_that_cover_every_response():
+    from data_analyzer.domain import available_groups, segments_enabled
+
+    def enabled(counts):
+        return segments_enabled(segment_groups(counts), sum(counts.values()))
+
+    assert enabled({"members": 5, "partners": 4, "all": 3})  # Other 7 covers the rest
+    assert enabled({"members": 5, "volunteers": 5})
+    assert not enabled({"members": 10, "partners": 3})  # hidden Other
+    assert not enabled({"members": 10, "all": 5, "partners": 3})
+    assert not enabled({"members": 10})  # a single group
+    assert not enabled({})
+    assert available_groups({"members": 10, "partners": 3}) == []
+    assert [g.value for g in available_groups({"members": 5, "volunteers": 5})] == [
+        "members",
+        "volunteers",
+    ]

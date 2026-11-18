@@ -448,7 +448,7 @@ paths:
         segment. The main question is the first nps, thumbs or rating question. Months are calendar
         months in Europe/Helsinki. Segments follow the anonymity rules: a segment with fewer than 5
         answers is never shown alone, its answers are grouped into "other", and "other" is left out
-        when it has fewer than 5. `none` is the filter value for answers without a segment. With a
+        when it has fewer than 5. Segments are on only when 2 or more shown groups cover every response, otherwise `segments` and `by_segment` are empty and any segment other than `all` is 400, so a hidden size cannot be found by subtraction. `none` is the filter value for answers without a segment. With a
         segment chosen every number is limited to it, and response_rate is null because views are
         counted per channel.
       parameters:
