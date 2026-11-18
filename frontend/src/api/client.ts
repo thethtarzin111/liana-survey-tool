@@ -46,7 +46,10 @@ export const api = {
   },
   updateSurvey: async (
     id: string,
-    changes: Partial<Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'>>,
+    changes: Partial<
+      Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'> &
+        SurveySettings
+    >,
   ): Promise<Survey> => {
     const res = await fetch(`/api/v1/surveys/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -176,7 +179,17 @@ export type Survey = {
   /** The survey's public link, set when it is first published (#5). */
   public_url?: string | null;
   published_at?: string | null;
-} & ReaderOptions & Branding;
+} & ReaderOptions & Branding & Partial<SurveySettings>;
+
+/** Survey settings (#47). null removes the close date or the limit. */
+export type SurveySettings = {
+  /** No answers tapped from this moment on (ISO date-time). */
+  closes_at: string | null;
+  /** No new readers once this many have answered. */
+  response_limit: number | null;
+  /** "Notify me of new responses by email". */
+  notify_on_response: boolean;
+};
 
 /** Branding: colours as "#RRGGBB", and where to load the logo (null when there is none). */
 export type Branding = {
