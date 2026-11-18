@@ -10,7 +10,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 test('shows the selected survey headline, answer count and answer split', async () => {
   render(<MemoryRouter><ResultsPage /></MemoryRouter>);
-  expect(await screen.findByText('NPS +50')).toBeInTheDocument();
+  expect(await screen.findByText('+50')).toBeInTheDocument();
   expect(screen.getAllByText('10').length).toBeGreaterThan(0);
   expect(screen.getByRole('heading', { name: 'Answer split' })).toBeInTheDocument();
   expect(screen.getByRole('tab', { name: 'In short' })).toHaveAttribute('aria-selected', 'true');
