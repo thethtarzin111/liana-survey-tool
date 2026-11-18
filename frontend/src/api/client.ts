@@ -46,7 +46,10 @@ export const api = {
   },
   updateSurvey: async (
     id: string,
-    changes: Partial<Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'>>,
+    changes: Partial<
+      Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'> &
+        SurveySettings
+    >,
   ): Promise<Survey> => {
     const res = await fetch(`/api/v1/surveys/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -71,6 +74,17 @@ export const api = {
   deleteSurvey: (id: string) => send<void>('DELETE', `/api/v1/surveys/${encodeURIComponent(id)}`),
   /** Draft → live, with a public link (#5). 409 with a reason in `detail` when it isn't ready. */
   publishSurvey: (id: string) => send<Survey>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/publish`),
+  /**
+   * The LianaMailer newsletter snippet, tagged with a campaign and a segment (#40). Without a
+   * campaign the API uses the survey name as a slug. 409 with a reason in `detail` for custom surveys.
+   */
+  snippet: (id: string, tags: { campaign?: string; segment?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (tags.campaign) params.set('campaign', tags.campaign);
+    if (tags.segment) params.set('segment', tags.segment);
+    const query = params.toString();
+    return send<Snippet>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/snippet${query ? `?${query}` : ''}`);
+  },
   /** Signed answer links for made-up readers. Local development only: 404 elsewhere. */
   testLinks: (id: string, count = 3) =>
     send<{ links: string[] }>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/test-links`, { count }),
@@ -105,6 +119,14 @@ export const api = {
   /** Creates a draft survey from a template and returns it. */
   useTemplate: (templateId: string) =>
     send<Survey>('POST', `/api/v1/templates/${encodeURIComponent(templateId)}/surveys`),
+  /** Survey performance by channel, latest activity first. `limit` and `offset` count surveys, not rows. */
+  performance: (page: { limit?: number; offset?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (page.limit !== undefined) params.set('limit', String(page.limit));
+    if (page.offset) params.set('offset', String(page.offset));
+    const query = params.toString();
+    return getJson<PerformanceRow[]>(`/api/v1/results/performance${query ? `?${query}` : ''}`);
+  },
   result: (surveyId: string, segment = 'all') =>
     getJson<SurveyResult>(`/api/v1/results/${encodeURIComponent(surveyId)}?${new URLSearchParams({ segment })}`),
 };
@@ -154,6 +176,8 @@ export type SurveyType = 'thumbs' | 'nps' | 'csat' | 'custom';
 
 export type SurveyStatus = 'draft' | 'scheduled' | 'live' | 'closed';
 
+export type Snippet = { campaign: string; segment: string; html: string };
+
 export type Survey = {
   id: string;
   title: string;
@@ -165,7 +189,21 @@ export type Survey = {
   /** The survey's public link, set when it is first published (#5). */
   public_url?: string | null;
   published_at?: string | null;
-} & ReaderOptions & Branding;
+} & ReaderOptions & Branding & Partial<SurveySettings>;
+
+/** Language of the fixed texts readers see: thank-you and closed pages, snippet buttons. */
+export type SurveyLanguage = 'en' | 'fi' | 'sv';
+
+/** Survey settings. null removes the close date or the limit. */
+export type SurveySettings = {
+  /** No answers tapped from this moment on (ISO date-time). */
+  closes_at: string | null;
+  /** No new readers once this many have answered. */
+  response_limit: number | null;
+  /** "Notify me of new responses by email". */
+  notify_on_response: boolean;
+  language: SurveyLanguage;
+};
 
 /** Branding: colours as "#RRGGBB", and where to load the logo (null when there is none). */
 export type Branding = {
@@ -185,7 +223,10 @@ export type ReaderOptions = {
 };
 
 export type SurveyListItem = Survey & {
+  /** Answers per value of the main question, e.g. { '9': 12, '10': 30 }. */
+  answer_counts?: Record<string, number>;
   opens_at: string | null;
+  closes_at: string | null;
   /** Submitted responses so far. */
   answers: number;
   /** "Headline score", e.g. { score: 'NPS +42', note: 'scale −100 to +100' }; null before answers. */
@@ -202,6 +243,16 @@ export type SurveyResult = {
   segments: string[];
   headline: { score: string; note: string } | null;
   split: { value: number; count: number; percent: number | null }[];
+};
+
+export type PerformanceRow = {
+  survey_id: string;
+  survey: string;
+  channel: 'email' | 'link' | 'qr';
+  views: number;
+  responses: number;
+  response_rate: number | null;
+  main_result: string | null;
 };
 
 export type Template = {

@@ -3,6 +3,7 @@ the app role; they delete the surveys they create. The queue is a fake."""
 
 import os
 import secrets
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -12,9 +13,14 @@ from fastapi.testclient import TestClient
 from liana_survey_shared import links
 from liana_survey_shared.config import get_settings
 from liana_survey_shared.db import ping, tenant_connection
-from respondent_service.domain import AnswerProblem, check_open, one_tap_answer
+from respondent_service.domain import (
+    AnswerProblem,
+    check_open,
+    limit_reached,
+    one_tap_answer,
+)
 from respondent_service.main import app
-from respondent_service.pages import page, thank_you
+from respondent_service.pages import page, problem, thank_you
 from respondent_service.routes import get_answer_queue
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
@@ -65,6 +71,24 @@ def test_only_live_surveys_take_answers():
             check_open(status)
 
 
+def test_surveys_close_on_their_close_date():
+    now = datetime(2026, 11, 18, 12, 0, tzinfo=UTC)
+    check_open("live", closes_at=now + timedelta(seconds=1), now=now)
+    for closes_at in (now, now - timedelta(days=1)):
+        with pytest.raises(AnswerProblem, match="closed") as closed:
+            check_open("live", closes_at=closes_at, now=now)
+        assert closed.value.status_code == 410
+
+
+def test_full_surveys_take_no_new_readers():
+    assert not limit_reached(None, 10_000)
+    assert not limit_reached(3, 2)
+    assert limit_reached(3, 3)
+    with pytest.raises(AnswerProblem, match="all the answers it needs") as full:
+        check_open("live", full=True)
+    assert full.value.status_code == 410
+
+
 def test_pages_escape_survey_texts_and_ignore_odd_colours():
     html = thank_you("<script>alert(1)</script>", "red;}</style><script>", "#F0F9F6")
     assert "<script>alert(1)" not in html
@@ -73,6 +97,22 @@ def test_pages_escape_survey_texts_and_ignore_odd_colours():
     assert "#F0F9F6" in html
     assert "Your answer was saved." in thank_you("  ", None, None)
     assert "<title>Hi &amp; bye</title>" in page("Hi & bye", "x")
+
+
+def test_pages_use_the_survey_language():
+    finnish = thank_you(None, None, None, "fi")
+    assert '<html lang="fi">' in finnish
+    assert "Kiitos!" in finnish and "Vastauksesi on tallennettu." in finnish
+    # The creator's own message is shown as written.
+    assert "Tack för svaret!" in thank_you("Tack för svaret!", None, None, "sv")
+    with pytest.raises(AnswerProblem) as closed:
+        check_open("closed")
+    swedish = problem(closed.value.message("sv"), "sv")
+    assert '<html lang="sv">' in swedish
+    assert "Vi kunde inte ta emot ditt svar" in swedish
+    assert "Den här enkäten är stängd" in swedish
+    # Unknown languages fall back to English.
+    assert '<html lang="en">' in thank_you(None, None, None, "de")
 
 
 # --- The link, with a database ----------------------------------------------------
@@ -114,14 +154,28 @@ def make_survey():
         survey_type="nps",
         thank_you_text="Thanks a lot!",
         newsletter_links=False,
+        closes_at=None,
+        response_limit=None,
+        language="en",
     ):
         token = secrets.token_urlsafe(16)
         with tenant_connection(DEMO_TENANT) as conn:
             survey_id = conn.execute(
                 """insert into surveys
-                     (tenant_id, title, type, status, thank_you, link_token, newsletter_links)
-                   values (%s, 'Answer test', %s, %s, %s, %s, %s) returning id""",
-                (DEMO_TENANT, survey_type, status, thank_you_text, token, newsletter_links),
+                     (tenant_id, title, type, status, thank_you, link_token, newsletter_links,
+                      closes_at, response_limit, language)
+                   values (%s, 'Answer test', %s, %s, %s, %s, %s, %s, %s, %s) returning id""",
+                (
+                    DEMO_TENANT,
+                    survey_type,
+                    status,
+                    thank_you_text,
+                    token,
+                    newsletter_links,
+                    closes_at,
+                    response_limit,
+                    language,
+                ),
             ).fetchone()[0]
             main_id = conn.execute(
                 """insert into questions (tenant_id, survey_id, position, kind, prompt)
@@ -338,3 +392,86 @@ def test_unsigned_links_are_refused_for_surveys_without_a_snippet(client, queue,
     assert r.status_code == 400
     assert "not complete or not valid" in r.text
     assert queue.messages == []
+
+
+@pytest.mark.db
+@needs_db
+def test_a_survey_past_its_close_date_takes_no_answers(client, queue, make_survey):
+    _, _, token = make_survey(closes_at=datetime.now(UTC) - timedelta(minutes=1))
+    r = client.get(link(token, answer=9))
+    assert r.status_code == 410
+    assert "closed" in r.text
+    assert queue.messages == []
+
+
+@pytest.mark.db
+@needs_db
+def test_a_full_survey_takes_no_new_readers_but_lets_readers_change_their_answer(
+    client, queue, make_survey
+):
+    survey_id, _, token = make_survey(response_limit=1)
+    secret = get_settings().link_signing_secret
+    # Anna answered and the worker counted her: the survey is full.
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            """insert into responses (tenant_id, survey_id, link_token_hash)
+               values (%s, %s, %s)""",
+            (DEMO_TENANT, survey_id, links.response_key(secret, token, "anna")),
+        )
+        conn.execute(
+            """insert into survey_aggregates (survey_id, tenant_id, response_count)
+               values (%s, %s, 1)""",
+            (survey_id, DEMO_TENANT),
+        )
+    r = client.get(link(token, reader="ben", answer=9))
+    assert r.status_code == 410
+    assert "all the answers it needs" in r.text
+    assert queue.messages == []
+
+    assert client.get(link(token, reader="anna", answer=7)).status_code == 200
+    assert len(queue.messages) == 1
+
+
+@pytest.mark.db
+@needs_db
+def test_readers_get_pages_in_the_survey_language(client, queue, make_survey):
+    _, _, token = make_survey(thank_you_text=None, language="fi")
+    r = client.get(link(token, answer=9))
+    assert r.status_code == 200
+    assert '<html lang="fi">' in r.text
+    assert "Kiitos!" in r.text and "Vastauksesi on tallennettu." in r.text
+
+    _, _, closed = make_survey(status="closed", language="sv")
+    r = client.get(link(closed, answer=9))
+    assert r.status_code == 410
+    assert "Den här enkäten är stängd" in r.text
+
+
+def views(survey_id):
+    with tenant_connection(DEMO_TENANT) as conn:
+        rows = conn.execute(
+            "select channel::text, view_count from survey_channel_views where survey_id = %s",
+            (survey_id,),
+        ).fetchall()
+    return dict(rows)
+
+
+@pytest.mark.db
+@needs_db
+def test_a_reader_counts_as_one_view_however_often_they_tap(client, queue, make_survey):
+    survey_id, _, token = make_survey()
+    secret = get_settings().link_signing_secret
+    # Anna's first tap (a mail scanner, say) was saved already.
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            """insert into responses (tenant_id, survey_id, link_token_hash, channel)
+               values (%s, %s, %s, 'email')""",
+            (DEMO_TENANT, survey_id, links.response_key(secret, token, "anna")),
+        )
+
+    assert client.get(link(token, reader="anna", answer=7)).status_code == 200
+    assert views(survey_id) == {}
+
+    assert client.get(link(token, reader="ben", answer=9) + "&ch=qr").status_code == 200
+    assert views(survey_id) == {"qr": 1}
+    assert [m.channel for m in queue.messages] == ["email", "qr"]

@@ -165,11 +165,12 @@ def test_a_tap_travels_through_rabbitmq_and_is_saved_once(worker, live_survey):
             {"9": 1},
         )
 
-        # The same reader again, then someone else: the first answer counts once.
+        # The same reader again, then someone else: each reader counts once, and
+        # reader-1's later tap replaces their first answer (#126).
         assert tap(client, token, "reader-1", 3) == 200
         assert tap(client, token, "reader-2", 10) == 200
         final = wait_for(lambda: totals(survey_id) if totals(survey_id)[0] >= 2 else None, worker)
-    assert final == (2, {"9": 1, "10": 1})
+    assert final == (2, {"3": 1, "10": 1})
 
 
 def test_a_broken_message_goes_to_the_dead_letter_queue(worker):
