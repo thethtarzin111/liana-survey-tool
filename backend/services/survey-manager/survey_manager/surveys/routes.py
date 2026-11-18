@@ -2,6 +2,7 @@
 
 import secrets
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -69,7 +70,11 @@ def get_survey(survey_id: UUID, db: TenantDB = Depends(tenant_db)) -> dict:
 
 @router.patch("/{survey_id}", response_model=Survey)
 def update_survey(survey_id: UUID, data: SurveyUpdate, db: TenantDB = Depends(tenant_db)) -> dict:
-    """Change the title, description or type. Fields left out stay the same."""
+    """Change the survey's fields and settings. Fields left out stay the same."""
+    try:
+        domain.check_close_date(data.closes_at, datetime.now(UTC))
+    except domain.BadSettings as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
     with db() as conn:
         row = repo.update(conn, survey_id, data)
     if row is None:
@@ -173,7 +178,9 @@ def make_snippet(
         link = links.snippet_link(
             settings.public_base_url, row["link_token"], settings.mailer_reader_tag, tag, segment
         )
-        html = domain.snippet_html(row["type"], SurveyStatus(row["status"]), question, link)
+        html = domain.snippet_html(
+            row["type"], SurveyStatus(row["status"]), question, link, row["language"]
+        )
         repo.allow_newsletter_links(conn, survey_id)
     return {"campaign": tag, "segment": segment, "html": html}
 

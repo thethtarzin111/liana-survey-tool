@@ -28,3 +28,13 @@ class SurveyResult(BaseModel):
     questions: list[dict] = []
     comments: list[dict] = []
     comparison: dict = {}
+
+
+class PerformanceRow(BaseModel):
+    survey_id: UUID
+    survey: str
+    channel: Literal["email", "link", "qr"]
+    views: int
+    responses: int
+    response_rate: int | None
+    main_result: str | None

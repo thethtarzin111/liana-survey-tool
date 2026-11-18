@@ -3,9 +3,10 @@ import { expect, test } from '@playwright/test';
 // Smoke test: the whole stack is up and the frontend reaches the API.
 // Grow this into the main flow: create survey → answer → see results.
 
-test('front page loads and greets the demo user through the API', async ({ page }) => {
+test('front page loads the dashboard and the demo user through the API', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Welcome, Anna' })).toBeVisible();
+  // Shown only after the surveys request succeeds.
+  await expect(page.getByRole('heading', { name: 'Overall statistics' })).toBeVisible();
   await expect(page.getByText('Anna Virtanen · Example Members Association')).toBeVisible();
 });
 
