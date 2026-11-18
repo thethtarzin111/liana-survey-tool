@@ -71,6 +71,17 @@ export const api = {
   deleteSurvey: (id: string) => send<void>('DELETE', `/api/v1/surveys/${encodeURIComponent(id)}`),
   /** Draft → live, with a public link (#5). 409 with a reason in `detail` when it isn't ready. */
   publishSurvey: (id: string) => send<Survey>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/publish`),
+  /**
+   * The LianaMailer newsletter snippet, tagged with a campaign and a segment (#40). Without a
+   * campaign the API uses the survey name as a slug. 409 with a reason in `detail` for custom surveys.
+   */
+  snippet: (id: string, tags: { campaign?: string; segment?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (tags.campaign) params.set('campaign', tags.campaign);
+    if (tags.segment) params.set('segment', tags.segment);
+    const query = params.toString();
+    return send<Snippet>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/snippet${query ? `?${query}` : ''}`);
+  },
   /** Signed answer links for made-up readers. Local development only: 404 elsewhere. */
   testLinks: (id: string, count = 3) =>
     send<{ links: string[] }>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/test-links`, { count }),
@@ -151,6 +162,8 @@ export type QuestionInput = Pick<Question, 'kind' | 'prompt' | 'options' | 'requ
 export type SurveyType = 'thumbs' | 'nps' | 'csat' | 'custom';
 
 export type SurveyStatus = 'draft' | 'scheduled' | 'live' | 'closed';
+
+export type Snippet = { campaign: string; segment: string; html: string };
 
 export type Survey = {
   id: string;

@@ -3,6 +3,7 @@
 :root {
   --font-body: 'Inter', Helvetica, Arial, sans-serif;
   --font-heading: 'Poppins', Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --color-text: #353a40;
   --color-text-muted: #696f77;

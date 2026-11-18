@@ -4,6 +4,7 @@ import { api, ApiError, type Survey } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { ButtonLink, Card, CardHeader } from '../../components/ui';
 import { ANSWERS, type OneTapType } from './answers';
+import { MailerSnippetCard } from './MailerSnippetCard';
 import { ShareLinkCard } from './ShareLinkCard';
 import './publish.css';
 
@@ -57,6 +58,7 @@ export function LivePage() {
         }
       />
       <div className="live-layout">
+        <MailerSnippetCard surveyId={survey.id} />
         <ShareLinkCard title={survey.title} url={survey.public_url} />
         {import.meta.env.DEV ? <TryAsReader survey={survey} /> : null}
       </div>
