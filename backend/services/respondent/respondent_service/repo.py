@@ -16,13 +16,14 @@ def tenant_for_token(link_token: str) -> UUID | None:
 
 
 def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
-    """What the answer page needs: status, thank-you message, colours, the main
+    """What the answer page needs: status, language, thank-you message, colours, the main
     question, whether unsigned newsletter links are accepted, and the close date,
     response limit and response count (#47)."""
     with tenant_connection(tenant_id) as conn:
         conn.row_factory = dict_row
         survey = conn.execute(
-            """select s.id, s.status, s.title, s.thank_you, s.accent_color, s.background_color,
+            """select s.id, s.status, s.title, s.language, s.thank_you,
+                      s.accent_color, s.background_color,
                       s.newsletter_links, s.closes_at, s.response_limit,
                       coalesce(a.response_count, 0) as response_count
                from surveys s left join survey_aggregates a on a.survey_id = s.id

@@ -19,6 +19,8 @@ from pydantic import (
     model_validator,
 )
 
+from liana_survey_shared.texts import Language
+
 DEFAULT_TITLE = "Untitled survey"
 #: Long enough for a clear name, short enough for the Surveys list (#115).
 TITLE_MAX = 80
@@ -99,6 +101,8 @@ class SurveyUpdate(BaseModel):
     closes_at: AwareDatetime | None = None
     response_limit: ResponseLimit | None = None
     notify_on_response: StrictBool | None = None
+    # Language of the fixed texts readers see: en, fi or sv.
+    language: Language | None = None
 
     @field_validator("description", "thank_you", mode="before")
     @classmethod
@@ -142,7 +146,7 @@ class Survey(BaseModel):
     published_at: datetime | None = None
     #: A newsletter snippet was made, so unsigned snippet links are accepted (#40).
     newsletter_links: bool = False
-    language: str
+    language: Language
     opens_at: datetime | None
     closes_at: datetime | None
     response_limit: int | None
