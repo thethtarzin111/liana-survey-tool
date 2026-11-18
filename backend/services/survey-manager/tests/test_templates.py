@@ -13,7 +13,7 @@ from liana_survey_shared.db import ping
 from liana_survey_shared.web.auth import CurrentUser, current_user
 from liana_survey_shared.web.db import tenant_db
 from survey_manager.main import app
-from survey_manager.templates.domain import personalise
+from survey_manager.templates.domain import NoQuestions, personalise, saved_questions
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
 OTHER_TENANT = UUID("00000000-0000-4000-8000-0000000000ff")
@@ -179,6 +179,154 @@ def test_organisations_see_only_built_in_and_their_own_templates(client):
     finally:
         with tenant_connection(DEMO_TENANT) as conn:
             conn.execute("delete from templates where id = %s", (own_id,))
+
+
+# --- The organisation's own templates -------------------------------------------
+
+
+def test_saved_questions_keep_their_order_and_need_one():
+    rows = [
+        {"id": 1, "position": 1, "kind": "nps", "prompt": "Recommend?", "options": [],
+         "required": True},
+        {"id": 2, "position": 2, "kind": "reasons", "prompt": "", "options": ["Price"],
+         "required": False},
+    ]  # fmt: skip
+    assert saved_questions(rows) == [
+        {"kind": "nps", "prompt": "Recommend?", "options": [], "required": True},
+        {"kind": "reasons", "prompt": "", "options": ["Price"], "required": False},
+    ]
+    with pytest.raises(NoQuestions):
+        saved_questions([])
+
+
+def test_bad_template_bodies_are_422(client):
+    app.dependency_overrides[tenant_db] = lambda: None
+    survey_id = str(uuid4())
+    assert client.post("/api/v1/templates", json={"survey_id": survey_id}).status_code == 422
+    for body in (
+        {"survey_id": survey_id, "name": "   "},
+        {"survey_id": survey_id, "name": "x" * 81},
+        {"survey_id": "not-a-uuid", "name": "Mine"},
+        {"survey_id": survey_id, "name": "Mine", "featured": True},
+    ):
+        assert client.post("/api/v1/templates", json=body).status_code == 422, body
+    url = f"/api/v1/templates/{uuid4()}"
+    assert client.patch(url, json={"name": None}).status_code == 422
+    assert client.patch(url, json={"type": "nps"}).status_code == 422
+    assert client.delete("/api/v1/templates/not-a-uuid").status_code == 422
+
+
+def _save(client, survey_id: str, name: str = "Our member NPS", **extra) -> dict:
+    r = client.post("/api/v1/templates", json={"survey_id": survey_id, "name": name, **extra})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+@pytest.mark.db
+@needs_db
+def test_save_a_survey_as_a_template_and_use_it(client):
+    survey = client.post(f"/api/v1/templates/{MEMBER_NPS}/surveys").json()
+    url = f"/api/v1/surveys/{survey['id']}"
+    client.patch(url, json={"thank_you": "Thanks, team!"})
+    reasons = client.get(f"{url}/questions").json()[1]
+    client.patch(f"{url}/questions/{reasons['id']}", json={"options": ["Price", "Events"]})
+
+    template = _save(client, survey["id"], description="  For the yearly check  ")
+    try:
+        assert template["name"] == "Our member NPS"
+        assert template["description"] == "For the yearly check"
+        assert (template["type"], template["thank_you"]) == ("nps", "Thanks, team!")
+        assert (template["own"], template["featured"]) == (True, False)
+        assert [(q["kind"], q["options"]) for q in template["questions"]] == [
+            ("nps", []),
+            ("reasons", ["Price", "Events"]),
+        ]
+
+        # Listed after the built-in ones, which stay read-only.
+        listed = client.get("/api/v1/templates", params={"type": "nps"}).json()
+        assert [t["name"] for t in listed] == [
+            "Member NPS",
+            "Employee NPS (eNPS)",
+            "Our member NPS",
+        ]
+        assert [t["own"] for t in listed] == [False, False, True]
+
+        copy = client.post(f"/api/v1/templates/{template['id']}/surveys").json()
+        assert (copy["title"], copy["thank_you"]) == ("Our member NPS", "Thanks, team!")
+        questions = client.get(f"/api/v1/surveys/{copy['id']}/questions").json()
+        assert [q["options"] for q in questions] == [[], ["Price", "Events"]]
+    finally:
+        client.delete(f"/api/v1/templates/{template['id']}")
+
+
+@pytest.mark.db
+@needs_db
+def test_rename_and_delete_your_own_template(client):
+    survey = client.post(f"/api/v1/templates/{QUICK_POLL}/surveys").json()
+    template = _save(client, survey["id"], name="Poll")
+    url = f"/api/v1/templates/{template['id']}"
+
+    r = client.patch(url, json={"name": " Board poll "})
+    assert (r.status_code, r.json()["name"], r.json()["description"]) == (200, "Board poll", "")
+    r = client.patch(url, json={"description": "Two options"})
+    assert (r.json()["name"], r.json()["description"]) == ("Board poll", "Two options")
+    assert client.patch(url, json={}).json()["name"] == "Board poll"
+
+    assert client.delete(url).status_code == 204
+    assert template["id"] not in [t["id"] for t in client.get("/api/v1/templates").json()]
+    assert client.delete(url).status_code == 404
+    assert client.patch(url, json={"name": "Gone"}).status_code == 404
+    # Surveys made from a template stay when it is deleted.
+    assert client.get(f"/api/v1/surveys/{survey['id']}").status_code == 200
+
+
+@pytest.mark.db
+@needs_db
+def test_built_in_templates_are_read_only(client):
+    url = f"/api/v1/templates/{MEMBER_NPS}"
+    r = client.patch(url, json={"name": "Mine now"})
+    assert (r.status_code, r.json()["detail"]) == (403, "Built-in templates cannot be changed.")
+    assert client.delete(url).status_code == 403
+    member_nps = next(t for t in client.get("/api/v1/templates").json() if t["id"] == MEMBER_NPS)
+    assert (member_nps["name"], member_nps["own"]) == ("Member NPS", False)
+
+
+@pytest.mark.db
+@needs_db
+def test_a_survey_without_questions_or_from_elsewhere_cannot_be_saved(client):
+    empty = client.post("/api/v1/surveys", json={"type": "custom"}).json()
+    r = client.post("/api/v1/templates", json={"survey_id": empty["id"], "name": "Empty"})
+    assert (r.status_code, r.json()["detail"]) == (
+        409,
+        "Add a question before you save the survey as a template.",
+    )
+    r = client.post("/api/v1/templates", json={"survey_id": str(uuid4()), "name": "Nope"})
+    assert (r.status_code, r.json()["detail"]) == (404, "Survey not found")
+
+    # Another organisation cannot save the demo organisation's survey either.
+    survey = client.post(f"/api/v1/templates/{NEWSLETTER}/surveys").json()
+    app.dependency_overrides[current_user] = lambda: as_user(OTHER_TENANT)
+    r = client.post("/api/v1/templates", json={"survey_id": survey["id"], "name": "Theirs"})
+    assert r.status_code == 404
+
+
+@pytest.mark.db
+@needs_db
+def test_other_organisations_cannot_rename_or_delete_your_template(client):
+    survey = client.post(f"/api/v1/templates/{NEWSLETTER}/surveys").json()
+    template = _save(client, survey["id"], name="Our newsletter")
+    url = f"/api/v1/templates/{template['id']}"
+    try:
+        app.dependency_overrides[current_user] = lambda: as_user(OTHER_TENANT)
+        assert client.patch(url, json={"name": "Taken"}).status_code == 404
+        assert client.delete(url).status_code == 404
+        assert template["id"] not in [t["id"] for t in client.get("/api/v1/templates").json()]
+    finally:
+        app.dependency_overrides.clear()
+        assert client.get("/api/v1/templates").status_code == 200
+        names = {t["id"]: t["name"] for t in client.get("/api/v1/templates").json()}
+        assert names[template["id"]] == "Our newsletter"
+        client.delete(url)
 
 
 # --- Thank-you message on surveys ---------------------------------------------

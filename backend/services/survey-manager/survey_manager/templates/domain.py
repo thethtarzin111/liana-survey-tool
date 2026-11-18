@@ -8,6 +8,18 @@ from ..questions.schemas import QuestionKind
 ORGANISATION = "{organisation}"
 
 
+class BuiltInTemplate(Exception):
+    """Built-in templates are shared by every organisation, so nobody changes them."""
+
+    def __init__(self) -> None:
+        super().__init__("Built-in templates cannot be changed.")
+
+
+class NoQuestions(Exception):
+    def __init__(self) -> None:
+        super().__init__("Add a question before you save the survey as a template.")
+
+
 def personalise(text: str, organisation: str) -> str:
     """Put the organisation's name into template text such as
     "How likely are you to recommend {organisation} to a friend or colleague?"."""
@@ -36,3 +48,24 @@ def survey_questions(template: dict[str, Any], organisation: str) -> list[dict[s
     for question in questions:
         question["options"] = check_options(QuestionKind(question["kind"]), question["options"])
     return questions
+
+
+def check_own(template: dict[str, Any]) -> None:
+    """Only the organisation's own templates can be renamed or deleted."""
+    if not template["own"]:
+        raise BuiltInTemplate()
+
+
+def saved_questions(questions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A survey's questions as a template keeps them, in order. A template needs one."""
+    if not questions:
+        raise NoQuestions()
+    return [
+        {
+            "kind": q["kind"],
+            "prompt": q["prompt"],
+            "options": q["options"],
+            "required": q["required"],
+        }
+        for q in questions
+    ]
