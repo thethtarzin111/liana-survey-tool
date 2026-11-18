@@ -4,6 +4,7 @@ import { api, type SurveyListItem, type SurveyResult } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, Card, EmptyState, LiveIndicator, Tabs, icons } from '../../components/ui';
 import './results.css';
+import { ResultDetails } from './ResultDetails';
 
 const LABELS: Record<string, Record<number, string>> = {
   thumbs: { 0: 'Not for me', 1: 'Good', 2: 'Loved it' },
@@ -61,8 +62,7 @@ export function ResultsPage() {
       <LiveIndicator>Live · updated just now</LiveIndicator>
     </div>
     <Tabs label="Result views" tabs={[{id:'summary',label:'In short'},{id:'reasons',label:'Reasons'},{id:'comments',label:'Comments'}]} value={view} onChange={setView}>
-    {view === 'comments' ? <Card padded><h2>Latest comments</h2>{result.comments?.length ? <ul className="list">{result.comments.map((comment) => <li className="list-item" key={comment.id}><blockquote>{comment.comment}</blockquote><span>Answer: {comment.answer === null ? '—' : LABELS[result.type]?.[comment.answer] ?? comment.answer} · Segment: {comment.segment}</span><time dateTime={comment.submitted_at}>{new Date(comment.submitted_at).toLocaleString()}</time></li>)}</ul> : <p>No comments yet.</p>}</Card>
-      : view === 'reasons' ? <Card padded><h2>Top reasons</h2>{result.questions?.some((q) => q.kind === 'reasons' && q.answers > 0) ? result.questions.filter((q) => q.kind === 'reasons').map((question) => <section key={question.id}><h3>{question.prompt || 'Why people answered this way'}</h3><p>{question.answers} respondents in {segment === 'all' ? 'all segments' : segment}</p><ol>{[...question.options].sort((a,b) => b.count-a.count || a.label.localeCompare(b.label)).map((option) => <li key={option.label}>{option.label}: <strong>{option.count}</strong></li>)}</ol></section>) : <p>No reasons yet.</p>}</Card> : <>
+    {view === 'comments' || view === 'reasons' ? <ResultDetails surveyId={selected} segment={segment} view={view} /> : <>
     <section role="tabpanel" className="result-summary">
       {result.questions?.map((question) => <Card padded key={question.id}>
         <h2>{question.prompt}</h2>
