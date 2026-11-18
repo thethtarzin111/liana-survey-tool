@@ -605,6 +605,9 @@ components:
       type: object
       required: [survey_id, title, type, status, answers, segment, segments, headline, split]
       properties:
+        comparison:
+          type: object
+          description: Segment and UTC calendar-month scores, respecting the segment filter. Each point has label, score and answers. NPS uses -100 to 100; thumbs and CSAT use percentages.
         comments:
           type: array
           description: Latest 100 nonblank comments with main answer, segment and submission time, filtered by selected segment.

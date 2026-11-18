@@ -64,6 +64,14 @@ export function ResultsPage() {
     <Tabs label="Result views" tabs={[{id:'summary',label:'In short'},{id:'reasons',label:'Reasons'},{id:'comments',label:'Comments'}]} value={view} onChange={setView}>
     {view === 'comments' || view === 'reasons' ? <ResultDetails surveyId={selected} segment={segment} view={view} /> : <>
     <section role="tabpanel" className="result-summary">
+      {result.comparison && (['segments', 'months'] as const).map((group) => <Card padded key={group}>
+        <h2>{group === 'segments' ? 'Score by segment' : 'Score by month (UTC)'}</h2>
+        {result.comparison![group].length ? result.comparison![group].map((point) => <div key={point.label}>
+          <strong>{point.label}</strong> · {point.score ?? '—'} · {point.answers} answers
+          <div className="progress" role="img" aria-label={`${point.label}: ${point.score ?? 'No score'}`}><div className="progress-fill" style={{ width: `${point.score === null ? 0 : result.type === 'nps' ? (point.score + 100) / 2 : point.score}%` }} /></div>
+        </div>) : <p>No scored answers yet.</p>}
+        {result.type === 'nps' ? <small>NPS scale: −100 to +100</small> : <small>Positive / satisfied answers (%)</small>}
+      </Card>)}
       {result.questions?.map((question) => <Card padded key={question.id}>
         <h2>{question.prompt}</h2>
         <p>{question.answers} answers · Percentages of respondents answering this question</p>

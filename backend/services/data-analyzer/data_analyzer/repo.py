@@ -4,6 +4,19 @@ from uuid import UUID
 import psycopg
 
 
+def score_groups(conn: psycopg.Connection, survey_id: UUID, segment: str) -> list[dict]:
+    return conn.execute(
+        """select r.segment, date_trunc('month', r.submitted_at at time zone 'UTC')::date
+                    as month, a.value_number, count(*)::integer as count
+           from responses r join answers a on a.response_id = r.id
+           where r.survey_id = %s and a.question_id = (
+             select id from questions where survey_id = %s order by position limit 1)
+             and a.value_number is not null and (%s = 'all' or r.segment = %s)
+           group by r.segment, month, a.value_number order by month, r.segment""",
+        (survey_id, survey_id, segment, segment),
+    ).fetchall()
+
+
 def response_feed(
     conn: psycopg.Connection,
     survey_id: UUID | None = None,

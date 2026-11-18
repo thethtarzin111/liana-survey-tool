@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from liana_survey_shared.scoring import CSAT_SCALE, NPS_SCALE, THUMBS_SCALE, answer_split, headline
 from liana_survey_shared.web.db import TenantDB, tenant_db
 
-from . import repo
+from . import domain, repo
 from .schemas import SurveyResult
 
 router = APIRouter(prefix="/api/v1/results", tags=["results"])
@@ -33,6 +33,11 @@ def get_result(
 ) -> dict:
     with db() as conn:
         row = repo.survey_result(conn, survey_id, segment)
+        comparison = (
+            domain.compare_scores(row["type"], repo.score_groups(conn, survey_id, segment))
+            if row
+            else {}
+        )
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Survey not found")
     score = headline(row["type"], row["distribution"])
@@ -47,6 +52,7 @@ def get_result(
         "segments": row["segments"],
         "questions": row["questions"],
         "comments": row["comments"],
+        "comparison": comparison,
         "headline": {"score": score.score, "note": score.note} if score else None,
         "split": [share.__dict__ for share in answer_split(row["distribution"], scale)],
     }

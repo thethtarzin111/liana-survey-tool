@@ -27,3 +27,4 @@ class SurveyResult(BaseModel):
     split: list[AnswerShare]
     questions: list[dict] = []
     comments: list[dict] = []
+    comparison: dict = {}
