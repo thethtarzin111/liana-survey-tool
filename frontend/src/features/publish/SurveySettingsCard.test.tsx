@@ -119,7 +119,6 @@ test('an API refusal is shown with its reason', async () => {
 
 test('says answers are anonymous and links to results and all surveys', () => {
   renderCard();
-  expect(screen.getByText('The setting is saved now. The emails start in a later update.')).toBeInTheDocument();
   expect(screen.getByText(/Answers are anonymous. Readers who tick “Contact me” share their contact/)).toBeInTheDocument();
   expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Go to results' })).toHaveAttribute('href', '/results');

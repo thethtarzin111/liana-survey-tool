@@ -7,8 +7,37 @@ system only publishes messages to RabbitMQ.
 |---|---|---|
 | Survey in a LianaMailer newsletter | Copy-paste HTML snippet (R06, #40): one link per answer, with LianaMailer's `$id$` placeholder as the reader (so each reader counts once) and campaign/segment tags. Not signed, because a pasted snippet is the same for everyone, so only surveys whose snippet was made accept unsigned links; signed links through the LianaMailer API are #118. | `POST /api/v1/surveys/{id}/snippet`; needs no Liana API |
 | "Contact me" → LianaAutomation | `ContactRequested` message → connector → LianaAutomation `POST /import` with `no_duplicates` | Mock adapter. Waiting for a working LianaAutomation test account |
+| "New responses" emails to a survey's owner | `NewResponsesDigest` message (worker → connector) → `NotificationMail` port | Mock adapter (logs the email). No real mail adapter yet |
 | Send surveys through LianaMailer API | `MailDelivery` port + LianaMailer adapter | Placeholder. No LianaMailer API docs yet |
 | Save answers to contact attributes | Through LianaAutomation or LianaMailer API | Not started |
+
+## "New responses" emails
+
+When a survey's "Notify me of new responses by email" (`notify_on_response`) is
+on, its owner (the app user in `surveys.created_by`) gets an email about new
+responses:
+
+- The first new response is emailed right away.
+- Responses within the next interval are held. Once the interval has passed
+  since the last email, they go out as one digest. No new responses, no email.
+- The interval is `RESPONSE_DIGEST_INTERVAL_SECONDS` (default 3600). The worker
+  checks for held responses every `RESPONSE_DIGEST_SWEEP_SECONDS` (default 60).
+- The email has the survey title, the counts and a link to the results
+  (`APP_BASE_URL/results?survey=<id>`). Never answers or anything about readers.
+
+The worker tracks per survey when the last email went out and how many responses
+it covered (`response_notifications`). It claims an email in the database before
+it publishes `NewResponsesDigest` to `survey.liana-events`, so two workers never
+send the same one. The connector turns the message into an email and sends it
+through the `NotificationMail` port (`NOTIFICATION_MAIL_ADAPTER`, only `mock`).
+
+`NewResponsesDigest` fields: `tenant_id`, `survey_id`, `survey_title`,
+`new_responses` (since the last email), `total_responses`, `results_url`,
+`recipient_email`, `recipient_name`, `type` = `responses.digest`.
+
+The recipient's address is an app user's address, not a reader's. It is read from
+`users` when the email is due and only travels in the queue message; it is not
+stored anywhere new.
 
 ## LianaAutomation (from the API docs the team has)
 - Host: `https://rest.automation.lianacloud.com/api/v1`, OAuth 2.0 Bearer token.
