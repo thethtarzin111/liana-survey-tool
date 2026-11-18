@@ -5,6 +5,7 @@ import { Icon } from '../../components/Icon';
 import { Button, ButtonLink, Card, CardBody, CardHeader, EmptyState, SurveyStatusBadge, Table, icons, type Column } from '../../components/ui';
 import './front.css';
 import { WelcomeBanner } from './WelcomeBanner';
+import { LatestSplit } from './LatestSplit';
 
 const TYPE_LABEL: Record<SurveyType, string> = { thumbs: 'Thumbs rating', nps: 'NPS survey', csat: 'CSAT survey', custom: 'Custom survey' };
 const NEWS = [
@@ -79,7 +80,7 @@ export function FrontPage() {
         <h2 className="section-header">Results</h2>
         <div className="front-results-grid">
           <Card aria-labelledby="latest-results-title"><CardHeader id="latest-results-title" title="Latest results" actions={<ButtonLink size="sm" to="/results">View all results →</ButtonLink>} />
-            {withResults.length ? <ul className="front-result-list">{withResults.map((survey) => <li key={survey.id}><div><strong>{survey.title}</strong><small>{TYPE_LABEL[survey.type]} · {survey.answers} responses</small></div><div className="front-headline"><strong>{survey.headline?.score ?? `${survey.answers} responses`}</strong><small>{survey.headline?.note}</small></div><ButtonLink size="sm" to="/results">See results</ButtonLink></li>)}</ul>
+            {withResults.length ? <ul className="front-result-list">{withResults.map((survey) => <li key={survey.id}><div><strong>{survey.title}</strong><small>{TYPE_LABEL[survey.type]} · {survey.answers} responses</small></div><LatestSplit survey={survey} /><div className="front-headline"><strong>{survey.headline?.score ?? `${survey.answers} responses`}</strong><small>{survey.headline?.note}</small></div><ButtonLink size="sm" to="/results">See results</ButtonLink></li>)}</ul>
               : <EmptyState icon={icons.chart} title="No results yet." text="Results will appear here after someone answers a survey." />}
           </Card>
           <Card aria-labelledby="contacted-title"><CardHeader id="contacted-title" title="Asked to be contacted" /><div className="front-contact-card"><p><strong>0</strong><span>respondents are waiting for a reply</span></p><p className="front-muted">New contact requests will appear here.</p><ButtonLink variant="primary" size="sm" to="/contact-requests">Open contact requests</ButtonLink></div></Card>

@@ -183,6 +183,7 @@ export type ReaderOptions = {
 };
 
 export type SurveyListItem = Survey & {
+  answer_counts?: Record<string, number>;
   opens_at: string | null;
   /** Submitted responses so far. */
   answers: number;
