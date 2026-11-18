@@ -1,5 +1,9 @@
 """The answer link (#42): /r/<token>?r=<reader>&s=<signature>&a=<answer>.
 
+Newsletter snippet links (#40) come without the signature, with the reader id
+LianaMailer filled in and campaign/segment tags: /r/<token>?r=<id>&c=..&seg=..&a=..
+(see liana_survey_shared.links).
+
 Records the one-tap answer to the survey's main question by putting it on the
 queue, and shows a plain thank-you page. Answers stay anonymous: only a key
 derived from the reader reference is stored, to count each reader once.
@@ -60,7 +64,7 @@ async def answer(
     if tenant_id is None:
         return _page(pages.problem(NOT_VALID), 404)
     try:
-        links.check_signature(settings.link_signing_secret, link_token, r or "", s or "")
+        links.check_link(settings.link_signing_secret, link_token, r or "", s)
     except links.LinkError:
         return _page(pages.problem(NOT_COMPLETE), 400)
 

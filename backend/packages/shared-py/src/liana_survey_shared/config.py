@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     # Set LINK_SIGNING_SECRET to a long random value outside local development.
     public_base_url: str = "http://localhost:8000"
     link_signing_secret: str = "change-me-link-secret"
+    # LianaMailer's placeholder for the contact id in newsletter snippet links (#40).
+    mailer_reader_tag: str = "$id$"
 
     auth_mode: str = "dev"
     dev_tenant_id: UUID = UUID("00000000-0000-4000-8000-000000000001")

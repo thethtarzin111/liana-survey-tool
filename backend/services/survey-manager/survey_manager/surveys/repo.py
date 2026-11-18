@@ -117,6 +117,14 @@ def question_texts(conn: psycopg.Connection, survey_id: UUID) -> list[tuple[str,
     return [(row["kind"], row["prompt"]) for row in rows]
 
 
+def main_question(conn: psycopg.Connection, survey_id: UUID) -> dict[str, Any] | None:
+    """The first question (kind and prompt): the main question of template surveys."""
+    return conn.execute(
+        "select kind, prompt from questions where survey_id = %s order by position limit 1",
+        (survey_id,),
+    ).fetchone()
+
+
 def publish(conn: psycopg.Connection, survey_id: UUID, link_token: str) -> dict[str, Any]:
     """Make the survey live. Its link token is set once and then kept."""
     row = conn.execute(

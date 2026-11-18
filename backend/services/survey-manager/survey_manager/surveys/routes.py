@@ -15,6 +15,8 @@ from liana_survey_shared.web.db import TenantDB, tenant_db
 
 from . import branding, domain, repo
 from .schemas import (
+    TAG_PATTERN,
+    Snippet,
     Survey,
     SurveyCreate,
     SurveyListItem,
@@ -138,6 +140,43 @@ def make_test_links(
             for n in range(1, count + 1)
         ]
     }
+
+
+@router.get("/{survey_id}/snippet", response_model=Snippet)
+def get_snippet(
+    survey_id: UUID,
+    campaign: Annotated[
+        str | None,
+        Query(pattern=TAG_PATTERN, description="Campaign tag; default: the survey name as a slug"),
+    ] = None,
+    segment: Annotated[str, Query(pattern=TAG_PATTERN, description="Segment tag")] = "all",
+    db: TenantDB = Depends(tenant_db),
+) -> dict:
+    """The LianaMailer newsletter snippet for a live thumbs, NPS or CSAT survey:
+    its main question and one link per answer, tagged with the campaign and
+    segment. Make one per segment. 409 when the survey isn't live, is custom or
+    has no main question."""
+    with db() as conn:
+        row = repo.get(conn, survey_id)
+        if row is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
+        main = repo.main_question(conn, survey_id)
+    settings = get_settings()
+    tag = campaign or domain.campaign_tag(row["title"])
+    is_main = main is not None and main["kind"] == domain.MAIN_QUESTION_KIND.get(row["type"])
+    question = main["prompt"].strip() if is_main else None
+    link = (
+        links.snippet_link(
+            settings.public_base_url, row["link_token"], settings.mailer_reader_tag, tag, segment
+        )
+        if row["link_token"]
+        else ""
+    )
+    try:
+        html = domain.snippet_html(row["type"], SurveyStatus(row["status"]), question, link)
+    except domain.NoSnippet as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    return {"campaign": tag, "segment": segment, "html": html}
 
 
 @router.post("/{survey_id}/close", response_model=Survey)
