@@ -21,3 +21,6 @@ include = ["data_analyzer*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "db: needs a migrated Postgres (DATABASE_URL as the app role); skipped when none answers",
+]
