@@ -100,11 +100,19 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
     new_count = _main_count(main, [(a.question_id, a.number) for a in msg.answers])
 
     inserted = conn.execute(
-        """insert into responses (tenant_id, survey_id, submitted_at, link_token_hash, contact_ref)
-           values (%s, %s, %s, %s, %s)
+        """insert into responses
+             (tenant_id, survey_id, submitted_at, link_token_hash, contact_ref, channel)
+           values (%s, %s, %s, %s, %s, %s)
            on conflict (survey_id, link_token_hash) do nothing
            returning id""",
-        (msg.tenant_id, msg.survey_id, msg.created_at, msg.link_token_hash, msg.contact_ref),
+        (
+            msg.tenant_id,
+            msg.survey_id,
+            msg.created_at,
+            msg.link_token_hash,
+            msg.contact_ref,
+            msg.channel,
+        ),
     ).fetchone()
     if inserted is not None:
         if not _add_to_totals(conn, msg, new_count, new_reader=True, limit=response_limit):

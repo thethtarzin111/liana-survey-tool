@@ -14,6 +14,7 @@ import {
   type Column,
 } from '../../components/ui';
 import { LatestSplit } from './LatestSplit';
+import { PerformancePanel } from './PerformancePanel';
 import './front.css';
 
 const TYPE_LABEL: Record<SurveyType, string> = {
@@ -335,6 +336,9 @@ export function FrontPage() {
           />
         )}
       </Card>
+
+      <h2 className="section-header">Reports</h2>
+      <PerformancePanel />
 
       <h2 className="section-header">News and inspiration</h2>
       <div className="front-news-grid">

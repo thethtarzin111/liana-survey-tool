@@ -60,3 +60,10 @@ per reader counts (#126): the worker replaces a reader's answer with a newer one
 and moves the totals with it. Scanners open links on delivery and people tap
 later, so the person's answer wins. Messages are ordered by their `created_at`,
 so an older answer delivered late (e.g. after a retry) does not replace a newer one.
+
+## Distribution channel
+
+`AnswerSubmitted` carries `channel`: `email`, `link` or `qr` (default `link`).
+The respondent service takes it from the link's `ch` parameter. Without one, an
+answer link (`a=`) counts as `email` and a plain visit as `link`. The worker
+stores it on the response, and survey performance (#12) groups by it.

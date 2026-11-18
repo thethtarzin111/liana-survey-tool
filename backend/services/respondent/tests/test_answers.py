@@ -445,3 +445,33 @@ def test_readers_get_pages_in_the_survey_language(client, queue, make_survey):
     r = client.get(link(closed, answer=9))
     assert r.status_code == 410
     assert "Den här enkäten är stängd" in r.text
+
+
+def views(survey_id):
+    with tenant_connection(DEMO_TENANT) as conn:
+        rows = conn.execute(
+            "select channel::text, view_count from survey_channel_views where survey_id = %s",
+            (survey_id,),
+        ).fetchall()
+    return dict(rows)
+
+
+@pytest.mark.db
+@needs_db
+def test_a_reader_counts_as_one_view_however_often_they_tap(client, queue, make_survey):
+    survey_id, _, token = make_survey()
+    secret = get_settings().link_signing_secret
+    # Anna's first tap (a mail scanner, say) was saved already.
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            """insert into responses (tenant_id, survey_id, link_token_hash, channel)
+               values (%s, %s, %s, 'email')""",
+            (DEMO_TENANT, survey_id, links.response_key(secret, token, "anna")),
+        )
+
+    assert client.get(link(token, reader="anna", answer=7)).status_code == 200
+    assert views(survey_id) == {}
+
+    assert client.get(link(token, reader="ben", answer=9) + "&ch=qr").status_code == 200
+    assert views(survey_id) == {"qr": 1}
+    assert [m.channel for m in queue.messages] == ["email", "qr"]

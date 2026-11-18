@@ -119,6 +119,14 @@ export const api = {
   /** Creates a draft survey from a template and returns it. */
   useTemplate: (templateId: string) =>
     send<Survey>('POST', `/api/v1/templates/${encodeURIComponent(templateId)}/surveys`),
+  /** Survey performance by channel, latest activity first. `limit` and `offset` count surveys, not rows. */
+  performance: (page: { limit?: number; offset?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (page.limit !== undefined) params.set('limit', String(page.limit));
+    if (page.offset) params.set('offset', String(page.offset));
+    const query = params.toString();
+    return getJson<PerformanceRow[]>(`/api/v1/results/performance${query ? `?${query}` : ''}`);
+  },
 };
 
 function questionsPath(surveyId: string, questionId?: string) {
@@ -221,6 +229,16 @@ export type SurveyListItem = Survey & {
   answers: number;
   /** "Headline score", e.g. { score: 'NPS +42', note: 'scale −100 to +100' }; null before answers. */
   headline: { score: string; note: string } | null;
+};
+
+export type PerformanceRow = {
+  survey_id: string;
+  survey: string;
+  channel: 'email' | 'link' | 'qr';
+  views: number;
+  responses: number;
+  response_rate: number | null;
+  main_result: string | null;
 };
 
 export type Template = {

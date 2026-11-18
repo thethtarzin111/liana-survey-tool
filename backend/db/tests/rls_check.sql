@@ -75,6 +75,26 @@ begin
   delete from surveys where id = '00000000-0000-4000-8000-0000000002f1';
   perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
 
+  -- 3e. Link view counts for survey performance are isolated.
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
+  insert into survey_channel_views (survey_id, tenant_id, channel, view_count)
+  values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000001', 'qr', 1)
+  on conflict (survey_id, channel) do nothing;
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
+  select count(*) into n from survey_channel_views;
+  if n <> 0 then raise exception 'RLS: other tenant sees % survey channel views', n; end if;
+  begin
+    insert into survey_channel_views (survey_id, tenant_id, channel, view_count)
+    values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000001', 'email', 1);
+    raise exception 'RLS: cross-tenant survey channel view was allowed';
+  exception when insufficient_privilege then
+    null; -- expected
+  end;
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
+  delete from survey_channel_views
+  where survey_id = '00000000-0000-4000-8000-000000000201' and channel = 'qr';
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
+
   -- 4. Writing a row for a different tenant is refused.
   begin
     insert into surveys (tenant_id, title, type)

@@ -43,6 +43,18 @@ def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
     }
 
 
+def record_view(tenant_id: UUID, survey_id: UUID, channel: str) -> None:
+    """Count a valid visit. The row is kept per survey/channel for fast reports."""
+    with tenant_connection(tenant_id) as conn:
+        conn.execute(
+            """insert into survey_channel_views (survey_id, tenant_id, channel, view_count)
+               values (%s, %s, %s, 1)
+               on conflict (survey_id, channel) do update set
+                 view_count = survey_channel_views.view_count + 1, updated_at = now()""",
+            (survey_id, tenant_id, channel),
+        )
+
+
 def answered_before(tenant_id: UUID, survey_id: UUID, response_key: str) -> bool:
     """Whether this reader (by the key derived from their link) has a saved answer."""
     with tenant_connection(tenant_id) as conn:

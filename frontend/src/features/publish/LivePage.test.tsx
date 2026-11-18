@@ -45,7 +45,7 @@ function renderPage() {
 test('shows the survey is live with its public link', async () => {
   renderPage();
   expect(await screen.findByRole('heading', { name: 'Member NPS is live' })).toBeInTheDocument();
-  expect(screen.getByLabelText('Public link')).toHaveValue(PUBLIC);
+  expect(screen.getByLabelText('Public link')).toHaveValue(`${PUBLIC}?ch=link`);
   expect(screen.getByLabelText('Public link')).toHaveAttribute('readonly');
   expect(screen.getByRole('link', { name: 'Back to surveys' })).toHaveAttribute('href', '/surveys');
   expect(screen.getByRole('link', { name: 'Edit survey' })).toHaveAttribute('href', '/surveys/nps-1');
@@ -93,7 +93,7 @@ test('the link is copied with one click and the page says so (#6)', async () => 
   renderPage();
   fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }));
   expect(await screen.findByText('Link copied')).toBeInTheDocument();
-  expect(writeText).toHaveBeenCalledWith(PUBLIC);
+  expect(writeText).toHaveBeenCalledWith(`${PUBLIC}?ch=link`);
   expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument();
 });
 
