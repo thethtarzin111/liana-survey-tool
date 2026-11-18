@@ -48,6 +48,57 @@ def render(survey: dict, questions: list[dict], key: str) -> str:
 <form>{"".join(fields)}<button>Submit</button><p role="alert" id="error"></p></form></main>
 <script>
 (() => {{
+  const form = document.querySelector('form');
+  const all = [...form.querySelectorAll('fieldset')];
+  if (!all.length) return;
+  form.noValidate = true;
+  let current = all[0];
+  const submit = form.querySelector('button');
+  const previous = document.createElement('button');
+  previous.type = 'button'; previous.textContent = 'Previous';
+  const next = document.createElement('button');
+  next.type = 'button'; next.textContent = 'Next';
+  const position = document.createElement('p'); position.setAttribute('role', 'status');
+  // Keep Submit first in DOM for the existing submission handler.
+  form.append(previous, next, position);
+  const eligible = () => all.filter(group => !group.hidden);
+  function show(focus = false) {{
+    const groups = eligible();
+    if (!groups.includes(current)) current = groups[0];
+    all.forEach(group => group.style.display = group === current ? '' : 'none');
+    const index = groups.indexOf(current);
+    previous.disabled = index <= 0;
+    const last = index === groups.length - 1;
+    if (next.hidden !== last) next.hidden = last;
+    if (submit.hidden !== !last) submit.hidden = !last;
+    position.textContent = `Question ${{index + 1}} of ${{groups.length}}`;
+    if (focus) {{ const legend = current.querySelector('legend'); legend.tabIndex = -1; legend.focus(); }}
+  }}
+  function valid(group) {{
+    return [...group.querySelectorAll('input,textarea,select')].every(control => control.reportValidity());
+  }}
+  next.addEventListener('click', () => {{
+    if (!valid(current)) return;
+    const groups = eligible(); current = groups[groups.indexOf(current) + 1] || current; show(true);
+  }});
+  previous.addEventListener('click', () => {{
+    const groups = eligible(); current = groups[Math.max(0, groups.indexOf(current) - 1)]; show(true);
+  }});
+  form.addEventListener('submit', event => {{
+    const groups = eligible();
+    if (current !== groups.at(-1)) {{ event.preventDefault(); event.stopImmediatePropagation(); next.click(); return; }}
+    for (const group of groups) {{
+      if ([...group.querySelectorAll('input,textarea,select')].some(control => !control.checkValidity())) {{
+        event.preventDefault(); event.stopImmediatePropagation(); current = group; show(true); valid(group); return;
+      }}
+    }}
+  }}, true);
+  new MutationObserver(() => show()).observe(form, {{subtree:true, attributes:true, attributeFilter:['hidden']}});
+  show();
+}})();
+</script>
+<script>
+(() => {{
   const surveyForm = document.querySelector('form');
   const progress = document.getElementById('survey-progress');
   const text = document.getElementById('progress-text');
