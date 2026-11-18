@@ -36,18 +36,29 @@ def client():
 
 
 def test_only_complete_drafts_can_be_published():
-    assert published_status(S.draft, "nps", ["nps", "reasons"]) is S.live
-    assert published_status(S.draft, "custom", ["text"]) is S.live
+    nps = ("nps", "How likely?")
+    assert published_status(S.draft, "nps", [nps, ("reasons", "")]) is S.live
+    assert published_status(S.draft, "custom", [("text", "Why?")]) is S.live
     for current in (S.live, S.scheduled, S.closed):
         with pytest.raises(StatusChangeNotAllowed):
-            published_status(current, "nps", ["nps"])
+            published_status(current, "nps", [nps])
     with pytest.raises(NotReadyToPublish, match="Add a question"):
         published_status(S.draft, "custom", [])
     # Template surveys need their main question first.
     with pytest.raises(NotReadyToPublish, match="main question"):
-        published_status(S.draft, "csat", ["reasons", "rating"])
+        published_status(S.draft, "csat", [("reasons", ""), ("rating", "Happy?")])
     with pytest.raises(NotReadyToPublish, match="main question"):
-        published_status(S.draft, "thumbs", ["nps"])
+        published_status(S.draft, "thumbs", [nps])
+
+
+def test_questions_need_their_text_before_publishing():
+    # The main question with its text deleted (found in manual testing).
+    with pytest.raises(NotReadyToPublish, match="Write the survey's main question"):
+        published_status(S.draft, "nps", [("nps", "  "), ("reasons", "")])
+    with pytest.raises(NotReadyToPublish, match="Question 3 has no text"):
+        published_status(S.draft, "nps", [("nps", "How likely?"), ("reasons", ""), ("text", "")])
+    with pytest.raises(NotReadyToPublish, match="Question 1 has no text"):
+        published_status(S.draft, "custom", [("text", "")])
 
 
 def test_link_tokens_are_long_random_and_url_safe():
