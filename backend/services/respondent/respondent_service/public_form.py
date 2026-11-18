@@ -39,7 +39,36 @@ def render(survey: dict, questions: list[dict], key: str) -> str:
     config = json.dumps({"key": key}).replace("<", "\\u003c")
     return f"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(title)}</title>
 <style>body{{font:16px/1.5 Arial;margin:24px;background:{survey["background_color"]}}}main{{max-width:650px;margin:auto;background:white;padding:24px}}label{{display:block;margin:8px}}fieldset{{margin:20px 0}}textarea{{width:95%;min-height:70px}}button{{padding:12px 24px}}</style>
-<main><h1>{escape(title)}</h1><p>{escape(survey["description"] or "")}</p><form>{"".join(fields)}<button>Submit</button><p role="alert" id="error"></p></form></main>
+<main><h1>{escape(title)}</h1><p>{escape(survey["description"] or "")}</p>
+<div aria-label="Survey progress">
+  <label for="survey-progress">Questions answered</label>
+  <progress id="survey-progress" max="100" value="0" aria-describedby="progress-text" style="display:block;width:100%"></progress>
+  <span id="progress-text" role="status">0% complete</span>
+</div>
+<form>{"".join(fields)}<button>Submit</button><p role="alert" id="error"></p></form></main>
+<script>
+(() => {{
+  const surveyForm = document.querySelector('form');
+  const progress = document.getElementById('survey-progress');
+  const text = document.getElementById('progress-text');
+  function updateProgress() {{
+    const questions = [...surveyForm.querySelectorAll('fieldset')].filter(group => !group.hidden);
+    const answered = questions.filter(group => [...group.querySelectorAll('input,textarea,select')].some(control => {{
+      if (control.disabled) return false;
+      if (control.type === 'radio' || control.type === 'checkbox') return control.checked;
+      return control.value.trim().length > 0 && control.checkValidity();
+    }})).length;
+    const percentage = questions.length ? Math.round(answered / questions.length * 100) : 0;
+    progress.value = percentage;
+    text.textContent = `${{answered}} of ${{questions.length}} questions answered (${{percentage}}% complete)`;
+  }}
+  // Run after conditional-question handlers so hidden reasons never count.
+  surveyForm.addEventListener('input', () => queueMicrotask(updateProgress));
+  surveyForm.addEventListener('change', () => queueMicrotask(updateProgress));
+  new MutationObserver(updateProgress).observe(surveyForm, {{subtree:true, attributes:true, attributeFilter:['hidden','disabled']}});
+  queueMicrotask(updateProgress);
+}})();
+</script>
 <script>const config={config};const form=document.querySelector('form');function conditional(){{const first=form.querySelector('input:checked');form.querySelectorAll('[data-reasons]').forEach(group=>{{group.hidden=!first||first.value!=='0';group.querySelectorAll('input').forEach(input=>input.disabled=group.hidden);}});}}form.addEventListener('change',conditional);conditional();form.addEventListener('submit',async event=>{{event.preventDefault();const answers={{}};for(const [key,value] of new FormData(form)){{(answers[key]??=[]).push(value);}}const button=form.querySelector('button');button.disabled=true;try{{const response=await fetch(location.pathname+'/submit'+location.search,{{method:'POST',headers:{{'Content-Type':'application/json'}},body:JSON.stringify({{key:config.key,answers}})}});if(!response.ok)throw new Error('Please check your answers and try again.');document.open();document.write(await response.text());document.close();}}catch(error){{document.getElementById('error').textContent=error.message;button.disabled=false;}}}});</script></html>"""
 
 
