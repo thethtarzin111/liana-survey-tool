@@ -99,7 +99,7 @@ export function SurveyPicker({ surveys, value, onPick }: Props) {
         <Icon path={icons.chevronDown} size={16} />
       </button>
       {open ? (
-        <div className="results-picker-panel">
+        <div className="results-picker-panel" role="dialog" aria-label="Choose a survey">
           <input
             ref={search}
             type="search"

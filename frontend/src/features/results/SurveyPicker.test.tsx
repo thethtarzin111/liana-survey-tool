@@ -126,3 +126,12 @@ test('the highlighted option scrolls into view with the arrow keys', () => {
     delete Element.prototype.scrollIntoView;
   }
 });
+
+test('the trigger opens a dialog named "Choose a survey" that holds the combobox', () => {
+  render(<Harness />);
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  open();
+  const dialog = screen.getByRole('dialog', { name: 'Choose a survey' });
+  expect(within(dialog).getByRole('combobox', { name: 'Search surveys' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Survey/ })).toHaveAttribute('aria-haspopup', 'dialog');
+});
