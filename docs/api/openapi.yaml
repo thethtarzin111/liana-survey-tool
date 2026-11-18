@@ -461,7 +461,12 @@ paths:
   /api/v1/results/responses:
     get:
       tags: [results]
-      summary: Latest 500 responses across the current organisation, newest first
+      summary: Paged responses across the current organisation, newest first
+      parameters:
+        - { name: survey_id, in: query, schema: { type: string, format: uuid } }
+        - { name: segment, in: query, schema: { type: string, default: all, pattern: '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$' } }
+        - { name: limit, in: query, schema: { type: integer, default: 100, minimum: 1, maximum: 500 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0, minimum: 0 } }
       responses:
         '200':
           description: Rows with id, survey_id, survey, segment, submitted_at, numeric answer and comment

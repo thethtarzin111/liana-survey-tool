@@ -15,10 +15,16 @@ SCALES = {"thumbs": THUMBS_SCALE, "nps": NPS_SCALE, "csat": CSAT_SCALE}
 
 
 @router.get("/responses")
-def response_feed(db: TenantDB = Depends(tenant_db)) -> list[dict]:
-    """Latest 500 responses across the signed-in organisation's surveys."""
+def response_feed(
+    survey_id: UUID | None = None,
+    segment: Segment = "all",
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    db: TenantDB = Depends(tenant_db),
+) -> list[dict]:
+    """Responses in stable newest-first order, filtered before pagination."""
     with db() as conn:
-        return repo.response_feed(conn)
+        return repo.response_feed(conn, survey_id, segment, limit, offset)
 
 
 @router.get("/{survey_id}", response_model=SurveyResult)

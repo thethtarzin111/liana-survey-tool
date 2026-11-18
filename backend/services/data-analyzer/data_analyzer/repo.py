@@ -4,7 +4,13 @@ from uuid import UUID
 import psycopg
 
 
-def response_feed(conn: psycopg.Connection) -> list[dict]:
+def response_feed(
+    conn: psycopg.Connection,
+    survey_id: UUID | None = None,
+    segment: str = "all",
+    limit: int = 500,
+    offset: int = 0,
+) -> list[dict]:
     return conn.execute(
         """select r.id, r.survey_id, s.title as survey, r.segment, r.submitted_at,
                   main.value_number as answer,
@@ -18,7 +24,10 @@ def response_feed(conn: psycopg.Connection) -> list[dict]:
              left join answers a on a.question_id = q.id and a.response_id = r.id
              where q.survey_id = s.id order by q.position limit 1
            ) main on true
-           order by r.submitted_at desc, r.id limit 500"""
+           where (%s::uuid is null or r.survey_id = %s)
+             and (%s = 'all' or r.segment = %s)
+           order by r.submitted_at desc, r.id limit %s offset %s""",
+        (survey_id, survey_id, segment, segment, limit, offset),
     ).fetchall()
 
 
