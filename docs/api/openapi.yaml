@@ -439,6 +439,34 @@ paths:
               schema: { type: array, items: { $ref: '#/components/schemas/PerformanceRow' } }
         '422':
           description: limit or offset out of range
+  /api/v1/results/{survey_id}/overview:
+    get:
+      tags: [results]
+      summary: Overview of one survey's results
+      description: >-
+        KPIs, a summary per question in question order, top reasons, the main score by month and by
+        segment. The main question is the first nps, thumbs or rating question. Months are calendar
+        months in Europe/Helsinki. Segments follow the anonymity rules: a segment with fewer than 5
+        answers is never shown alone, its answers are grouped into "other", and "other" is left out
+        when it has fewer than 5. `none` is the filter value for answers without a segment. With a
+        segment chosen every number is limited to it, and response_rate is null because views are
+        counted per channel.
+      parameters:
+        - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - name: segment
+          in: query
+          required: false
+          description: "`all` (default) for no filter, or a `value` from `segments`"
+          schema: { type: string, default: all }
+      responses:
+        '200':
+          description: The overview
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SurveyOverview' }
+        '400': { description: 'Segment not available: unknown, or too small to show' }
+        '404': { description: Survey not found }
+        '422': { description: survey_id is not a UUID }
   /r/{link_token}:
     get:
       tags: [respondent]
@@ -592,6 +620,95 @@ components:
         responses: { type: integer, minimum: 0 }
         response_rate: { type: [integer, 'null'], minimum: 0, description: Responses divided by views, as a whole percentage }
         main_result: { type: [string, 'null'], example: NPS +42 }
+    SurveyOverview:
+      type: object
+      required: [survey_id, title, type, status, closes_at, last_answer_at, channels, segment, segments, responses, views, response_rate, completed_all, main, questions, reasons, trend, by_segment]
+      properties:
+        survey_id: { type: string, format: uuid }
+        title: { type: string }
+        type: { $ref: '#/components/schemas/SurveyType' }
+        status: { $ref: '#/components/schemas/SurveyStatus' }
+        closes_at: { type: [string, 'null'], format: date-time }
+        last_answer_at: { type: [string, 'null'], format: date-time }
+        channels: { type: array, items: { type: string, enum: [email, link, qr] }, description: Channels with views or answers }
+        segment: { type: string, description: The segment filter that was applied }
+        segments:
+          type: array
+          description: Segments that can be chosen. Empty when there are fewer than 2.
+          items:
+            type: object
+            required: [value, label, answers]
+            properties:
+              value: { type: string, example: members }
+              label: { type: string, example: Members }
+              answers: { type: integer }
+        responses: { type: integer, minimum: 0 }
+        views: { type: integer, minimum: 0, description: Views of all channels }
+        response_rate: { type: [integer, 'null'], description: Whole percent. Null when a segment is chosen or there are no views. }
+        completed_all: { type: [integer, 'null'], description: Percent of responses that answered every question. Custom surveys only. }
+        main:
+          type: [object, 'null']
+          description: The first nps, thumbs or rating question. Null when the survey has none.
+          required: [question_id, kind, score, change, counts]
+          properties:
+            question_id: { type: string, format: uuid }
+            kind: { type: string, enum: [nps, thumbs, rating] }
+            score: { type: [integer, 'null'], description: 'NPS, thumbs positive % or rating satisfied %. All-time for the chosen segment.' }
+            change: { type: [integer, 'null'], description: Score now minus the score at the end of the previous month. Null when nothing was answered before this month. }
+            counts: { type: object, additionalProperties: { type: integer }, description: Answers per scale value }
+        questions:
+          type: array
+          items:
+            type: object
+            required: [id, kind, prompt, required, answers, options, average]
+            properties:
+              id: { type: string, format: uuid }
+              kind: { $ref: '#/components/schemas/QuestionKind' }
+              prompt: { type: string }
+              required: { type: boolean }
+              answers: { type: integer }
+              options:
+                type: array
+                description: Every scale value, or the question's options. A multiple-choice option counts once per response. Empty for text.
+                items:
+                  type: object
+                  required: [label, count]
+                  properties:
+                    label: { type: string }
+                    count: { type: integer }
+              average: { type: [number, 'null'], description: Scale questions only, one decimal }
+        reasons:
+          type: array
+          description: From the first reasons question, most picked first
+          items:
+            type: object
+            required: [label, count, percent]
+            properties:
+              label: { type: string }
+              count: { type: integer }
+              percent: { type: [integer, 'null'], description: Of the responses that answered the question }
+        trend:
+          type: array
+          description: Main score per month, oldest first. Empty when fewer than 2 months have answers.
+          items:
+            type: object
+            required: [month, score, answers]
+            properties:
+              month: { type: string, example: 2026-11 }
+              score: { type: [integer, 'null'] }
+              answers: { type: integer }
+        by_segment:
+          type: array
+          description: Main score per segment. Empty when there are fewer than 2 segments.
+          items:
+            type: object
+            required: [value, label, answers, score, counts]
+            properties:
+              value: { type: string }
+              label: { type: string }
+              answers: { type: integer }
+              score: { type: [integer, 'null'] }
+              counts: { type: object, additionalProperties: { type: integer } }
     QuestionKind:
       type: string
       enum: [single_choice, multiple_choice, dropdown, text, long_text, rating, nps, reasons, thumbs]
