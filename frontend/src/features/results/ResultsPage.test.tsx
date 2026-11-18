@@ -51,6 +51,7 @@ beforeEach(() => {
       const base = overviews[match[1]] ?? overview({ survey_id: match[1] });
       return Response.json({ ...base, segment: url.searchParams.get('segment') ?? 'all' });
     }
+    if (/\/responses$/.test(url.pathname)) return Response.json({ total: 0, rows: [] });
     return new Response(null, { status: 404 });
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -335,7 +336,27 @@ test('a failed survey list offers to try again', async () => {
 test('the Responses tab shows the number of responses', async () => {
   renderPage('/results?survey=nps-1&tab=responses');
   expect(await screen.findByRole('tab', { name: 'Responses 12' })).toHaveAttribute('aria-selected', 'true');
-  expect(screen.getByText('Responses will appear here soon.')).toBeInTheDocument();
+  expect(await screen.findByText('No responses yet')).toBeInTheDocument();
+});
+
+test('the segment applies to the Responses tab and survives, while a new survey resets search and group', async () => {
+  overviews['nps-1'] = overview({ segments });
+  renderPage('/results?survey=nps-1&tab=responses&segment=members&q=slow&group=detractors');
+  await screen.findByText('No responses match.');
+  const call = fetchMock.mock.calls
+    .map(([input]) => new URL(String(input), 'http://localhost'))
+    .filter((u) => u.pathname.endsWith('/responses'))
+    .at(-1);
+  expect(call?.searchParams.get('segment')).toBe('members');
+  expect(call?.searchParams.get('q')).toBe('slow');
+  expect(call?.searchParams.get('group')).toBe('detractors');
+
+  fireEvent.change(screen.getByLabelText('Segment'), { target: { value: 'guests' } });
+  expect(location()).toBe('/results?survey=nps-1&tab=responses&segment=guests&q=slow&group=detractors');
+
+  fireEvent.click(pickerButton());
+  fireEvent.click(screen.getByRole('option', { name: /Course feedback/ }));
+  expect(location()).toBe('/results?survey=csat-1&tab=responses');
 });
 
 test('"Read all answers →" opens the Responses tab', async () => {

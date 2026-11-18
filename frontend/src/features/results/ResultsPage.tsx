@@ -3,6 +3,7 @@ import { api, ApiError, type SurveyListItem, type SurveyOverview } from '../../a
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, EmptyState, Select, Tabs, icons } from '../../components/ui';
 import { OverviewTab } from './OverviewTab';
+import { ResponsesTab, type Scale } from './ResponsesTab';
 import { StatusLine } from './StatusLine';
 import { SurveyPicker } from './SurveyPicker';
 import { TYPE_LABEL } from './format';
@@ -18,13 +19,12 @@ function defaultSurvey(surveys: SurveyListItem[]): SurveyListItem | undefined {
   return latest ?? surveys[0];
 }
 
-/** Slot for the responses table. */
-function ResponsesTab({ surveyId, segment }: { surveyId: string; segment: string }) {
-  return (
-    <Card padded data-survey={surveyId} data-segment={segment}>
-      <p>Responses will appear here soon.</p>
-    </Card>
-  );
+/** The survey's first scale question, which the Responses tab filters and shows. */
+function scaleOf(overview: SurveyOverview): Scale | null {
+  if (overview.type === 'thumbs' || overview.type === 'nps') return overview.type;
+  if (overview.type === 'csat') return 'rating';
+  const q = overview.questions.find((x) => x.kind === 'nps' || x.kind === 'thumbs' || x.kind === 'rating');
+  return q ? (q.kind as Scale) : null;
 }
 
 type Loaded = { surveyId: string; segment: string; data: SurveyOverview };
@@ -169,7 +169,7 @@ export function ResultsPage() {
           ]}
         >
           {tab === 'responses' ? (
-            <ResponsesTab surveyId={chosen.id} segment={segment} />
+            <ResponsesTab surveyId={chosen.id} segment={segment} scale={scaleOf(overview)} />
           ) : (
             <OverviewTab overview={overview} onReadAll={() => set({ tab: 'responses' })} />
           )}
