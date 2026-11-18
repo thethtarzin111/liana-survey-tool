@@ -6,7 +6,7 @@ import { ToastProvider } from '../../components/ui';
 import { SurveysPage } from './SurveysPage';
 import { DEFAULT_ACCENT, DEFAULT_BACKGROUND } from '../builder/branding';
 
-const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, answers: 0, headline: null } as const;
+const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, closes_at: null, answers: 0, headline: null } as const;
 const live: SurveyListItem = {
   ...base, id: 'live-1', title: 'Member NPS 2026', type: 'nps', status: 'live', answers: 132,
   headline: { score: 'NPS +42', note: 'scale −100 to +100' },

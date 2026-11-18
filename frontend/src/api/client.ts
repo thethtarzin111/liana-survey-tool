@@ -183,8 +183,10 @@ export type ReaderOptions = {
 };
 
 export type SurveyListItem = Survey & {
+  /** Answers per value of the main question, e.g. { '9': 12, '10': 30 }. */
   answer_counts?: Record<string, number>;
   opens_at: string | null;
+  closes_at: string | null;
   /** Submitted responses so far. */
   answers: number;
   /** "Headline score", e.g. { score: 'NPS +42', note: 'scale −100 to +100' }; null before answers. */
