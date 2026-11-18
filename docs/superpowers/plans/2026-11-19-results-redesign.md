@@ -153,7 +153,7 @@ Branch `feat/results-overview-api`. Depends on Task 1.
 ```python
 def test_overview_scores_the_main_question(survey): ...      # main.score == score("nps", all counts); responses == 12
 def test_change_since_last_month(survey): ...                # main.change == score(now) - score(before this month)
-def test_segments_follow_the_anonymity_rules(survey): ...     # segments values == ["none"?/"members", ...]; partners not listed alone
+def test_segments_follow_the_anonymity_rules(survey): ...     # members 5 shown; partners 4 + no segment 3 -> "other" 7; values == ["members", "other"]
 def test_small_segment_is_refused(survey): ...               # ?segment=partners -> 400
 def test_segment_filter_limits_every_number(survey): ...     # ?segment=members -> responses == 5, response_rate is None
 def test_trend_by_helsinki_month(survey): ...                # two months, oldest first, answers add up to responses
@@ -204,7 +204,7 @@ def test_display_id_is_short_and_stable():
 Branch `feat/results-shell` (after Task 3's commit). Depends on Task 4 merged.
 
 **Files:**
-- Modify: `frontend/src/api/client.ts` (`SurveyListItem.last_answer_at`, `SurveyOverview` type mirroring Task 4, `api.overview(surveyId: string, segment = 'all'): Promise<SurveyOverview>`), `frontend/src/app/nav.ts` (remove Responses), `frontend/src/app/App.tsx` (`/responses` → `<Navigate to="/results?tab=responses" replace />`), `frontend/src/features/front/FrontPage.tsx` ("View responses" → `/results?tab=responses`), `frontend/src/features/front/PerformancePanel.tsx` ("View all →" → `/surveys`)
+- Modify: `frontend/src/api/client.ts` (`SurveyListItem.last_answer_at`, `SurveyOverview` type mirroring Task 4, `api.overview(surveyId: string, segment = 'all'): Promise<SurveyOverview>`), `frontend/src/app/nav.ts` (remove Responses), `frontend/src/app/App.tsx` (`/responses` → `<Navigate to="/results?tab=responses" replace />`), `frontend/src/features/front/FrontPage.tsx` ("View responses" → `/results?tab=responses`), `frontend/src/features/front/PerformancePanel.tsx` ("View all →" → `/surveys`), `frontend/src/features/surveys/SurveysPage.tsx` (a "See results" action per survey with answers → `/results?survey=<id>`), `frontend/src/features/publish/LivePage.tsx` (a "See results" link to the same URL)
 - Delete: `frontend/src/features/responses/`
 - Create in `frontend/src/features/results/`: `ResultsPage.tsx` (rewrite), `SurveyPicker.tsx`, `useResultsParams.ts`, `KpiCards.tsx`, `StatusLine.tsx`, `format.ts`, `results.css`
 - Test: `ResultsPage.test.tsx`, `SurveyPicker.test.tsx`, `format.test.ts`, and update `App.test.tsx`, `FrontPage.test.tsx`, `PerformancePanel.test.tsx`
@@ -219,6 +219,8 @@ Branch `feat/results-shell` (after Task 3's commit). Depends on Task 4 merged.
   - `SurveyPicker.test.tsx`: `lists surveys with type, answers and status`; `search filters and shows "No surveys match “x”."`; `arrow keys and Enter pick, Escape closes`; `focus moves to the search field when opened`.
   - `ResultsPage.test.tsx`: `defaults to the survey in the URL, else the latest answer, else the newest`; `tabs and segment live in the URL`; `segment filter hidden with fewer than 2 segments`; `KPI cards per survey type` (NPS: "NPS", signed score, "Promoters"; thumbs: "Positive (Good + Loved it)"; CSAT: "Satisfied (4–5)", "out of 5"; custom: "Completed all questions"); `response rate shows "—" and "Not available per segment" with a segment`; `overview without answers shows empty states`; `unknown survey shows "Survey not found" and the picker`.
   - `App.test.tsx`: sidebar has no Responses; `/responses` lands on Results with the Responses tab.
+  - `ResultsPage.test.tsx`: `the Responses tab shows the number of responses` ("Responses 12").
+  - `SurveysPage.test.tsx` and `LivePage.test.tsx`: `See results opens /results?survey=<id>`.
 - [ ] **Step 2:** `cd frontend && npx vitest run src/features/results src/app` — FAIL.
 - [ ] **Step 3:** Implement. The picker uses `api.listSurveys()` and searches in the browser; the status line uses `last_answer_at`, `closes_at`, `status` and `channels` ("Sent by email", "Shared by link", "QR code").
 - [ ] **Step 4:** Run the tests — PASS. `npm run typecheck && npm run lint`, `npm test` — PASS.
