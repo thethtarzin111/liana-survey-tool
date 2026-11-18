@@ -26,3 +26,4 @@
 .share-status { min-height: 1.4em; margin: 0; color: var(--color-text-muted); font-size: var(--text-hint); }
 .share-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .share-qr img { display: block; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.live-actions { display: flex; flex-wrap: wrap; gap: 12px; }

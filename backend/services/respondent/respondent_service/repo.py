@@ -16,11 +16,13 @@ def tenant_for_token(link_token: str) -> UUID | None:
 
 
 def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
-    """What the answer page needs: status, thank-you message, colours and the main question."""
+    """What the answer page needs: status, thank-you message, colours, the main
+    question and whether unsigned newsletter links are accepted."""
     with tenant_connection(tenant_id) as conn:
         conn.row_factory = dict_row
         survey = conn.execute(
-            """select id, status, title, thank_you, accent_color, background_color
+            """select id, status, title, thank_you, accent_color, background_color,
+                      newsletter_links
                from surveys where link_token = %s""",
             (link_token,),
         ).fetchone()

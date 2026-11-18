@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError, type SurveyListItem, type SurveyStatus, type SurveyType } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import {
@@ -76,6 +76,7 @@ export function SurveysPage() {
   const status = STATUSES.has(statusParam) ? (statusParam as SurveyStatus) : undefined;
 
   const toast = useToast();
+  const navigate = useNavigate();
   const [organisation, setOrganisation] = useState('');
   const [surveys, setSurveys] = useState<SurveyListItem[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -136,7 +137,10 @@ export function SurveysPage() {
 
   function actionsFor(survey: SurveyListItem): MenuAction[] {
     const name = `“${survey.title}”`;
-    const items: MenuAction[] = [];
+    // Live surveys open their "is live" page, so Edit is the way to their editor.
+    const items: MenuAction[] = [
+      { label: 'Edit', icon: icons.edit, onSelect: () => navigate(`/surveys/${encodeURIComponent(survey.id)}`) },
+    ];
     if (survey.status === 'draft') {
       items.push({ label: 'Publish', icon: PUBLISH_ICON, onSelect: () => setPublishing(survey) });
     }

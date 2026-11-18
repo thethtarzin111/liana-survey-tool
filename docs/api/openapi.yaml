@@ -161,7 +161,7 @@ paths:
       tags: [surveys]
       summary: Signed answer links for made-up readers (local development only)
       description: >-
-        To try a live survey before the LianaMailer snippet (#40) exists. Only with AUTH_MODE=dev;
+        To try a live survey as different readers without sending a newsletter. Only with AUTH_MODE=dev;
         404 otherwise. Add &a=<answer> to answer the main question, e.g. &a=9 for NPS.
       requestBody:
         required: false
@@ -186,6 +186,39 @@ paths:
                     items: { type: string, example: 'http://localhost:8000/r/hmZXsmjjAuMpgevPRmIhdA?r=test-da836f-1&s=aEIY...' }
         '404': { description: No such survey, or not in local development }
         '409': { description: The survey is not live }
+  /api/v1/surveys/{survey_id}/snippet:
+    parameters:
+      - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [surveys]
+      summary: LianaMailer newsletter snippet (#40)
+      description: >-
+        The HTML block to paste into a LianaMailer newsletter: the survey's main question and one
+        link per answer (thumbs, NPS or CSAT). Plain tables and inline styles. Each link carries
+        LianaMailer's contact id placeholder (MAILER_READER_TAG, default $id$) as the reader, so
+        each reader counts once, plus the campaign and segment tags. The links are not signed (a
+        pasted snippet is the same for every reader); see #118. Making a snippet sets the survey's
+        newsletter_links, and only such surveys accept unsigned links. Make one snippet per segment.
+      parameters:
+        - name: campaign
+          in: query
+          required: false
+          description: Campaign tag; default the survey name as a slug
+          schema: { type: string, pattern: '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$', example: member-nps-2026 }
+        - name: segment
+          in: query
+          required: false
+          description: Segment tag
+          schema: { type: string, pattern: '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$', default: all, example: members }
+      responses:
+        '200':
+          description: The snippet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Snippet' }
+        '404': { description: No such survey }
+        '409': { description: The survey is not live, is a custom survey, or has no main question }
+        '422': { description: A tag is not a lower-case slug of 1-40 characters }
   /api/v1/surveys/{survey_id}/close:
     parameters:
       - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -386,7 +419,9 @@ paths:
       tags: [respondent]
       summary: One-tap answer link from the email (public, no login)
       description: >-
-        Records the answer to the survey's main question (thumbs 0-2, NPS 0-10, CSAT 1-5), puts it
+        Signed links carry the reader and its signature (s). Newsletter snippet links (#40) have no
+        signature: the reader is the contact id LianaMailer filled in, and an unreplaced placeholder
+        such as $id$ is refused. Only surveys with newsletter_links accept them. Records the answer to the survey's main question (thumbs 0-2, NPS 0-10, CSAT 1-5), puts it
         on the survey.answers queue for the worker, and returns a plain HTML thank-you page with the
         survey's thank-you message. Answers stay anonymous: only a key derived from the reader is
         stored, so the same reader's second tap is not counted. Pages are sent with
@@ -394,11 +429,13 @@ paths:
       parameters:
         - { name: link_token, in: path, required: true, schema: { type: string } }
         - { name: r, in: query, required: true, description: Reader reference, schema: { type: string } }
-        - { name: s, in: query, required: true, description: Signature of the token and reader, schema: { type: string } }
+        - { name: s, in: query, required: false, description: Signature of the token and reader; none on newsletter snippet links, schema: { type: string } }
+        - { name: c, in: query, required: false, description: Campaign tag (newsletter snippet links), schema: { type: string } }
+        - { name: seg, in: query, required: false, description: Segment tag (newsletter snippet links), schema: { type: string } }
         - { name: a, in: query, required: true, description: The tapped answer, schema: { type: integer } }
       responses:
         '200': { description: Thank-you page (HTML), content: { text/html: {} } }
-        '400': { description: Link not complete or not valid, or an answer that is not one of the choices (HTML) }
+        '400': { description: 'Link not complete or not valid, an answer that is not one of the choices, or the plain public link without an answer (asks to answer from the email until #105) (HTML)' }
         '403': { description: The survey is not open yet (HTML) }
         '404': { description: Unknown link (HTML) }
         '410': { description: The survey is closed (HTML) }
@@ -414,6 +451,13 @@ components:
         tenant_name: { type: string, example: Example Members Association }
         name: { type: string, example: Anna Virtanen }
         email: { type: string, format: email }
+    Snippet:
+      type: object
+      required: [campaign, segment, html]
+      properties:
+        campaign: { type: string, example: member-nps-2026 }
+        segment: { type: string, example: members }
+        html: { type: string, description: 'Plain HTML with inline styles: the main question and one link per answer' }
     SurveyType:
       type: string
       enum: [thumbs, nps, csat, custom]
@@ -470,6 +514,7 @@ components:
             links add the reader (r), its signature (s) and the answer (a).
           example: https://survey.example.eu/r/hmZXsmjjAuMpgevPRmIhdA
         published_at: { type: [string, 'null'], format: date-time, description: When it was last published }
+        newsletter_links: { type: boolean, description: 'A newsletter snippet was made, so unsigned snippet links are accepted (#40)' }
         logo_url:
           type: [string, 'null']
           description: Where to load the logo from (changes with every upload), or null when there is none

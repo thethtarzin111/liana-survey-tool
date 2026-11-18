@@ -125,6 +125,8 @@ class Survey(BaseModel):
     #: Publishing (#5). The token itself only appears inside public_url.
     link_token: str | None = Field(default=None, exclude=True)
     published_at: datetime | None = None
+    #: A newsletter snippet was made, so unsigned snippet links are accepted (#40).
+    newsletter_links: bool = False
     language: str
     opens_at: datetime | None
     closes_at: datetime | None
@@ -190,3 +192,16 @@ class TestLinksRequest(BaseModel):
 class TestLinks(BaseModel):
     #: One per test reader; add &a=<answer> to answer the main question, e.g. &a=9.
     links: list[str]
+
+
+#: Campaign and segment tags in snippet links: lower-case slugs (see liana_survey_shared.links.TAG).
+TAG_PATTERN = r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$"
+
+
+class Snippet(BaseModel):
+    """The HTML block to paste into a LianaMailer newsletter (#40)."""
+
+    campaign: str
+    segment: str
+    #: Plain HTML with inline styles: the main question and one link per answer.
+    html: str

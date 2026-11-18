@@ -22,6 +22,7 @@ COLUMN_NAMES = (
     "logo_updated_at",
     "link_token",
     "published_at",
+    "newsletter_links",
     "type",
     "status",
     "anonymous",
@@ -115,6 +116,19 @@ def question_texts(conn: psycopg.Connection, survey_id: UUID) -> list[tuple[str,
         "select kind, prompt from questions where survey_id = %s order by position", (survey_id,)
     ).fetchall()
     return [(row["kind"], row["prompt"]) for row in rows]
+
+
+def main_question(conn: psycopg.Connection, survey_id: UUID) -> dict[str, Any] | None:
+    """The first question (kind and prompt): the main question of template surveys."""
+    return conn.execute(
+        "select kind, prompt from questions where survey_id = %s order by position limit 1",
+        (survey_id,),
+    ).fetchone()
+
+
+def allow_newsletter_links(conn: psycopg.Connection, survey_id: UUID) -> None:
+    """From now on the survey accepts unsigned newsletter snippet links (#40)."""
+    conn.execute("update surveys set newsletter_links = true where id = %s", (survey_id,))
 
 
 def publish(conn: psycopg.Connection, survey_id: UUID, link_token: str) -> dict[str, Any]:

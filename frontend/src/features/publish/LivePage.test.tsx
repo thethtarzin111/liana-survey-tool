@@ -44,6 +44,7 @@ test('shows the survey is live with its public link', async () => {
   expect(screen.getByLabelText('Public link')).toHaveValue(PUBLIC);
   expect(screen.getByLabelText('Public link')).toHaveAttribute('readonly');
   expect(screen.getByRole('link', { name: 'Back to surveys' })).toHaveAttribute('href', '/surveys');
+  expect(screen.getByRole('link', { name: 'Edit survey' })).toHaveAttribute('href', '/surveys/nps-1');
 });
 
 test('in local development, each test reader has one link per answer', async () => {
