@@ -132,8 +132,8 @@ test('the survey language is shown, picked and saved on its own', async () => {
   expect(language).toHaveValue('fi');
   expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
     'English',
-    'Finnish (suomi)',
-    'Swedish (svenska)',
+    'suomi',
+    'svenska',
   ]);
   fireEvent.change(language, { target: { value: 'sv' } });
   fireEvent.click(save());
