@@ -13,6 +13,9 @@ from fastapi import FastAPI
 
 from liana_survey_shared.web.health import health_router
 
+from .routes import router
+
 app = FastAPI(title="LianaSurvey Data Analyzer", version="0.1.0")
 
 app.include_router(health_router(needs_database=True))
+app.include_router(router)

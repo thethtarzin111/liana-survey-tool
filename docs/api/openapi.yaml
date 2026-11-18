@@ -414,6 +414,20 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such template for this organisation }
+  /api/v1/results/{survey_id}:
+    get:
+      tags: [results]
+      summary: Headline score and answer split for one survey
+      parameters:
+        - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: segment, in: query, required: false, schema: { type: string, default: all } }
+      responses:
+        '200':
+          description: The selected survey's In short result, optionally filtered by segment
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SurveyResult' }
+        '404': { description: No such survey for this organisation }
   /r/{link_token}:
     get:
       tags: [respondent]
@@ -542,6 +556,31 @@ components:
               properties:
                 score: { type: string, example: NPS +42 }
                 note: { type: string, example: scale −100 to +100 }
+    SurveyResult:
+      type: object
+      required: [survey_id, title, type, status, answers, segment, segments, headline, split]
+      properties:
+        survey_id: { type: string, format: uuid }
+        title: { type: string }
+        type: { $ref: '#/components/schemas/SurveyType' }
+        status: { $ref: '#/components/schemas/SurveyStatus' }
+        answers: { type: integer, minimum: 0 }
+        segment: { type: string }
+        segments: { type: array, items: { type: string } }
+        headline:
+          type: [object, 'null']
+          properties:
+            score: { type: string }
+            note: { type: string }
+        split:
+          type: array
+          items:
+            type: object
+            required: [value, count, percent]
+            properties:
+              value: { type: integer }
+              count: { type: integer, minimum: 0 }
+              percent: { type: [integer, 'null'], minimum: 0, maximum: 100 }
     QuestionKind:
       type: string
       enum: [single_choice, multiple_choice, dropdown, text, long_text, rating, nps, reasons, thumbs]

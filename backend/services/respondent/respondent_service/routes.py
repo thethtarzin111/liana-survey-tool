@@ -10,8 +10,9 @@ derived from the reader reference is stored, to count each reader once.
 """
 
 import logging
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse
 
@@ -57,6 +58,7 @@ async def answer(
     r: str | None = None,
     s: str | None = None,
     a: str | None = None,
+    seg: Annotated[str, Query(pattern=r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")] = "all",
     queue: AnswerQueue = Depends(get_answer_queue),
 ) -> HTMLResponse:
     """Record a one-tap answer from the email and show the thank-you page."""
@@ -91,6 +93,7 @@ async def answer(
         survey_id=survey["id"],
         # Not the reader reference itself: anonymous answers keep no link to the reader.
         link_token_hash=links.response_key(settings.link_signing_secret, link_token, r or ""),
+        segment=seg,
         answers=[AnswerValue(question_id=survey["main_id"], number=value)],
     )
     try:

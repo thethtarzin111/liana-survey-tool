@@ -28,6 +28,7 @@ class AnswerSubmitted(Message):
     survey_id: UUID
     # Hash of the signed link token, so the same link is not counted twice.
     link_token_hash: str
+    segment: str = Field(default="all", pattern=r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
     answers: list[AnswerValue]
     # Only set in identified mode, after the respondent opted in.
     contact_ref: str | None = None
