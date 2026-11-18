@@ -693,6 +693,7 @@ components:
               additionalProperties: { type: integer, minimum: 0 }
               description: Anonymous main-question counts used by dashboard distribution charts
             answers: { type: integer, minimum: 0, description: Submitted responses so far }
+            last_answer_at: { type: [string, 'null'], format: date-time, description: When the newest response arrived; null before the first }
             headline:
               type: [object, 'null']
               description: >-

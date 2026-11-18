@@ -76,7 +76,9 @@ def list_all(
     clause = f"where {' and '.join(where)}" if where else ""
     return conn.execute(
         f"""select {S_COLUMNS}, coalesce(a.response_count, 0) as answers,
-                   coalesce(a.distribution, '{{}}'::jsonb) as distribution
+                   coalesce(a.distribution, '{{}}'::jsonb) as distribution,
+                   (select max(r.submitted_at) from responses r
+                     where r.survey_id = s.id) as last_answer_at
             from surveys s left join survey_aggregates a on a.survey_id = s.id
             {clause}
             order by s.updated_at desc, s.id""",

@@ -10,6 +10,7 @@ so CI can never pass by silently skipping them.
 """
 
 import os
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
@@ -303,6 +304,28 @@ def test_list_shows_answer_counts_from_totals(client):
     assert found[0]["answers"] == 7
     # 5 promoters, 1 passive, 1 detractor of 7: NPS +57.
     assert found[0]["headline"] == {"score": "NPS +57", "note": "scale −100 to +100"}
+
+
+@pytest.mark.db
+@needs_db
+def test_list_shows_the_last_answer_time(client):
+    from liana_survey_shared.db import tenant_connection
+
+    answered = make_survey(client, unique("Last answer"), status="live")
+    silent = make_survey(client, unique("No answer"), status="live")
+    with tenant_connection(DEMO_TENANT) as conn:
+        for token, at in (("a", "2026-11-01T09:00:00Z"), ("b", "2026-11-05T17:30:00Z")):
+            conn.execute(
+                """insert into responses (tenant_id, survey_id, submitted_at, link_token_hash)
+                   values (%s, %s, %s, %s)""",
+                (DEMO_TENANT, answered["id"], at, token),
+            )
+    found = client.get("/api/v1/surveys", params={"q": answered["title"]}).json()
+    assert datetime.fromisoformat(found[0]["last_answer_at"]) == datetime(
+        2026, 11, 5, 17, 30, tzinfo=UTC
+    )
+    found = client.get("/api/v1/surveys", params={"q": silent["title"]}).json()
+    assert found[0]["last_answer_at"] is None
 
 
 @pytest.mark.db
