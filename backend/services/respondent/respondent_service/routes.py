@@ -19,6 +19,7 @@ from fastapi.responses import HTMLResponse
 from liana_survey_shared import links
 from liana_survey_shared.config import get_settings
 from liana_survey_shared.messages import AnswerSubmitted, AnswerValue
+from liana_survey_shared.texts import text
 
 from . import domain, pages, repo
 from .answer_queue import AnswerQueue
@@ -32,10 +33,9 @@ PRIVATE = {
     "Referrer-Policy": "no-referrer",
     "X-Robots-Tag": "noindex",
 }
+# Shown before the survey, and so its language, is known.
 NOT_VALID = "This survey link is not valid."
-NOT_COMPLETE = "This link is not complete or not valid. Open it again from your email."
 FROM_EMAIL = "For now, this survey is answered from the email it came in: tap an answer there."
-TRY_AGAIN = "We couldn’t save your answer right now. Please open the link again in a moment."
 
 
 def get_answer_queue(request: Request) -> AnswerQueue:
@@ -71,6 +71,7 @@ async def answer(
     survey = await run_in_threadpool(repo.survey_for_token, tenant_id, link_token)
     if survey is None:
         return _page(pages.problem(NOT_VALID), 404)
+    language = survey["language"]
     try:
         links.check_link(
             settings.link_signing_secret,
@@ -80,7 +81,7 @@ async def answer(
             unsigned_allowed=survey["newsletter_links"],
         )
     except links.LinkError:
-        return _page(pages.problem(NOT_COMPLETE), 400)
+        return _page(pages.problem(text("link_not_complete", language), language), 400)
     # Not the reader reference itself: anonymous answers keep no link to the reader.
     response_key = links.response_key(settings.link_signing_secret, link_token, r or "")
     full = domain.limit_reached(
@@ -92,7 +93,7 @@ async def answer(
         )
         value = domain.one_tap_answer(survey["main_kind"], a)
     except domain.AnswerProblem as problem:
-        return _page(pages.problem(str(problem)), problem.status_code)
+        return _page(pages.problem(problem.message(language), language), problem.status_code)
 
     message = AnswerSubmitted(
         tenant_id=tenant_id,
@@ -104,8 +105,10 @@ async def answer(
         await queue.publish(message)
     except Exception:
         log.exception("could not queue answer for survey %s", survey["id"])
-        return _page(pages.problem(TRY_AGAIN), 503)
+        return _page(pages.problem(text("try_again", language), language), 503)
 
     return _page(
-        pages.thank_you(survey["thank_you"], survey["accent_color"], survey["background_color"])
+        pages.thank_you(
+            survey["thank_you"], survey["accent_color"], survey["background_color"], language
+        )
     )

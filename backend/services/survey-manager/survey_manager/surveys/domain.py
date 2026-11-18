@@ -6,6 +6,8 @@ import secrets
 import unicodedata
 from datetime import datetime
 
+from liana_survey_shared.texts import text
+
 from .schemas import TITLE_MAX, SurveyStatus, Title
 
 # Which statuses each list action may start from, and where it leads.
@@ -77,12 +79,12 @@ def copy_title(title: Title) -> str:
 # --- Newsletter snippet (#40) -------------------------------------------------------
 
 #: One-tap answers per survey type: (value in the link, button text), as in the prototype.
+#: Thumbs buttons carry words, so their labels are text keys in liana_survey_shared.texts.
 SNIPPET_ANSWERS: dict[str, list[tuple[int, str]]] = {
-    "thumbs": [(0, "Not for me"), (1, "Good"), (2, "Loved it")],
+    "thumbs": [(0, "thumbs_down"), (1, "thumbs_ok"), (2, "thumbs_up")],
     "nps": [(n, str(n)) for n in range(11)],
     "csat": [(n, str(n)) for n in range(1, 6)],
 }
-SNIPPET_FOOTER = "One tap. Anonymous unless you ask to be contacted."
 
 
 def campaign_tag(title: str) -> str:
@@ -110,12 +112,26 @@ def check_snippet(survey_type: str, status: SurveyStatus, question: str | None) 
         raise NoSnippet("Write the survey's main question first.")
 
 
-def snippet_html(survey_type: str, status: SurveyStatus, question: str | None, link: str) -> str:
+def snippet_labels(survey_type: str, language: str | None) -> list[tuple[int, str]]:
+    """The snippet's answers as (value in the link, button text) in the survey's language."""
+    return [
+        (value, text(label, language) if survey_type == "thumbs" else label)
+        for value, label in SNIPPET_ANSWERS[survey_type]
+    ]
+
+
+def snippet_html(
+    survey_type: str,
+    status: SurveyStatus,
+    question: str | None,
+    link: str,
+    language: str | None = None,
+) -> str:
     """The HTML block for a LianaMailer newsletter: the main question and one link
-    per answer. Plain tables and inline styles, as email clients need; `link` is
-    the snippet link without the answer."""
+    per answer, with fixed texts in the survey's language. Plain tables and inline
+    styles, as email clients need; `link` is the snippet link without the answer."""
     check_snippet(survey_type, status, question)
-    answers = SNIPPET_ANSWERS[survey_type]
+    answers = snippet_labels(survey_type, language)
     padding = {"nps": "10px 13px", "thumbs": "14px 20px"}.get(survey_type, "12px 18px")
     cells = [
         f'<td align="center" style="padding:4px"><a href="{html.escape(f"{link}&a={value}")}" '
@@ -134,7 +150,7 @@ def snippet_html(survey_type: str, status: SurveyStatus, question: str | None, l
             *cells,
             "</tr></table></td></tr>",
             '<tr><td align="center" style="padding:8px;font:12px Arial,sans-serif;'
-            f'color:#5F6267">{SNIPPET_FOOTER}</td></tr>',
+            f'color:#5F6267">{html.escape(text("snippet_footer", language))}</td></tr>',
             "</table>",
         ]
     )

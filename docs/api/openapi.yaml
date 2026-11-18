@@ -428,7 +428,8 @@ paths:
         survey's thank-you message. Answers stay anonymous: only a key derived from the reader is
         stored, so each reader counts once. A reader's later tap replaces their earlier answer
         (#126), so a mail scanner opening every link before the reader does not decide the answer. Pages are sent with
-        Cache-Control no-store and Referrer-Policy no-referrer.
+        Cache-Control no-store and Referrer-Policy no-referrer. Once the survey is found, its fixed texts
+        (headings, default and error messages) are in the survey's language.
       parameters:
         - { name: link_token, in: path, required: true, schema: { type: string } }
         - { name: r, in: query, required: true, description: Reader reference, schema: { type: string } }
@@ -484,6 +485,7 @@ components:
         description: { type: string, maxLength: 1000, description: Trimmed; an empty string clears the description }
         thank_you: { type: string, maxLength: 500, description: Trimmed; an empty string clears the message }
         type: { $ref: '#/components/schemas/SurveyType' }
+        language: { type: string, enum: [en, fi, sv], description: 'Language of the fixed texts readers see: thank-you and closed pages, thumbs button labels in the snippet' }
         comment_field: { type: boolean, description: 'Reader option: optional "Tell us more" field after any answer' }
         show_results: { type: boolean, description: 'Reader option: show results to readers (after about 10 answers)' }
         contact_opt_in: { type: boolean, description: 'Reader option: "Contact me about this by email" opt-in' }
@@ -525,7 +527,7 @@ components:
           type: [string, 'null']
           description: Where to load the logo from (changes with every upload), or null when there is none
           example: /api/v1/surveys/9f1c.../logo?v=1794870174
-        language: { type: string, enum: [en, fi, sv] }
+        language: { type: string, enum: [en, fi, sv], description: 'Language of the fixed texts readers see (English, suomi, svenska); default en' }
         opens_at: { type: [string, 'null'], format: date-time }
         closes_at: { type: [string, 'null'], format: date-time }
         response_limit: { type: [integer, 'null'], minimum: 1 }

@@ -20,7 +20,7 @@ from respondent_service.domain import (
     one_tap_answer,
 )
 from respondent_service.main import app
-from respondent_service.pages import page, thank_you
+from respondent_service.pages import page, problem, thank_you
 from respondent_service.routes import get_answer_queue
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
@@ -99,6 +99,22 @@ def test_pages_escape_survey_texts_and_ignore_odd_colours():
     assert "<title>Hi &amp; bye</title>" in page("Hi & bye", "x")
 
 
+def test_pages_use_the_survey_language():
+    finnish = thank_you(None, None, None, "fi")
+    assert '<html lang="fi">' in finnish
+    assert "Kiitos!" in finnish and "Vastauksesi on tallennettu." in finnish
+    # The creator's own message is shown as written.
+    assert "Tack för svaret!" in thank_you("Tack för svaret!", None, None, "sv")
+    with pytest.raises(AnswerProblem) as closed:
+        check_open("closed")
+    swedish = problem(closed.value.message("sv"), "sv")
+    assert '<html lang="sv">' in swedish
+    assert "Vi kunde inte ta emot ditt svar" in swedish
+    assert "Den här enkäten är stängd" in swedish
+    # Unknown languages fall back to English.
+    assert '<html lang="en">' in thank_you(None, None, None, "de")
+
+
 # --- The link, with a database ----------------------------------------------------
 
 
@@ -140,14 +156,15 @@ def make_survey():
         newsletter_links=False,
         closes_at=None,
         response_limit=None,
+        language="en",
     ):
         token = secrets.token_urlsafe(16)
         with tenant_connection(DEMO_TENANT) as conn:
             survey_id = conn.execute(
                 """insert into surveys
                      (tenant_id, title, type, status, thank_you, link_token, newsletter_links,
-                      closes_at, response_limit)
-                   values (%s, 'Answer test', %s, %s, %s, %s, %s, %s, %s) returning id""",
+                      closes_at, response_limit, language)
+                   values (%s, 'Answer test', %s, %s, %s, %s, %s, %s, %s, %s) returning id""",
                 (
                     DEMO_TENANT,
                     survey_type,
@@ -157,6 +174,7 @@ def make_survey():
                     newsletter_links,
                     closes_at,
                     response_limit,
+                    language,
                 ),
             ).fetchone()[0]
             main_id = conn.execute(
@@ -412,3 +430,18 @@ def test_a_full_survey_takes_no_new_readers_but_lets_readers_change_their_answer
 
     assert client.get(link(token, reader="anna", answer=7)).status_code == 200
     assert len(queue.messages) == 1
+
+
+@pytest.mark.db
+@needs_db
+def test_readers_get_pages_in_the_survey_language(client, queue, make_survey):
+    _, _, token = make_survey(thank_you_text=None, language="fi")
+    r = client.get(link(token, answer=9))
+    assert r.status_code == 200
+    assert '<html lang="fi">' in r.text
+    assert "Kiitos!" in r.text and "Vastauksesi on tallennettu." in r.text
+
+    _, _, closed = make_survey(status="closed", language="sv")
+    r = client.get(link(closed, answer=9))
+    assert r.status_code == 410
+    assert "Den här enkäten är stängd" in r.text

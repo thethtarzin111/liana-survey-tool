@@ -178,7 +178,9 @@ def make_snippet(
         link = links.snippet_link(
             settings.public_base_url, row["link_token"], settings.mailer_reader_tag, tag, segment
         )
-        html = domain.snippet_html(row["type"], SurveyStatus(row["status"]), question, link)
+        html = domain.snippet_html(
+            row["type"], SurveyStatus(row["status"]), question, link, row["language"]
+        )
         repo.allow_newsletter_links(conn, survey_id)
     return {"campaign": tag, "segment": segment, "html": html}
 
