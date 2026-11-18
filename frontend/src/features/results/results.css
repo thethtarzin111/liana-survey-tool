@@ -38,3 +38,59 @@
 .results-kpi-note { font-size: var(--text-hint); color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; }
 .results-kpi-note.up { color: var(--color-chart-positive); }
 .results-kpi-note.down { color: var(--color-chart-negative); }
+
+/* Charts */
+.results-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.chart { margin: 0; display: flex; flex-direction: column; gap: 12px; }
+.chart-label { font-weight: 600; font-size: var(--text-hint); color: var(--color-text-muted); }
+.chart-note { font-size: var(--text-hint); color: var(--color-text-muted); }
+.chart-legend { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 160px; }
+.chart-legend li { display: flex; align-items: center; gap: 8px; font-size: var(--text-body); }
+.chart-legend-label { flex: 1; }
+.chart-legend-count { min-width: 24px; text-align: right; color: var(--color-text-muted); font-size: var(--text-hint); }
+.chart-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+
+/* Colours: negative striped, neutral mint, positive green, series cycle through the same family */
+.tone-negative {
+  background: repeating-linear-gradient(45deg, var(--color-chart-negative), var(--color-chart-negative) 4px,
+    var(--color-chart-negative-stripe) 4px, var(--color-chart-negative-stripe) 8px);
+}
+.tone-neutral { background: var(--color-mint-border); }
+.tone-positive { background: var(--color-chart-positive); }
+.tone-series-0 { background: var(--color-chart-positive); }
+.tone-series-1 { background: var(--color-brand); }
+.tone-series-2 { background: var(--color-mint-border); }
+.tone-series-3 { background: var(--color-text-muted); }
+.tone-series-4 { background: var(--color-mint); }
+.donut-slice.tone-neutral { stroke: var(--color-mint-border); background: none; }
+.donut-slice.tone-positive, .donut-slice.tone-series-0 { stroke: var(--color-chart-positive); background: none; }
+.donut-slice.tone-series-1 { stroke: var(--color-brand); background: none; }
+.donut-slice.tone-series-2 { stroke: var(--color-mint-border); background: none; }
+.donut-slice.tone-series-3 { stroke: var(--color-text-muted); background: none; }
+.donut-slice.tone-series-4 { stroke: var(--color-mint); background: none; }
+.donut-slice.tone-negative { background: none; }
+.stripe-base { fill: var(--color-chart-negative); }
+.stripe-line { fill: var(--color-chart-negative-stripe); }
+
+.donut-body { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 24px; }
+.donut-ring { position: relative; width: 160px; height: 160px; flex: none; }
+.donut-ring svg { width: 100%; height: 100%; }
+.donut-track { stroke: var(--color-surface-muted); }
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.donut-center strong { font: 600 var(--text-dashboard-stat) var(--font-heading); }
+.donut-center span { font-size: var(--text-hint); color: var(--color-text-muted); }
+
+.columns-plot { display: flex; align-items: stretch; gap: 6px; height: 160px; }
+.columns-item { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.columns-track { flex: 1; display: flex; align-items: flex-end; }
+.columns-bar { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; }
+.columns-label { text-align: center; font-size: var(--text-hint); color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.barlist-rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.barlist-row { display: grid; grid-template-columns: minmax(80px, 1fr) 2fr 40px 32px; align-items: center; gap: 10px; font-size: var(--text-body); }
+.barlist-track { height: 10px; border-radius: var(--radius-sm); background: var(--color-surface-muted); overflow: hidden; }
+.barlist-bar { display: block; height: 100%; background: var(--color-chart-positive); }
+.barlist-percent { text-align: right; }
+.barlist-count { text-align: right; color: var(--color-text-muted); font-size: var(--text-hint); }
+
+.question-text { display: flex; align-items: center; gap: 12px; }

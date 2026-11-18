@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type SurveyListItem, type SurveyOverview } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, EmptyState, Select, Tabs, icons } from '../../components/ui';
-import { KpiCards } from './KpiCards';
+import { OverviewTab } from './OverviewTab';
 import { StatusLine } from './StatusLine';
 import { SurveyPicker } from './SurveyPicker';
 import { TYPE_LABEL } from './format';
@@ -16,28 +16,6 @@ function defaultSurvey(surveys: SurveyListItem[]): SurveyListItem | undefined {
     if (s.last_answer_at && (!latest || s.last_answer_at > (latest.last_answer_at ?? ''))) latest = s;
   }
   return latest ?? surveys[0];
-}
-
-/** Slot for the visual of each question kind. */
-function OverviewTab({ overview }: { overview: SurveyOverview }) {
-  if (overview.responses === 0) {
-    return (
-      <EmptyState
-        icon={icons.chart}
-        title="No answers yet"
-        text={
-          overview.segment === 'all'
-            ? 'Results show up here as soon as people answer this survey.'
-            : 'Nobody in this segment has answered yet.'
-        }
-      />
-    );
-  }
-  return (
-    <div className="results-overview">
-      <KpiCards overview={overview} />
-    </div>
-  );
 }
 
 /** Slot for the responses table. */
@@ -193,7 +171,7 @@ export function ResultsPage() {
           {tab === 'responses' ? (
             <ResponsesTab surveyId={chosen.id} segment={segment} />
           ) : (
-            <OverviewTab overview={overview} />
+            <OverviewTab overview={overview} onReadAll={() => set({ tab: 'responses' })} />
           )}
         </Tabs>
       </>
