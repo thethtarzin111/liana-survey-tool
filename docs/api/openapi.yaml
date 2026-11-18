@@ -420,13 +420,25 @@ paths:
     get:
       tags: [results]
       summary: Survey views, responses and response rate by distribution channel
-      description: Response rate is responses divided by views; it is null before the first view.
+      description: >-
+        Response rate is responses divided by views; it is null before the first view. A reader
+        counts as one view however often they tap. Each row's main result counts only that
+        channel's answers. Surveys with the latest view or answer come first.
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: "Surveys to include, all when left out. Counts surveys, not rows: a survey's channels stay together."
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - { name: offset, in: query, required: false, description: Surveys to skip, schema: { type: integer, minimum: 0, default: 0 } }
       responses:
         '200':
           description: Used email, public-link and QR channels, updated as views and answers arrive
           content:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/PerformanceRow' } }
+        '422':
+          description: limit or offset out of range
   /r/{link_token}:
     get:
       tags: [respondent]
@@ -447,6 +459,7 @@ paths:
         - { name: s, in: query, required: false, description: Signature of the token and reader; none on newsletter snippet links, schema: { type: string } }
         - { name: c, in: query, required: false, description: Campaign tag (newsletter snippet links), schema: { type: string } }
         - { name: seg, in: query, required: false, description: Segment tag (newsletter snippet links), schema: { type: string } }
+        - { name: ch, in: query, required: false, description: 'Distribution channel for survey performance (email, link or qr). Without it, an answer link counts as email and a plain visit as link.', schema: { type: string, enum: [email, link, qr] } }
         - { name: a, in: query, required: true, description: The tapped answer, schema: { type: integer } }
         - { name: ch, in: query, required: false, description: Distribution channel; inferred as email for answer links and link for plain links, schema: { type: string, enum: [email, link, qr] } }
       responses:

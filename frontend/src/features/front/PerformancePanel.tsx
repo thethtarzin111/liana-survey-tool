@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api, type PerformanceRow } from '../../api/client';
-import { Button, Card, CardHeader, EmptyState, Table, icons, type Column } from '../../components/ui';
+import { Button, ButtonLink, Card, CardHeader, EmptyState, Table, icons, type Column } from '../../components/ui';
 
 const CHANNEL = { email: 'Email', link: 'Link', qr: 'QR code' } as const;
 const REFRESH_MS = 30_000;
+/** Surveys on the front page; the Results page has the full report. */
+const FRONT_PAGE_SURVEYS = 5;
 
 const columns: Column<PerformanceRow>[] = [
   { key: 'survey', header: 'Survey', render: (row) => <strong>{row.survey}</strong> },
@@ -19,7 +21,8 @@ const columns: Column<PerformanceRow>[] = [
   { key: 'main_result', header: 'Main result', render: (row) => row.main_result ?? '—' },
 ];
 
-/** The front page's "Survey performance" report. Refreshes while the page is open. */
+/** The front page's "Survey performance" report: the surveys with the latest activity.
+ * Refreshes while the page is open. */
 export function PerformancePanel() {
   const [rows, setRows] = useState<PerformanceRow[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -27,7 +30,7 @@ export function PerformancePanel() {
   useEffect(() => {
     let active = true;
     const load = () => {
-      api.performance().then(
+      api.performance({ limit: FRONT_PAGE_SURVEYS }).then(
         (data) => { if (active) { setRows(data); setFailed(false); } },
         () => { if (active) setFailed(true); },
       );
@@ -71,7 +74,12 @@ export function PerformancePanel() {
       <CardHeader
         id="performance-title"
         title="Survey performance"
-        actions={<span className="field-hint">Responses and the main result for each survey, by channel</span>}
+        actions={
+          <>
+            <span className="field-hint">Responses and the main result for each survey, by channel</span>
+            <ButtonLink size="sm" to="/results">View all →</ButtonLink>
+          </>
+        }
       />
       {content}
     </Card>

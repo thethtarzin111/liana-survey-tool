@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import type { PerformanceRow } from '../../api/client';
 import { PerformancePanel } from './PerformancePanel';
 
@@ -13,12 +14,20 @@ const emailRow: PerformanceRow = {
 };
 
 function stubRows(...answers: Array<PerformanceRow[] | 'fail'>) {
-  const fetchMock = vi.fn(async () => {
+  const fetchMock = vi.fn<typeof fetch>(async () => {
     const next = answers.length > 1 ? answers.shift()! : answers[0];
     return next === 'fail' ? new Response('down', { status: 500 }) : Response.json(next);
   });
   vi.stubGlobal('fetch', fetchMock);
   return fetchMock;
+}
+
+function renderPanel() {
+  return render(
+    <MemoryRouter>
+      <PerformancePanel />
+    </MemoryRouter>,
+  );
 }
 
 afterEach(() => {
@@ -28,7 +37,7 @@ afterEach(() => {
 
 test('lists each survey and channel with its rate and main result', async () => {
   stubRows([emailRow, { ...emailRow, channel: 'qr', views: 0, responses: 0, response_rate: null, main_result: null }]);
-  render(<PerformancePanel />);
+  renderPanel();
   const card = screen.getByRole('region', { name: 'Survey performance' });
   expect(within(card).getByText('Responses and the main result for each survey, by channel')).toBeInTheDocument();
 
@@ -44,13 +53,13 @@ test('lists each survey and channel with its rate and main result', async () => 
 
 test('says there is nothing to report before any survey is viewed', async () => {
   stubRows([]);
-  render(<PerformancePanel />);
+  renderPanel();
   expect(await screen.findByText('Nothing to report yet')).toBeInTheDocument();
 });
 
 test('a failed load can be tried again', async () => {
   stubRows('fail', [emailRow]);
-  render(<PerformancePanel />);
+  renderPanel();
   expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t load survey performance.');
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
   expect(await screen.findByRole('table', { name: 'Survey performance' })).toBeInTheDocument();
@@ -60,11 +69,19 @@ test('a failed load can be tried again', async () => {
 test('refreshes while the page is open, so new answers show up', async () => {
   vi.useFakeTimers();
   const fetchMock = stubRows([], [emailRow]);
-  render(<PerformancePanel />);
+  renderPanel();
   await act(async () => { await vi.advanceTimersByTimeAsync(0); });
   expect(screen.getByText('Nothing to report yet')).toBeInTheDocument();
 
   await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
   expect(fetchMock).toHaveBeenCalledTimes(2);
   expect(screen.getByRole('table', { name: 'Survey performance' })).toBeInTheDocument();
+});
+
+test('asks for the 5 surveys with the latest activity and links to the full report', async () => {
+  const fetchMock = stubRows([emailRow]);
+  renderPanel();
+  await screen.findByRole('table', { name: 'Survey performance' });
+  expect(String(fetchMock.mock.calls[0][0])).toBe('/api/v1/results/performance?limit=5');
+  expect(screen.getByRole('link', { name: 'View all →' })).toHaveAttribute('href', '/results');
 });

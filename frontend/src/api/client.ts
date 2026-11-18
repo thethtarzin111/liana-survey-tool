@@ -119,7 +119,14 @@ export const api = {
   /** Creates a draft survey from a template and returns it. */
   useTemplate: (templateId: string) =>
     send<Survey>('POST', `/api/v1/templates/${encodeURIComponent(templateId)}/surveys`),
-  performance: () => getJson<PerformanceRow[]>('/api/v1/results/performance'),
+  /** Survey performance by channel, latest activity first. `limit` and `offset` count surveys, not rows. */
+  performance: (page: { limit?: number; offset?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (page.limit !== undefined) params.set('limit', String(page.limit));
+    if (page.offset) params.set('offset', String(page.offset));
+    const query = params.toString();
+    return getJson<PerformanceRow[]>(`/api/v1/results/performance${query ? `?${query}` : ''}`);
+  },
 };
 
 function questionsPath(surveyId: string, questionId?: string) {

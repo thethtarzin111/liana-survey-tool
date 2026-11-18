@@ -1,4 +1,4 @@
-from data_analyzer.performance import response_rate
+from data_analyzer.domain import response_rate
 
 
 def test_response_rate_is_responses_divided_by_views():
