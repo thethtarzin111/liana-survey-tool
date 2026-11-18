@@ -4,12 +4,8 @@ import { api, type SurveyListItem, type SurveyResult } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, Card, EmptyState, LiveIndicator, icons } from '../../components/ui';
 import './results.css';
+import { ResultSummary } from './ResultSummary';
 
-const LABELS: Record<string, Record<number, string>> = {
-  thumbs: { 0: 'Not for me', 1: 'Good', 2: 'Loved it' },
-  nps: { 0: '0', 1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8', 9: '9', 10: '10' },
-  csat: { 1: 'Very dissatisfied', 2: 'Dissatisfied', 3: 'Neutral', 4: 'Satisfied', 5: 'Very satisfied' },
-};
 
 function takeaway(result: SurveyResult) {
   if (!result.headline) return 'Answers will be summarised here as soon as they arrive.';
@@ -69,11 +65,7 @@ export function ResultsPage() {
           <div className="progress" aria-hidden="true"><div className="progress-fill" style={{ width: `${question.answers ? option.count / question.answers * 100 : 0}%` }} /></div>
         </div>)}
       </Card>)}
-      <div className="result-metrics">
-        <Card padded><span>Headline score</span><strong>{result.headline?.score}</strong><small>{result.headline?.note}</small></Card>
-        <Card padded><span>Answers</span><strong>{result.answers}</strong><small>{segment === 'all' ? 'All segments' : `Segment: ${segment}`}</small></Card>
-      </div>
-      <Card padded className="answer-split"><h2>Answer split</h2><div className="split-bar" role="img" aria-label={result.split.map((item) => `${LABELS[result.type]?.[item.value] ?? item.value}: ${item.percent ?? 0}%`).join(', ')}>{result.split.filter((item) => item.count > 0).map((item) => <span key={item.value} style={{ width: `${item.percent}%` }}>{item.percent}%</span>)}</div><ul>{result.split.map((item) => <li key={item.value}><i aria-hidden="true" /><strong>{LABELS[result.type]?.[item.value] ?? item.value}</strong><span>{item.percent ?? 0}% · {item.count} answers</span></li>)}</ul></Card>
+      <ResultSummary result={result} />
     </section>
   </>;
 
