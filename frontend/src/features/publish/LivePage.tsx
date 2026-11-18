@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError, type Survey } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
-import { ButtonLink, Card, CardHeader, TextField } from '../../components/ui';
+import { ButtonLink, Card, CardHeader } from '../../components/ui';
 import { ANSWERS, type OneTapType } from './answers';
+import { ShareLinkCard } from './ShareLinkCard';
 import './publish.css';
 
 /** "<name> is live": share the survey once it is published (#117; prototype "Survey is live"). */
@@ -51,13 +52,7 @@ export function LivePage() {
         actions={<ButtonLink to="/surveys" variant="secondary">Back to surveys</ButtonLink>}
       />
       <div className="live-layout">
-        <Card padded className="live-card">
-          <CardHeader title="Share outside email" />
-          <p className="live-hint">
-            Use the public link in social media posts, on your website or in automation steps. No login needed.
-          </p>
-          <TextField label="Public link" value={survey.public_url} readOnly />
-        </Card>
+        <ShareLinkCard title={survey.title} url={survey.public_url} />
         {import.meta.env.DEV ? <TryAsReader survey={survey} /> : null}
       </div>
     </>

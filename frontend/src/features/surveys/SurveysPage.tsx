@@ -19,6 +19,7 @@ import {
   type MenuAction,
 } from '../../components/ui';
 import { PublishDialog } from '../publish/PublishDialog';
+import { slug } from '../../utils/slug';
 import './surveys.css';
 
 // Texts and labels follow the prototype's Surveys screen.
@@ -40,10 +41,6 @@ const UNPUBLISH_ICON = 'M4 12h10M10 6l-6 6 6 6M20 4v16';
 const CLOSE_ICON = 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4';
 const PUBLISH_ICON = 'M12 19V5M5 12l7-7 7 7';
 
-/** "member-nps-2026": the tag a live survey's answers get in Liana. */
-export function slug(text: string): string {
-  return text.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'campaign';
-}
 
 /** "Mon 01/12/2026" */
 function openDate(iso: string): string {

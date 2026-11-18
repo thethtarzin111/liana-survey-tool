@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Survey } from '../../api/client';
 import { DEFAULT_ACCENT, DEFAULT_BACKGROUND } from '../builder/branding';
@@ -42,6 +42,7 @@ test('shows the survey is live with its public link', async () => {
   renderPage();
   expect(await screen.findByRole('heading', { name: 'Member NPS is live' })).toBeInTheDocument();
   expect(screen.getByLabelText('Public link')).toHaveValue(PUBLIC);
+  expect(screen.getByLabelText('Public link')).toHaveAttribute('readonly');
   expect(screen.getByRole('link', { name: 'Back to surveys' })).toHaveAttribute('href', '/surveys');
 });
 
@@ -76,4 +77,32 @@ test('a survey that is not live says so and links to the editor', async () => {
   renderPage();
   expect(await screen.findByText('“Member NPS” is not live, so it has no working link yet.')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Edit the survey' })).toHaveAttribute('href', '/surveys/nps-1');
+});
+
+test('the link is copied with one click and the page says so (#6)', async () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+  renderPage();
+  fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }));
+  expect(await screen.findByText('Link copied')).toBeInTheDocument();
+  expect(writeText).toHaveBeenCalledWith(PUBLIC);
+  expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument();
+});
+
+test('when copying is not allowed, the page asks to copy by hand', async () => {
+  vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } });
+  renderPage();
+  fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }));
+  expect(await screen.findByText('We couldn’t copy the link. Select it and copy it yourself.')).toBeInTheDocument();
+});
+
+test('the QR code of the public link is shown and can be downloaded (#6)', async () => {
+  renderPage();
+  const image = await screen.findByRole('img', { name: 'QR code for the public link' });
+  const data = image.getAttribute('src')!;
+  expect(data).toMatch(/^data:image\/png;base64,/);
+  const download = screen.getByRole('link', { name: 'Download QR code' });
+  expect(download).toHaveAttribute('href', data);
+  expect(download).toHaveAttribute('download', 'member-nps-qr.png');
+  await act(async () => {});
 });
