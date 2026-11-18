@@ -43,6 +43,38 @@ begin
     null; -- expected
   end;
 
+  -- 3d. "New responses" email state is isolated; the sweep's function sees ids only.
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
+  insert into surveys (id, tenant_id, title, type, created_by, notify_on_response)
+  values ('00000000-0000-4000-8000-0000000002f1', '00000000-0000-4000-8000-000000000001',
+          'RLS digest check', 'nps', '00000000-0000-4000-8000-000000000101', true);
+  insert into survey_aggregates (survey_id, tenant_id, response_count)
+  values ('00000000-0000-4000-8000-0000000002f1', '00000000-0000-4000-8000-000000000001', 2);
+  insert into response_notifications (survey_id, tenant_id, notified_count)
+  values ('00000000-0000-4000-8000-0000000002f1', '00000000-0000-4000-8000-000000000001', 1);
+
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
+  select count(*) into n from response_notifications;
+  if n <> 0 then raise exception 'RLS: other tenant sees % response notifications', n; end if;
+  begin
+    update response_notifications set notified_count = 0;
+    get diagnostics n = row_count;
+    if n <> 0 then raise exception 'RLS: other tenant updated % response notifications', n; end if;
+    insert into response_notifications (survey_id, tenant_id, notified_count)
+    values ('00000000-0000-4000-8000-000000000201', '00000000-0000-4000-8000-000000000001', 0);
+    raise exception 'RLS: cross-tenant response notification was allowed';
+  exception when insufficient_privilege then
+    null; -- expected
+  end;
+  select count(*) into n from due_response_digests(3600)
+  where survey_id = '00000000-0000-4000-8000-0000000002f1'
+    and tenant_id = '00000000-0000-4000-8000-000000000001';
+  if n <> 1 then raise exception 'due_response_digests() did not find a due survey'; end if;
+
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
+  delete from surveys where id = '00000000-0000-4000-8000-0000000002f1';
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
+
   -- 4. Writing a row for a different tenant is refused.
   begin
     insert into surveys (tenant_id, title, type)

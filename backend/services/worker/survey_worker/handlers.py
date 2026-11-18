@@ -4,6 +4,7 @@ can be tested on its own."""
 import logging
 from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager
+from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
@@ -12,7 +13,9 @@ from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from liana_survey_shared.db import tenant_connection
-from liana_survey_shared.messages import AnswerSubmitted
+from liana_survey_shared.messages import AnswerSubmitted, NewResponsesDigest
+
+from .digests import claim_digest
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +40,14 @@ def parse(body: bytes) -> AnswerSubmitted:
         ) from error
 
 
+@dataclass(frozen=True)
+class Recorded:
+    #: False when nothing changed (see handle_answer).
+    changed: bool
+    #: The "new responses" email to publish now, if one is due.
+    digest: NewResponsesDigest | None = None
+
+
 def handle_answer(body: bytes, connect: Connect = tenant_connection) -> bool:
     """Save one answer and update the survey's totals, in one transaction.
 
@@ -51,14 +62,23 @@ def handle_answer(body: bytes, connect: Connect = tenant_connection) -> bool:
     Returns False when nothing changed: the same message delivered twice, an
     older answer arriving after a newer one, or a closed or full survey. Raises
     BadMessage for messages that can never be saved."""
+    return record_answer(body, connect).changed
+
+
+def record_answer(body: bytes, connect: Connect = tenant_connection) -> Recorded:
+    """handle_answer(), plus the owner's "new responses" email when a new reader's
+    answer makes one due. It is claimed in the same transaction as the answer."""
     msg = parse(body)
+    digest = None
     try:
         with connect(msg.tenant_id) as conn:
             outcome = _save(conn, msg)
+            if outcome == "saved":
+                digest = claim_digest(conn, msg.survey_id, after_new_response=True)
     except (psycopg.errors.ForeignKeyViolation, psycopg.errors.DataError) as error:
         raise BadMessage(f"answer does not fit the survey: {error.diag.message_primary}") from error
     log.info("answer %s survey=%s message=%s", outcome, msg.survey_id, msg.message_id)
-    return outcome in ("saved", "replaced")
+    return Recorded(outcome in ("saved", "replaced"), digest)
 
 
 def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
