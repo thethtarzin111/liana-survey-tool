@@ -2,7 +2,9 @@ from liana_survey_shared.config import Settings
 
 from .adapters.lianaautomation.adapter import LianaAutomationContactEvents
 from .adapters.mock.adapter import MockContactEvents
+from .adapters.mock.mail import MockNotificationMail
 from .ports.contact_events import ContactEvents
+from .ports.notification_mail import NotificationMail
 
 
 def build_contact_events(settings: Settings) -> ContactEvents:
@@ -16,3 +18,10 @@ def build_contact_events(settings: Settings) -> ContactEvents:
             settings.lianaautomation_client_secret,
         )
     raise ValueError(f"Unknown LIANA_ADAPTER: {settings.liana_adapter}")
+
+
+def build_notification_mail(settings: Settings) -> NotificationMail:
+    """Pick the adapter from NOTIFICATION_MAIL_ADAPTER. Only the mock exists yet."""
+    if settings.notification_mail_adapter == "mock":
+        return MockNotificationMail()
+    raise ValueError(f"Unknown NOTIFICATION_MAIL_ADAPTER: {settings.notification_mail_adapter}")

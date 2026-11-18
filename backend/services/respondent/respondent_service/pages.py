@@ -7,21 +7,28 @@ Survey texts and colours are escaped; colours are only used when they are
 import html
 import re
 
+from liana_survey_shared.texts import language_or_default, text
+
 _HEX = re.compile(r"#[0-9A-Fa-f]{6}")
 DEFAULT_ACCENT = "#0F6A5E"
 DEFAULT_BACKGROUND = "#FFFFFF"
-DEFAULT_THANKS = "Your answer was saved."
 
 
 def _colour(value: str | None, default: str) -> str:
     return value if value and _HEX.fullmatch(value) else default
 
 
-def page(heading: str, text: str, accent: str | None = None, background: str | None = None) -> str:
+def page(
+    heading: str,
+    body: str,
+    accent: str | None = None,
+    background: str | None = None,
+    language: str | None = None,
+) -> str:
     accent_hex = _colour(accent, DEFAULT_ACCENT)
     background_hex = _colour(background, DEFAULT_BACKGROUND)
     return f"""<!doctype html>
-<html lang="en">
+<html lang="{language_or_default(language)}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -41,16 +48,19 @@ def page(heading: str, text: str, accent: str | None = None, background: str | N
 <body>
 <main>
 <h1>{html.escape(heading)}</h1>
-<p>{html.escape(text)}</p>
+<p>{html.escape(body)}</p>
 </main>
 </body>
 </html>
 """
 
 
-def thank_you(message: str | None, accent: str | None, background: str | None) -> str:
-    return page("Thank you!", (message or "").strip() or DEFAULT_THANKS, accent, background)
+def thank_you(
+    message: str | None, accent: str | None, background: str | None, language: str | None = None
+) -> str:
+    body = (message or "").strip() or text("thanks_default", language)
+    return page(text("thanks_heading", language), body, accent, background, language)
 
 
-def problem(text: str) -> str:
-    return page("We couldn’t take this answer", text)
+def problem(body: str, language: str | None = None) -> str:
+    return page(text("problem_heading", language), body, language=language)
