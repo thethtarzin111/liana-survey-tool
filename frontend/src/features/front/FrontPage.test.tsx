@@ -9,6 +9,16 @@ function renderPage(surveys: unknown[]) {
 }
 afterEach(() => vi.unstubAllGlobals());
 
+test('counts all answered surveys while limiting latest results to three', async () => {
+  renderPage(Array.from({ length: 10 }, (_, index) => ({
+    id: String(index), title: `Survey ${index}`, type: 'nps', status: 'live', answers: 1,
+    headline: { score: `NPS +${index}`, note: 'scale' },
+  })));
+  await screen.findByRole('heading', { name: 'Overall statistics' });
+  expect(screen.getByText('With results').parentElement).toHaveTextContent('10');
+  expect(screen.getAllByRole('link', { name: 'See results' })).toHaveLength(3);
+});
+
 test('shows getting-started steps and empty-state actions to a new user', async () => {
   renderPage([]);
   expect(await screen.findByRole('heading', { name: 'Get started with LianaSurvey' })).toBeInTheDocument();

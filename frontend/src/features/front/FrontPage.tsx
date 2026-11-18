@@ -55,7 +55,8 @@ export function FrontPage() {
   const recent = surveys?.slice(0, 4) ?? [];
   const live = surveys?.filter((survey) => survey.status === 'live').length ?? 0;
   const responses = surveys?.reduce((sum, survey) => sum + survey.answers, 0) ?? 0;
-  const withResults = surveys?.filter((survey) => survey.answers > 0).slice(0, 3) ?? [];
+  const answered = surveys?.filter((survey) => survey.answers > 0) ?? [];
+  const withResults = answered.slice(0, 3);
   const columns: Column<SurveyListItem>[] = [
     { key: 'title', header: 'Survey', render: (survey) => <div><Link className="front-survey-link" to={surveyPath(survey)}>{survey.title}</Link><small>{TYPE_LABEL[survey.type]}</small></div> },
     { key: 'status', header: 'Status', render: (survey) => <SurveyStatusBadge status={survey.status} /> },
@@ -74,7 +75,7 @@ export function FrontPage() {
           <div><span>Live surveys</span><strong>{live}</strong><Link to="/surveys?status=live">View surveys</Link></div>
           <div><span>Responses</span><strong>{responses}</strong><Link to="/responses">View responses</Link></div>
           <div><span>Surveys</span><strong>{surveys.length}</strong><Link to="/surveys">View all surveys</Link></div>
-          <div><span>With results</span><strong>{withResults.length}</strong><Link to="/results">View performance</Link></div>
+          <div><span>With results</span><strong>{answered.length}</strong><Link to="/results">View performance</Link></div>
         </div></Card>
         <h2 className="section-header">Results</h2>
         <div className="front-results-grid">
