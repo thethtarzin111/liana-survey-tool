@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { ResultsPage } from './ResultsPage';
+import { PerformancePanel as ResultsPage } from '../front/PerformancePanel';
 
 afterEach(() => vi.unstubAllGlobals());
 

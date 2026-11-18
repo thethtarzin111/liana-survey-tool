@@ -1,4 +1,5 @@
 import { useCurrentUser } from '../../api/useCurrentUser';
+import { PerformancePanel } from './PerformancePanel';
 import { PageHeader } from '../../components/PageHeader';
 import { ButtonLink, Card, icons } from '../../components/ui';
 
@@ -22,6 +23,7 @@ export function FrontPage() {
           <strong>Survey performance table</strong>.
         </p>
       </Card>
+      <PerformancePanel />
     </>
   );
 }
