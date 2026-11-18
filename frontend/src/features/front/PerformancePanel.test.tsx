@@ -38,9 +38,6 @@ afterEach(() => {
 test('lists each survey and channel with its rate and main result', async () => {
   stubRows([emailRow, { ...emailRow, channel: 'qr', views: 0, responses: 0, response_rate: null, main_result: null }]);
   renderPanel();
-  const card = screen.getByRole('region', { name: 'Survey performance' });
-  expect(within(card).getByText('Responses and the main result for each survey, by channel')).toBeInTheDocument();
-
   const table = await screen.findByRole('table', { name: 'Survey performance' });
   const [email, qr] = within(table).getAllByRole('row').slice(1);
   expect(email).toHaveTextContent('Member NPS');

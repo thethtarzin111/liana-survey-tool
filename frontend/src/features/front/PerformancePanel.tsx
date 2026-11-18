@@ -74,12 +74,7 @@ export function PerformancePanel() {
       <CardHeader
         id="performance-title"
         title="Survey performance"
-        actions={
-          <>
-            <span className="field-hint">Responses and the main result for each survey, by channel</span>
-            <ButtonLink size="sm" to="/results">View all →</ButtonLink>
-          </>
-        }
+        actions={<ButtonLink size="sm" to="/results">View all →</ButtonLink>}
       />
       {content}
     </Card>
