@@ -1,14 +1,14 @@
 /* Liana design tokens, measured from the Liana test account.
    Source: design/prototype/DesignSystem.dc.html and design/tokens.json. */
 :root {
-  --text-brand-logo: 26px;
-  --text-result-score: clamp(40px, 9vw, 64px);
+  --text-dashboard-stat: 22px;
+  --text-dashboard-contact: 30px;
   --color-chart-negative: #7d4a00;
   --color-chart-negative-stripe: #9a5b00;
-  --color-chart-neutral: #ced3d9;
   --color-chart-positive: #2b6450;
   --font-body: 'Inter', Helvetica, Arial, sans-serif;
   --font-heading: 'Poppins', Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --color-text: #353a40;
   --color-text-muted: #696f77;

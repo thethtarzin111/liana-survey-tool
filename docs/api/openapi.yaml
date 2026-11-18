@@ -97,8 +97,10 @@ paths:
         '404': { description: No such survey in this organisation }
     patch:
       tags: [surveys]
-      summary: Change the title, description or type; omitted fields stay the same
-      description: Leave out fields that should not change. Sending a field as null is a 422.
+      summary: Change the survey's fields and settings; omitted fields stay the same
+      description: >-
+        Leave out fields that should not change. Sending a field as null is a 422, except
+        closes_at and response_limit, where null removes the close date or the limit.
       requestBody:
         required: true
         content:
@@ -111,7 +113,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such survey in this organisation }
-        '422': { description: Invalid body }
+        '422': { description: 'Invalid body, or a close date that is not in the future' }
     delete:
       tags: [surveys]
       summary: Delete a survey with its questions, responses and answers
@@ -435,8 +437,10 @@ paths:
         such as $id$ is refused. Only surveys with newsletter_links accept them. Records the answer to the survey's main question (thumbs 0-2, NPS 0-10, CSAT 1-5), puts it
         on the survey.answers queue for the worker, and returns a plain HTML thank-you page with the
         survey's thank-you message. Answers stay anonymous: only a key derived from the reader is
-        stored, so the same reader's second tap is not counted. Pages are sent with
-        Cache-Control no-store and Referrer-Policy no-referrer.
+        stored, so each reader counts once. A reader's later tap replaces their earlier answer
+        (#126), so a mail scanner opening every link before the reader does not decide the answer. Pages are sent with
+        Cache-Control no-store and Referrer-Policy no-referrer. Once the survey is found, its fixed texts
+        (headings, default and error messages) are in the survey's language.
       parameters:
         - { name: link_token, in: path, required: true, schema: { type: string } }
         - { name: r, in: query, required: true, description: Reader reference, schema: { type: string } }
@@ -493,14 +497,18 @@ components:
         description: { type: string, maxLength: 1000, description: Trimmed; an empty string clears the description }
         thank_you: { type: string, maxLength: 500, description: Trimmed; an empty string clears the message }
         type: { $ref: '#/components/schemas/SurveyType' }
+        language: { type: string, enum: [en, fi, sv], description: 'Language of the fixed texts readers see: thank-you and closed pages, thumbs button labels in the snippet' }
         comment_field: { type: boolean, description: 'Reader option: optional "Tell us more" field after any answer' }
         show_results: { type: boolean, description: 'Reader option: show results to readers (after about 10 answers)' }
         contact_opt_in: { type: boolean, description: 'Reader option: "Contact me about this by email" opt-in' }
         accent_color: { type: string, pattern: '^#?[0-9A-Fa-f]{6}$', description: 'Branding: buttons and highlights. Stored as "#RRGGBB"' }
         background_color: { type: string, pattern: '^#?[0-9A-Fa-f]{6}$', description: 'Branding: page background. Stored as "#RRGGBB"' }
+        closes_at: { type: [string, 'null'], format: date-time, description: 'Setting: no answers after this time; must be in the future and include a time zone; null removes it' }
+        response_limit: { type: [integer, 'null'], minimum: 1, maximum: 1000000, description: 'Setting: no new readers once this many have answered (a reader can still change their answer); null removes it' }
+        notify_on_response: { type: boolean, description: 'Setting: "Notify me of new responses by email". Stored only; the emails are #128' }
     Survey:
       type: object
-      required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, accent_color, background_color, logo_url, public_url, published_at, language, opens_at, closes_at, response_limit, created_at, updated_at]
+      required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, accent_color, background_color, logo_url, public_url, published_at, language, opens_at, closes_at, response_limit, notify_on_response, created_at, updated_at]
       properties:
         id: { type: string, format: uuid }
         title: { type: string, example: Member NPS 2026 }
@@ -531,19 +539,25 @@ components:
           type: [string, 'null']
           description: Where to load the logo from (changes with every upload), or null when there is none
           example: /api/v1/surveys/9f1c.../logo?v=1794870174
-        language: { type: string, enum: [en, fi, sv] }
+        language: { type: string, enum: [en, fi, sv], description: 'Language of the fixed texts readers see (English, suomi, svenska); default en' }
         opens_at: { type: [string, 'null'], format: date-time }
         closes_at: { type: [string, 'null'], format: date-time }
         response_limit: { type: [integer, 'null'], minimum: 1 }
+        notify_on_response: { type: boolean, description: '"Notify me of new responses by email" (#47)' }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     SurveyListItem:
+      # answer_counts exposes only anonymous aggregate counts for dashboard charts.
       description: A survey on the Surveys list
       allOf:
         - { $ref: '#/components/schemas/Survey' }
         - type: object
-          required: [answers, headline]
+          required: [answers, headline, answer_counts]
           properties:
+            answer_counts:
+              type: object
+              additionalProperties: { type: integer, minimum: 0 }
+              description: Anonymous main-question counts used by dashboard distribution charts
             answers: { type: integer, minimum: 0, description: Submitted responses so far }
             headline:
               type: [object, 'null']
