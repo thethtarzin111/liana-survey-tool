@@ -27,7 +27,7 @@ insert into questions (tenant_id, survey_id, position, kind, prompt) values
 on conflict (survey_id, position) do nothing;
 
 -- ---------------------------------------------------------------------------
--- Results redesign demo data (#20): four surveys with responses from
+-- Results redesign demo data: four surveys with responses from
 -- September to November 2026. Everything is derived from fixed keys with
 -- generate_series, so a second run inserts nothing new.
 -- ---------------------------------------------------------------------------
