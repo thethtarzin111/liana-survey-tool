@@ -109,11 +109,12 @@ def set_status(conn: psycopg.Connection, survey_id: UUID, status: SurveyStatus) 
     return row
 
 
-def question_kinds(conn: psycopg.Connection, survey_id: UUID) -> list[str]:
+def question_texts(conn: psycopg.Connection, survey_id: UUID) -> list[tuple[str, str]]:
+    """(kind, prompt) of each question, in order: what publishing checks."""
     rows = conn.execute(
-        "select kind from questions where survey_id = %s order by position", (survey_id,)
+        "select kind, prompt from questions where survey_id = %s order by position", (survey_id,)
     ).fetchall()
-    return [row["kind"] for row in rows]
+    return [(row["kind"], row["prompt"]) for row in rows]
 
 
 def publish(conn: psycopg.Connection, survey_id: UUID, link_token: str) -> dict[str, Any]:

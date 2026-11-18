@@ -26,17 +26,23 @@ class NotReadyToPublish(Exception):
 
 
 def published_status(
-    current: SurveyStatus, survey_type: str, question_kinds: list[str]
+    current: SurveyStatus, survey_type: str, questions: list[tuple[str, str]]
 ) -> SurveyStatus:
-    """Publishing makes a draft live. It needs questions, and thumbs, NPS and CSAT
-    surveys need their main question first (it is what the email buttons answer)."""
+    """Publishing makes a draft live. It needs questions (kind, prompt) in order, and
+    thumbs, NPS and CSAT surveys need their main question first (it is what the
+    email buttons answer). Every question needs its text; reason bubbles have none."""
     if current is not SurveyStatus.draft:
         raise StatusChangeNotAllowed("published", current)
-    if not question_kinds:
+    if not questions:
         raise NotReadyToPublish("Add a question before publishing.")
     main = MAIN_QUESTION_KIND.get(survey_type)
-    if main and question_kinds[0] != main:
+    if main and questions[0][0] != main:
         raise NotReadyToPublish("Add the survey's main question before publishing.")
+    for number, (kind, prompt) in enumerate(questions, start=1):
+        if kind != "reasons" and not prompt.strip():
+            if main and number == 1:
+                raise NotReadyToPublish("Write the survey's main question before publishing.")
+            raise NotReadyToPublish(f"Question {number} has no text. Write it or delete it first.")
     return SurveyStatus.live
 
 

@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { ApiError, api, type Question, type QuestionInput, type QuestionKind, type ReaderOptions, type Survey, type SurveyType } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
+import { PublishActions, PublishDialog } from '../publish/PublishDialog';
 import { Button, ButtonLink, Card, Checkbox, InfoTip, Select, TextArea, TextField, useToast } from '../../components/ui';
 import { AnswerTypeControls } from './AnswerTypeControls';
 import { BrandingFields } from './BrandingFields';
@@ -146,6 +147,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
   const [errors, setErrors] = useState<FieldErrors>({});
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const savingRef = useRef(false);
   const mounted = useRef(true);
   const reasonsLabel = useId();
@@ -187,11 +189,16 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
 
   async function saveDraft(event: FormEvent) {
     event.preventDefault();
-    if (savingRef.current) return;
+    await saveChanges(false);
+  }
+
+  /** Saves the form. Returns false when it could not be saved (errors are shown). */
+  async function saveChanges(quiet: boolean): Promise<boolean> {
+    if (savingRef.current) return false;
     const found = validationErrors(name, thanks);
     setErrors(found);
     setSaveError('');
-    if (Object.keys(found).length) return;
+    if (Object.keys(found).length) return false;
 
     const changes: { title?: string; thank_you?: string; accent_color?: string; background_color?: string } & Partial<ReaderOptions> = {};
     if (accent !== survey.accent_color) changes.accent_color = accent;
@@ -202,26 +209,28 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
       if (options[key] !== survey[key]) changes[key] = options[key];
     }
     if (!Object.keys(changes).length) {
-      toast('Saved as draft');
-      return;
+      if (!quiet) toast('Saved as draft');
+      return true;
     }
     savingRef.current = true;
     setSaving(true);
     try {
       const saved = await api.updateSurvey(survey.id, changes);
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       setName(saved.title);
       setThanks(saved.thank_you ?? '');
       setOptions(readerOptionsOf(saved));
       setAccent(saved.accent_color);
       setBackground(saved.background_color);
       onSaved(saved);
-      toast('Saved as draft');
+      if (!quiet) toast('Saved as draft');
+      return true;
     } catch (error) {
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       const fromApi = apiErrors(error);
       setErrors(fromApi);
       if (!Object.keys(fromApi).length) setSaveError(DRAFT_SAVE_ERROR);
+      return false;
     } finally {
       savingRef.current = false;
       if (mounted.current) setSaving(false);
@@ -236,8 +245,14 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
           <div className="survey-builder-actions">
             <ButtonLink to="/surveys/new" variant="ghost">Cancel</ButtonLink>
             <Button type="submit" form={formId} loading={saving}>Save as draft</Button>
+            <PublishActions survey={survey} onPublish={() => setPublishing(true)} />
           </div>
         }
+      />
+      <PublishDialog
+        survey={publishing ? { id: survey.id, title: name.trim() || survey.title } : null}
+        onClose={() => setPublishing(false)}
+        beforePublish={() => saveChanges(true)}
       />
       <div className="edit-layout">
       <form id={formId} onSubmit={saveDraft} noValidate>

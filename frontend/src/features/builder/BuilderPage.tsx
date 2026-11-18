@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, Disclosure, TextArea, TextField, useToast } from '../../components/ui';
 import { BrandingFields } from './BrandingFields';
 import { EditPreviewPage } from './EditPreviewPage';
+import { PublishActions, PublishDialog } from '../publish/PublishDialog';
 import { QuestionList } from './QuestionList';
 import { CustomPreview } from './SurveyPreview';
 import './builder.css';
@@ -55,6 +56,7 @@ export function BuilderPage() {
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saveError, setSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
@@ -84,11 +86,16 @@ export function BuilderPage() {
 
   async function saveDraft(event: FormEvent) {
     event.preventDefault();
-    if (!survey || saving.current) return;
+    await saveChanges(false);
+  }
+
+  /** Saves the form. Returns false when it could not be saved (errors are shown). */
+  async function saveChanges(quiet: boolean): Promise<boolean> {
+    if (!survey || saving.current) return false;
     const errors = validationErrors(title, description);
     setFieldErrors(errors);
     setSaveError('');
-    if (Object.keys(errors).length) return;
+    if (Object.keys(errors).length) return false;
 
     const changes: Partial<Pick<Survey, 'title' | 'description' | 'accent_color' | 'background_color'>> = {};
     if (title !== survey.title) changes.title = title;
@@ -96,28 +103,30 @@ export function BuilderPage() {
     if (accent !== survey.accent_color) changes.accent_color = accent;
     if (background !== survey.background_color) changes.background_color = background;
     if (!Object.keys(changes).length) {
-      toast('Saved as draft');
-      return;
+      if (!quiet) toast('Saved as draft');
+      return true;
     }
 
     saving.current = true;
     setIsSaving(true);
     try {
       const saved = await api.updateSurvey(id, changes);
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       setSurvey(saved);
       setTitle(saved.title);
       setDescription(saved.description ?? '');
       setAccent(saved.accent_color);
       setBackground(saved.background_color);
-      toast('Saved as draft');
+      if (!quiet) toast('Saved as draft');
+      return true;
     } catch (error) {
-      if (!mounted.current) return;
+      if (!mounted.current) return false;
       const errorsFromApi = apiErrors(error);
       setFieldErrors(errorsFromApi);
       if (!Object.keys(errorsFromApi).length) {
         setSaveError('We couldn\u2019t save your draft. Please try again.');
       }
+      return false;
     } finally {
       saving.current = false;
       if (mounted.current) setIsSaving(false);
@@ -138,8 +147,14 @@ export function BuilderPage() {
           <div className="survey-builder-actions">
             <ButtonLink to="/surveys/new" variant="ghost">Cancel</ButtonLink>
             <Button type="submit" form="survey-details-form" loading={isSaving}>Save as draft</Button>
+            <PublishActions survey={survey} onPublish={() => setPublishing(true)} />
           </div>
         ) : undefined}
+      />
+      <PublishDialog
+        survey={publishing && survey ? { id: survey.id, title: title.trim() || survey.title } : null}
+        onClose={() => setPublishing(false)}
+        beforePublish={() => saveChanges(true)}
       />
       {loadError === 'not-found' ? (
         <div className="survey-error" role="alert">

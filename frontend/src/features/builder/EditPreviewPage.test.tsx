@@ -34,6 +34,10 @@ async function server(input: RequestInfo | URL, init?: RequestInit): Promise<Res
     survey = { ...survey, logo_url: null };
     return new Response(null, { status: 204 });
   }
+  if (path === `${SURVEY_URL}/publish` && method === 'POST') {
+    survey = { ...survey, status: 'live', public_url: 'http://localhost:8000/r/token' };
+    return Response.json(survey);
+  }
   if (path === QUESTIONS_URL && method === 'GET') return Response.json(questions);
   if (path === QUESTIONS_URL && method === 'POST') {
     const added = { ...q(`new${nextId++}`, body.kind, body.prompt.trim(), body.options, body.required) };
@@ -79,6 +83,7 @@ function renderPage() {
         <Routes>
           <Route path="/surveys/:id" element={<BuilderPage />} />
           <Route path="/surveys/new" element={<h1>Create survey</h1>} />
+          <Route path="/surveys/:id/live" element={<h1>Live page</h1>} />
         </Routes>
       </ToastProvider>
     </MemoryRouter>,
@@ -326,4 +331,33 @@ test('the preview updates while editing', async () => {
   const page = previewPanel.querySelector('.preview-page') as HTMLElement;
   fireEvent.click(within(screen.getByRole('group', { name: 'Accent colour' })).getByRole('button', { name: 'Blue' }));
   expect(page.style.getPropertyValue('--preview-accent')).toBe(ACCENT_SWATCHES[1].hex);
+});
+
+test('Publish saves unsaved changes first, then opens the live page (#117)', async () => {
+  renderPage();
+  fireEvent.change(await screen.findByLabelText('Name (only you see this)'), { target: { value: 'Member NPS 2026' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Publish “Member NPS 2026”?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Publish' }));
+  expect(await screen.findByRole('heading', { name: 'Live page' })).toBeInTheDocument();
+  const calls = fetchMock.mock.calls.map(([input, init]) => `${init?.method ?? 'GET'} ${String(input)}`);
+  expect(calls.indexOf(`PATCH ${SURVEY_URL}`)).toBeLessThan(calls.indexOf(`POST ${SURVEY_URL}/publish`));
+  expect(survey.title).toBe('Member NPS 2026');
+});
+
+test('a name error stops publishing', async () => {
+  renderPage();
+  fireEvent.change(await screen.findByLabelText('Name (only you see this)'), { target: { value: '  ' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
+  fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Publish' }));
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+  expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/publish'))).toBe(false);
+  expect(screen.queryByRole('heading', { name: 'Live page' })).not.toBeInTheDocument();
+});
+
+test('live surveys get Share instead of Publish', async () => {
+  survey = { ...survey, status: 'live' };
+  renderPage();
+  expect(await screen.findByRole('link', { name: 'Share' })).toHaveAttribute('href', '/surveys/s1/live');
+  expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument();
 });

@@ -18,6 +18,7 @@ import {
   type Column,
   type MenuAction,
 } from '../../components/ui';
+import { PublishDialog } from '../publish/PublishDialog';
 import './surveys.css';
 
 // Texts and labels follow the prototype's Surveys screen.
@@ -37,6 +38,7 @@ const TYPE_LABEL: Record<SurveyType, string> = {
 };
 const UNPUBLISH_ICON = 'M4 12h10M10 6l-6 6 6 6M20 4v16';
 const CLOSE_ICON = 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4';
+const PUBLISH_ICON = 'M12 19V5M5 12l7-7 7 7';
 
 /** "member-nps-2026": the tag a live survey's answers get in Liana. */
 export function slug(text: string): string {
@@ -58,6 +60,12 @@ function note(survey: SurveyListItem): string {
   return '';
 }
 
+/** Live surveys open their "is live" page (prototype); the rest open the editor. */
+function surveyPath(survey: SurveyListItem): string {
+  const path = `/surveys/${encodeURIComponent(survey.id)}`;
+  return survey.status === 'live' ? `${path}/live` : path;
+}
+
 function deleteText(survey: SurveyListItem): string {
   return survey.answers
     ? `The survey and its ${survey.answers} answers will be deleted. This cannot be undone. To keep the results, close the survey instead.`
@@ -76,6 +84,7 @@ export function SurveysPage() {
   const [loadError, setLoadError] = useState(false);
   const [reload, setReload] = useState(0);
   const [deleting, setDeleting] = useState<SurveyListItem | null>(null);
+  const [publishing, setPublishing] = useState<SurveyListItem | null>(null);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(true);
@@ -131,6 +140,9 @@ export function SurveysPage() {
   function actionsFor(survey: SurveyListItem): MenuAction[] {
     const name = `“${survey.title}”`;
     const items: MenuAction[] = [];
+    if (survey.status === 'draft') {
+      items.push({ label: 'Publish', icon: PUBLISH_ICON, onSelect: () => setPublishing(survey) });
+    }
     if (survey.status === 'live' || survey.status === 'scheduled') {
       items.push({
         label: 'Unpublish',
@@ -174,7 +186,7 @@ export function SurveysPage() {
       header: 'Name',
       render: (s) => (
         <>
-          <Link className="survey-name" title={s.title} to={`/surveys/${encodeURIComponent(s.id)}`}>{s.title}</Link>
+          <Link className="survey-name" title={s.title} to={surveyPath(s)}>{s.title}</Link>
           {note(s) ? <div className="survey-note">{note(s)}</div> : null}
         </>
       ),
@@ -265,6 +277,7 @@ export function SurveysPage() {
       >
         {deleting ? deleteText(deleting) : ''}
       </ConfirmDialog>
+      <PublishDialog survey={publishing} onClose={() => setPublishing(null)} />
     </div>
   );
 }

@@ -101,7 +101,7 @@ def publish_survey(survey_id: UUID, db: TenantDB = Depends(tenant_db)) -> dict:
             raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
         try:
             domain.published_status(
-                SurveyStatus(row["status"]), row["type"], repo.question_kinds(conn, survey_id)
+                SurveyStatus(row["status"]), row["type"], repo.question_texts(conn, survey_id)
             )
         except (domain.StatusChangeNotAllowed, domain.NotReadyToPublish) as error:
             raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
