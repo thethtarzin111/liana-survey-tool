@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from liana_survey_shared import links
 from liana_survey_shared.config import get_settings
 from liana_survey_shared.db import ping, tenant_connection
+from liana_survey_shared.texts import text
 from respondent_service.domain import (
     AnswerProblem,
     check_open,
@@ -230,9 +231,19 @@ def test_the_segment_from_the_link_is_queued(client, queue, make_survey):
     assert client.get(link(token, reader="ben", answer=9)).status_code == 200
     assert [m.segment for m in queue.messages] == ["members", "all"]
 
-    r = client.get(link(token, reader="carl", answer=9) + "&seg=Bad!")
-    assert r.status_code == 422
-    assert len(queue.messages) == 2
+
+@pytest.mark.db
+@needs_db
+@pytest.mark.parametrize("seg", ["Bad!", "none", "other", "-x"])
+def test_an_invalid_or_reserved_segment_shows_the_incomplete_link_page(
+    client, queue, make_survey, seg
+):
+    _, _, token = make_survey(language="en")
+    r = client.get(link(token, answer=9) + f"&seg={seg}")
+    assert r.status_code == 400
+    assert r.headers["content-type"].startswith("text/html")
+    assert text("link_not_complete", "en") in r.text
+    assert queue.messages == []
 
 
 @pytest.mark.db

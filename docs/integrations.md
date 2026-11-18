@@ -69,5 +69,6 @@ answer link (`a=`) counts as `email` and a plain visit as `link`. The worker
 stores it on the response, and survey performance (#12) groups by it.
 
 `AnswerSubmitted` also carries `segment` (default `all`), from the link's `seg`
-parameter: a newsletter segment tag such as `members`. The worker stores it on the
+parameter: a newsletter segment tag such as `members`. `none` and `other` are
+reserved (they are the Results filter values) and refused. The worker stores it on the
 response, and the Results page (#15) filters by it.
