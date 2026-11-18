@@ -1,17 +1,24 @@
 import { useState, type FormEvent } from 'react';
-import { api, errorDetail, type Survey, type SurveySettings } from '../../api/client';
-import { Button, ButtonLink, Card, CardHeader, Checkbox, TextField, useToast } from '../../components/ui';
+import { api, errorDetail, type Survey, type SurveyLanguage, type SurveySettings } from '../../api/client';
+import { Button, ButtonLink, Card, CardHeader, Checkbox, Select, TextField, useToast } from '../../components/ui';
 import { closesAtFromDay, dayFromClosesAt, today } from './closeDate';
 
 const LIMIT_MAX = 1_000_000;
 
-type Form = { day: string; limit: string; notify: boolean };
+const LANGUAGES: { value: SurveyLanguage; label: string }[] = [
+  { value: 'en', label: 'English' },
+  { value: 'fi', label: 'Suomi' },
+  { value: 'sv', label: 'Svenska' },
+];
+
+type Form = { day: string; limit: string; notify: boolean; language: SurveyLanguage };
 
 function formFor(survey: Survey): Form {
   return {
     day: survey.closes_at ? dayFromClosesAt(survey.closes_at) : '',
     limit: survey.response_limit != null ? String(survey.response_limit) : '',
     notify: survey.notify_on_response ?? false,
+    language: survey.language ?? 'en',
   };
 }
 
@@ -28,7 +35,7 @@ function limitError(limit: string): string | null {
     : `Enter a whole number from 1 to ${LIMIT_MAX.toLocaleString('en')}, or leave it empty.`;
 }
 
-/** "Survey settings" on the live page (#48): close date, response limit and "notify me". */
+/** "Survey settings" on the live page: close date, response limit, language and "notify me". */
 export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSaved: (saved: Survey) => void }) {
   const toast = useToast();
   const [saved, setSaved] = useState<Form>(() => formFor(survey));
@@ -36,7 +43,11 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
-  const changed = form.day !== saved.day || form.limit.trim() !== saved.limit || form.notify !== saved.notify;
+  const changed =
+    form.day !== saved.day ||
+    form.limit.trim() !== saved.limit ||
+    form.notify !== saved.notify ||
+    form.language !== saved.language;
   const errors = { day: dayError(form.day, saved.day), limit: limitError(form.limit) };
 
   async function save(event: FormEvent) {
@@ -50,6 +61,7 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
       if (form.day !== saved.day) changes.closes_at = form.day ? closesAtFromDay(form.day) : null;
       if (form.limit.trim() !== saved.limit) changes.response_limit = form.limit.trim() ? Number(form.limit) : null;
       if (form.notify !== saved.notify) changes.notify_on_response = form.notify;
+      if (form.language !== saved.language) changes.language = form.language;
       const updated = await api.updateSurvey(survey.id, changes);
       onSaved(updated);
       setSaved(formFor(updated));
@@ -91,6 +103,13 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
         <p className="live-hint">
           The survey takes answers until the end of its last day.
         </p>
+        <Select
+          label="Survey language"
+          hint="For the thank-you page, messages and answer buttons. Your questions stay as you wrote them."
+          options={LANGUAGES}
+          value={form.language}
+          onChange={(e) => setForm({ ...form, language: e.target.value as SurveyLanguage })}
+        />
         <Checkbox
           label="Notify me of new responses by email"
           checked={form.notify}

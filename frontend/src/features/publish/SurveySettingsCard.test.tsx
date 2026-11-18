@@ -11,7 +11,7 @@ const survey: Survey = {
   public_url: 'http://localhost:8000/r/abc', published_at: '2026-11-18T09:00:00Z',
   comment_field: true, show_results: true, contact_opt_in: true,
   accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null,
-  closes_at: null, response_limit: null, notify_on_response: false,
+  closes_at: null, response_limit: null, notify_on_response: false, language: 'en',
 };
 
 function dayFromToday(days: number) {
@@ -124,4 +124,26 @@ test('says answers are anonymous and links to results and all surveys', () => {
   expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Go to results' })).toHaveAttribute('href', '/results');
   expect(screen.getByRole('link', { name: 'Back to all surveys' })).toHaveAttribute('href', '/surveys');
+});
+
+test('the survey language is shown, picked and saved on its own', async () => {
+  renderCard({ ...survey, language: 'fi' });
+  const language = screen.getByLabelText('Survey language');
+  expect(language).toHaveValue('fi');
+  expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual([
+    'English',
+    'Suomi',
+    'Svenska',
+  ]);
+  fireEvent.change(language, { target: { value: 'sv' } });
+  fireEvent.click(save());
+  await screen.findByText('Settings saved');
+  expect(sentBody()).toEqual({ language: 'sv' });
+  expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ language: 'sv' }));
+  expect(save()).toBeDisabled();
+});
+
+test('surveys without a language show English', () => {
+  renderCard({ ...survey, language: undefined });
+  expect(screen.getByLabelText('Survey language')).toHaveValue('en');
 });
