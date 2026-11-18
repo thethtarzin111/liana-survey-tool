@@ -181,7 +181,10 @@ export type Survey = {
   published_at?: string | null;
 } & ReaderOptions & Branding & Partial<SurveySettings>;
 
-/** Survey settings (#47). null removes the close date or the limit. */
+/** Language of the fixed texts readers see: thank-you and closed pages, snippet buttons. */
+export type SurveyLanguage = 'en' | 'fi' | 'sv';
+
+/** Survey settings. null removes the close date or the limit. */
 export type SurveySettings = {
   /** No answers tapped from this moment on (ISO date-time). */
   closes_at: string | null;
@@ -189,6 +192,7 @@ export type SurveySettings = {
   response_limit: number | null;
   /** "Notify me of new responses by email". */
   notify_on_response: boolean;
+  language: SurveyLanguage;
 };
 
 /** Branding: colours as "#RRGGBB", and where to load the logo (null when there is none). */
