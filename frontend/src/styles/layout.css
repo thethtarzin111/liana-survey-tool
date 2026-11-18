@@ -8,21 +8,6 @@
 .header-brand { font: 700 var(--text-brand) var(--font-heading); color: var(--color-brand-dark); }
 .header-spacer { flex: 1; }
 .header-user { color: var(--color-text-muted); }
-.header { height: 58px; padding: 6px 24px; }
-.header-brand { display: flex; align-items: center; gap: 0; font-size: var(--text-brand-logo); letter-spacing: -.04em; }
-.header-brand > svg { color: var(--color-brand); margin-right: 5px; }
-.brand-liana { color: var(--color-brand); font-weight: 500; }
-.brand-survey { color: var(--color-text); font-weight: 600; }
-.header-user { display: flex; align-items: center; gap: 10px; color: var(--color-text); line-height: 1.25; }
-.header-user strong, .header-user small { display: block; font-size: var(--text-body); }
-.header-user small { color: var(--color-text-muted); }
-.header-avatar { width: 36px; height: 36px; display: grid; place-items: center; background: var(--color-surface-muted); border-radius: var(--radius-pill); }
-@media(max-width:600px) {
-  .header { padding: 6px 12px; gap: 8px; }
-  .header-brand { font-size: var(--text-title-input); white-space: nowrap; }
-  .header-user > span:last-child { display: none; }
-  .header-avatar { flex: none; }
-}
 
 .body { position: relative; display: flex; flex: 1; min-height: 0; }
 

@@ -7,15 +7,19 @@ from uuid import UUID
 
 from pydantic import (
     AfterValidator,
+    AwareDatetime,
     BaseModel,
     ConfigDict,
     Field,
     StrictBool,
+    StrictInt,
     StringConstraints,
     computed_field,
     field_validator,
     model_validator,
 )
+
+from liana_survey_shared.texts import Language
 
 DEFAULT_TITLE = "Untitled survey"
 #: Long enough for a clear name, short enough for the Surveys list (#115).
@@ -31,6 +35,10 @@ def _colour(value: str) -> str:
 
     return normalise_colour(value)
 
+
+#: Most answers a survey takes. Large enough for any newsletter, small enough to catch typos.
+RESPONSE_LIMIT_MAX = 1_000_000
+ResponseLimit = Annotated[StrictInt, Field(ge=1, le=RESPONSE_LIMIT_MAX)]
 
 #: "#2b6450" or "2B6450", stored as "#2B6450".
 Colour = Annotated[str, AfterValidator(_colour)]
@@ -72,7 +80,8 @@ class SurveyUpdate(BaseModel):
     """Fields that can change. Omitted fields stay as they are.
 
     Sending a field as null is an error (422), not a silent no-op: title and
-    type can never be empty.
+    type can never be empty. Only the close date and the response limit take
+    null, which removes them.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -88,6 +97,12 @@ class SurveyUpdate(BaseModel):
     # Branding: accent colour (buttons) and page background.
     accent_color: Colour | None = None
     background_color: Colour | None = None
+    # Settings (#47): no answers after closes_at or once response_limit answers are in.
+    closes_at: AwareDatetime | None = None
+    response_limit: ResponseLimit | None = None
+    notify_on_response: StrictBool | None = None
+    # Language of the fixed texts readers see: en, fi or sv.
+    language: Language | None = None
 
     @field_validator("description", "thank_you", mode="before")
     @classmethod
@@ -100,10 +115,14 @@ class SurveyUpdate(BaseModel):
     @classmethod
     def no_nulls(cls, data: Any) -> Any:
         if isinstance(data, dict):
-            nulls = sorted(k for k, v in data.items() if v is None)
+            nulls = sorted(k for k, v in data.items() if v is None and k not in CLEARABLE)
             if nulls:
                 raise ValueError(f"{', '.join(nulls)} cannot be null; leave the field out instead")
         return data
+
+
+#: SurveyUpdate fields where null means "remove it".
+CLEARABLE = frozenset({"closes_at", "response_limit"})
 
 
 class Survey(BaseModel):
@@ -127,10 +146,12 @@ class Survey(BaseModel):
     published_at: datetime | None = None
     #: A newsletter snippet was made, so unsigned snippet links are accepted (#40).
     newsletter_links: bool = False
-    language: str
+    language: Language
     opens_at: datetime | None
     closes_at: datetime | None
     response_limit: int | None
+    #: "Notify me of new responses by email" (#47); the emails themselves are #128.
+    notify_on_response: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -170,6 +191,12 @@ class SurveyListItem(Survey):
     answers: int  # submitted responses, from the worker's totals
     # Answers per value of the main question, from the worker's totals.
     distribution: dict[str, int] = Field(default_factory=dict, exclude=True)
+
+    @computed_field
+    @property
+    def answer_counts(self) -> dict[str, int]:
+        """Anonymous main-question counts for dashboard distribution charts."""
+        return self.distribution
 
     @computed_field
     @property
