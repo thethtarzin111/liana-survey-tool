@@ -49,6 +49,7 @@ def survey_result(conn: psycopg.Connection, survey_id: UUID, segment: str) -> di
         "distribution": {str(int(row["value_number"])): row["count"] for row in rows},
         "segments": segments,
         "questions": question_charts(conn, survey_id, segment),
+        "comments": comments(conn, survey_id, segment),
     }
 
 
@@ -88,9 +89,25 @@ def question_charts(conn: psycopg.Connection, survey_id: UUID, segment: str) -> 
         charts.append(
             {
                 "id": str(question["id"]),
+                "kind": kind,
                 "prompt": question["prompt"],
                 "answers": len(answers),
                 "options": [{"label": label, "count": count} for label, count in counts.items()],
             }
         )
     return charts
+
+
+def comments(conn: psycopg.Connection, survey_id: UUID, segment: str) -> list[dict]:
+    return conn.execute(
+        """select a.id, a.value_text as comment, r.segment, r.submitted_at,
+                  (select value_number from answers main_answer
+                   join questions q on q.id = main_answer.question_id
+                   where main_answer.response_id = r.id
+                   order by q.position limit 1) as answer
+           from answers a join responses r on r.id = a.response_id
+           where r.survey_id = %s and (%s = 'all' or r.segment = %s)
+             and nullif(trim(a.value_text), '') is not null
+           order by r.submitted_at desc, a.id limit 100""",
+        (survey_id, segment, segment),
+    ).fetchall()

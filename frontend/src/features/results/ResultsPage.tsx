@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, type SurveyListItem, type SurveyResult } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
-import { Button, Card, EmptyState, LiveIndicator, icons } from '../../components/ui';
+import { Button, Card, EmptyState, LiveIndicator, Tabs, icons } from '../../components/ui';
 import './results.css';
 
 const LABELS: Record<string, Record<number, string>> = {
@@ -22,6 +22,7 @@ export function ResultsPage() {
   const [result, setResult] = useState<SurveyResult | null>(null);
   const [failed, setFailed] = useState(false);
   const [reload, setReload] = useState(0);
+  const [view, setView] = useState('summary');
   const selected = params.get('survey') ?? surveys?.[0]?.id ?? '';
   const segment = params.get('segment') ?? 'all';
 
@@ -59,7 +60,9 @@ export function ResultsPage() {
       <label className="field"><span className="field-label">Segment</span><select className="input" value={segment} onChange={(e) => choose({ segment: e.target.value })}><option value="all">All segments</option>{result.segments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
       <LiveIndicator>Live · updated just now</LiveIndicator>
     </div>
-    <div className="tabs" role="tablist" aria-label="Result views"><button className="tab" role="tab" aria-selected="true">In short</button></div>
+    <Tabs label="Result views" tabs={[{id:'summary',label:'In short'},{id:'reasons',label:'Reasons'},{id:'comments',label:'Comments'}]} value={view} onChange={setView}>
+    {view === 'comments' ? <Card padded><h2>Latest comments</h2>{result.comments?.length ? <ul className="list">{result.comments.map((comment) => <li className="list-item" key={comment.id}><blockquote>{comment.comment}</blockquote><span>Answer: {comment.answer === null ? '—' : LABELS[result.type]?.[comment.answer] ?? comment.answer} · Segment: {comment.segment}</span><time dateTime={comment.submitted_at}>{new Date(comment.submitted_at).toLocaleString()}</time></li>)}</ul> : <p>No comments yet.</p>}</Card>
+      : view === 'reasons' ? <Card padded><h2>Top reasons</h2>{result.questions?.some((q) => q.kind === 'reasons' && q.answers > 0) ? result.questions.filter((q) => q.kind === 'reasons').map((question) => <section key={question.id}><h3>{question.prompt || 'Why people answered this way'}</h3><p>{question.answers} respondents in {segment === 'all' ? 'all segments' : segment}</p><ol>{[...question.options].sort((a,b) => b.count-a.count || a.label.localeCompare(b.label)).map((option) => <li key={option.label}>{option.label}: <strong>{option.count}</strong></li>)}</ol></section>) : <p>No reasons yet.</p>}</Card> : <>
     <section role="tabpanel" className="result-summary">
       {result.questions?.map((question) => <Card padded key={question.id}>
         <h2>{question.prompt}</h2>
@@ -75,6 +78,8 @@ export function ResultsPage() {
       </div>
       <Card padded className="answer-split"><h2>Answer split</h2><div className="split-bar" role="img" aria-label={result.split.map((item) => `${LABELS[result.type]?.[item.value] ?? item.value}: ${item.percent ?? 0}%`).join(', ')}>{result.split.filter((item) => item.count > 0).map((item) => <span key={item.value} style={{ width: `${item.percent}%` }}>{item.percent}%</span>)}</div><ul>{result.split.map((item) => <li key={item.value}><i aria-hidden="true" /><strong>{LABELS[result.type]?.[item.value] ?? item.value}</strong><span>{item.percent ?? 0}% · {item.count} answers</span></li>)}</ul></Card>
     </section>
+    </>}
+    </Tabs>
   </>;
 
   return <div className="results-page"><PageHeader title="Results" description={result?.title ?? 'See how each survey performed.'} />{surveys?.length ? <div className="result-surveys" role="group" aria-label="Survey">{surveys.map((survey) => <button key={survey.id} type="button" className="chip" aria-pressed={survey.id === selected} onClick={() => choose({ survey: survey.id })}>{survey.title}</button>)}</div> : null}{content}</div>;

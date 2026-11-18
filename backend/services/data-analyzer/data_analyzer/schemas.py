@@ -26,3 +26,4 @@ class SurveyResult(BaseModel):
     headline: Headline | None
     split: list[AnswerShare]
     questions: list[dict] = []
+    comments: list[dict] = []

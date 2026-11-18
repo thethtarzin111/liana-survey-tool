@@ -560,6 +560,10 @@ components:
       type: object
       required: [survey_id, title, type, status, answers, segment, segments, headline, split]
       properties:
+        comments:
+          type: array
+          description: Latest 100 nonblank comments with main answer, segment and submission time, filtered by selected segment.
+          items: { type: object }
         questions:
           type: array
           description: Choice and rating question charts; counts per option and number of respondents answering the question.

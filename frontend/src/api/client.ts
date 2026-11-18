@@ -193,7 +193,8 @@ export type SurveyListItem = Survey & {
 };
 
 export type SurveyResult = {
-  questions?: { id: string; prompt: string; answers: number; options: { label: string; count: number }[] }[];
+  questions?: { id: string; kind?: string; prompt: string; answers: number; options: { label: string; count: number }[] }[];
+  comments?: { id: string; comment: string; segment: string; submitted_at: string; answer: number | null }[];
   survey_id: string;
   title: string;
   type: SurveyType;
