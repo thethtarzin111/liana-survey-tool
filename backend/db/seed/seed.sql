@@ -216,11 +216,12 @@ insert into answers (tenant_id, response_id, question_id, value_choices)
 select '00000000-0000-4000-8000-000000000001', r.id, q.id,
   case q.position
     when 1 then (
-      select jsonb_agg(q.options ->> k)
+      select jsonb_agg(q.options ->> k order by n)
       from unnest(case r.i % 3
                     when 0 then array[(r.i * 2) % 5]
                     when 1 then array[(r.i * 2) % 5, (r.i * 2 + 1) % 5]
-                    else array[(r.i * 2) % 5, (r.i * 2 + 2) % 5, (r.i * 2 + 4) % 5] end) as k)
+                    else array[(r.i * 2) % 5, (r.i * 2 + 2) % 5, (r.i * 2 + 4) % 5] end)
+           with ordinality as u(k, n))
     else jsonb_build_array(q.options ->> ((r.i * 7) % 3))
   end
 from seed_resp r
@@ -228,20 +229,20 @@ join questions q on q.survey_id = r.survey_id and q.position in (1, 3)
 where r.slug = 'services'
   and not exists (select 1 from answers a where a.response_id = r.id and a.question_id = q.id);
 
--- Totals, computed from the answers of each survey's first question.
+-- Totals, computed from the seeded answers. Uses "do update" on purpose so a re-run keeps
+-- them equal to the answers. Like the worker, only a scale first question (thumbs, nps,
+-- rating) gets a distribution; other kinds store {}.
 insert into survey_aggregates (survey_id, tenant_id, response_count, distribution)
 select s.survey_id, '00000000-0000-4000-8000-000000000001',
   (select count(*) from responses r where r.survey_id = s.survey_id),
   coalesce((
     select jsonb_object_agg(d.k, d.c)
     from (
-      select case when a.value_number is not null then a.value_number::int::text else ch end as k,
-             count(*) as c
+      select a.value_number::int::text as k, count(*) as c
       from answers a
       join questions q on q.id = a.question_id and q.position = 1
-      left join lateral jsonb_array_elements_text(coalesce(a.value_choices, '[]'::jsonb)) ch
-        on a.value_number is null
-      where q.survey_id = s.survey_id
+        and q.kind in ('thumbs', 'nps', 'rating')
+      where q.survey_id = s.survey_id and a.value_number is not null
       group by 1
     ) d), '{}'::jsonb)
 from seed_surveys s
