@@ -52,7 +52,7 @@ test('lists surveys with type, answers and status', () => {
 test('search filters and shows "No surveys match “x”."', () => {
   render(<Harness />);
   open();
-  const search = screen.getByRole('searchbox', { name: 'Search surveys' });
+  const search = screen.getByRole('combobox', { name: 'Search surveys' });
   fireEvent.change(search, { target: { value: 'COURSE' } });
   expect(screen.getAllByRole('option')).toHaveLength(1);
   expect(screen.getByRole('option')).toHaveTextContent('Course feedback');
@@ -65,7 +65,7 @@ test('arrow keys and Enter pick, Escape closes', () => {
   const onPick = vi.fn();
   render(<Harness onPick={onPick} />);
   open();
-  const search = screen.getByRole('searchbox', { name: 'Search surveys' });
+  const search = screen.getByRole('combobox', { name: 'Search surveys' });
   fireEvent.keyDown(search, { key: 'ArrowDown' });
   fireEvent.keyDown(search, { key: 'ArrowDown' });
   expect(search).toHaveAttribute('aria-activedescendant', screen.getAllByRole('option')[2].id);
@@ -77,7 +77,7 @@ test('arrow keys and Enter pick, Escape closes', () => {
   expect(screen.getByRole('button', { name: /Survey/ })).toHaveFocus();
 
   open();
-  fireEvent.keyDown(screen.getByRole('searchbox', { name: 'Search surveys' }), { key: 'Escape' });
+  fireEvent.keyDown(screen.getByRole('combobox', { name: 'Search surveys' }), { key: 'Escape' });
   expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   expect(screen.getByRole('button', { name: /Survey/ })).toHaveFocus();
   expect(onPick).toHaveBeenCalledTimes(1);
@@ -96,5 +96,33 @@ test('focus moves to the search field when opened', () => {
   expect(screen.getByRole('button', { name: /Survey/ })).toHaveAttribute('aria-expanded', 'false');
   open();
   expect(screen.getByRole('button', { name: /Survey/ })).toHaveAttribute('aria-expanded', 'true');
-  expect(screen.getByRole('searchbox', { name: 'Search surveys' })).toHaveFocus();
+  expect(screen.getByRole('combobox', { name: 'Search surveys' })).toHaveFocus();
+});
+
+test('the search field is a combobox for the listbox and names the highlighted option', () => {
+  render(<Harness />);
+  open();
+  const input = screen.getByRole('combobox', { name: 'Search surveys' });
+  const list = screen.getByRole('listbox', { name: 'Surveys' });
+  expect(input).toHaveAttribute('aria-controls', list.id);
+  expect(input).toHaveAttribute('aria-expanded', 'true');
+  expect(input).toHaveAttribute('aria-autocomplete', 'list');
+  fireEvent.keyDown(input, { key: 'ArrowDown' });
+  expect(input).toHaveAttribute('aria-activedescendant', screen.getAllByRole('option')[1].id);
+});
+
+test('the highlighted option scrolls into view with the arrow keys', () => {
+  const scroll = vi.fn();
+  Element.prototype.scrollIntoView = scroll;
+  try {
+    render(<Harness />);
+    open();
+    scroll.mockClear();
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Search surveys' }), { key: 'ArrowDown' });
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
+    expect(scroll.mock.contexts[0]).toBe(screen.getAllByRole('option')[1]);
+  } finally {
+    // @ts-expect-error jsdom has no scrollIntoView
+    delete Element.prototype.scrollIntoView;
+  }
 });

@@ -36,6 +36,12 @@ export function SurveyPicker({ surveys, value, onPick }: Props) {
     if (open) search.current?.focus();
   }, [open]);
 
+  // Keep the highlighted option inside the scrolling list.
+  const activeId = open && shown[current] ? `${base}-opt-${shown[current].id}` : null;
+  useEffect(() => {
+    if (activeId) document.getElementById(activeId)?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeId]);
+
   function toggle() {
     if (!open) {
       setQuery('');
@@ -82,7 +88,7 @@ export function SurveyPicker({ surveys, value, onPick }: Props) {
         type="button"
         className="results-picker-button"
         aria-labelledby={`${labelId} ${base}-value`}
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
         aria-expanded={open}
         onClick={toggle}
       >
@@ -99,9 +105,12 @@ export function SurveyPicker({ surveys, value, onPick }: Props) {
             type="search"
             className="input"
             placeholder="Search surveys..."
+            role="combobox"
             aria-label="Search surveys"
+            aria-expanded="true"
+            aria-autocomplete="list"
             aria-controls={listId}
-            aria-activedescendant={shown[current] ? `${base}-opt-${shown[current].id}` : undefined}
+            aria-activedescendant={activeId ?? undefined}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
