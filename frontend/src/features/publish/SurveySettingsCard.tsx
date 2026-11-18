@@ -87,8 +87,7 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
           />
         </div>
         <p className="live-hint">
-          The survey takes answers until the end of its last day. Readers who already answered can still change their
-          answer when the limit is reached.
+          The survey takes answers until the end of its last day.
         </p>
         <Checkbox
           label="Notify me of new responses by email"
