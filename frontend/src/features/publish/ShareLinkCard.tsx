@@ -10,18 +10,20 @@ export function ShareLinkCard({ title, url }: { title: string; url: string }) {
   const [copyState, copy] = useCopy();
   const [qr, setQr] = useState<string | null>(null);
   const [qrFailed, setQrFailed] = useState(false);
+  const linkUrl = `${url}${url.includes('?') ? '&' : '?'}ch=link`;
+  const qrUrl = `${url}${url.includes('?') ? '&' : '?'}ch=qr`;
 
   useEffect(() => {
     let active = true;
     setQr(null);
     setQrFailed(false);
     // Large enough to print; error correction M survives small marks on posters.
-    QRCode.toDataURL(url, { width: 512, margin: 2, errorCorrectionLevel: 'M' }).then(
+    QRCode.toDataURL(qrUrl, { width: 512, margin: 2, errorCorrectionLevel: 'M' }).then(
       (data) => { if (active) setQr(data); },
       () => { if (active) setQrFailed(true); },
     );
     return () => { active = false; };
-  }, [url]);
+  }, [qrUrl]);
 
   return (
     <Card padded className="live-card">
@@ -38,10 +40,10 @@ export function ShareLinkCard({ title, url }: { title: string; url: string }) {
               className="input"
               type="text"
               readOnly
-              value={url}
+              value={linkUrl}
               onFocus={(e) => e.currentTarget.select()}
             />
-            <Button onClick={() => void copy(url)}>{copyState === 'copied' ? 'Copied' : 'Copy link'}</Button>
+            <Button onClick={() => void copy(linkUrl)}>{copyState === 'copied' ? 'Copied' : 'Copy link'}</Button>
           </div>
           <p className="share-status" role="status">
             {copyState === 'copied' ? 'Link copied' : copyState === 'failed' ? 'We couldn’t copy the link. Select it and copy it yourself.' : ''}
