@@ -23,9 +23,11 @@ Credentials go in `.env` locally or GitHub secrets in CI, never in the repo.
 LianaCloud account (staging), LianaMailer (testing) and LianaMonitor (staging).
 Logins are kept in the team's password manager, not here.
 
-## Known risk: email link scanners
+## Email link scanners
 
 Some mail systems (e.g. company security gateways) open every link in an email
-before the reader sees it. One-tap links answer on open, and the first answer per
-reader counts, so a scanner opening `&a=0` first could record a wrong answer. Not
-solved yet; see #126.
+before the reader sees it, and one-tap links answer on open. So the latest tap
+per reader counts (#126): the worker replaces a reader's answer with a newer one
+and moves the totals with it. Scanners open links on delivery and people tap
+later, so the person's answer wins. Messages are ordered by their `created_at`,
+so an older answer delivered late (e.g. after a retry) does not replace a newer one.
