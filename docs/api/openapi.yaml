@@ -414,6 +414,17 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such template for this organisation }
+  /api/v1/results/performance:
+    get:
+      tags: [results]
+      summary: Survey views, responses and response rate by distribution channel
+      description: Response rate is responses divided by views; it is null before the first view.
+      responses:
+        '200':
+          description: Used email, public-link and QR channels, updated as views and answers arrive
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/PerformanceRow' } }
   /r/{link_token}:
     get:
       tags: [respondent]
@@ -433,6 +444,7 @@ paths:
         - { name: c, in: query, required: false, description: Campaign tag (newsletter snippet links), schema: { type: string } }
         - { name: seg, in: query, required: false, description: Segment tag (newsletter snippet links), schema: { type: string } }
         - { name: a, in: query, required: true, description: The tapped answer, schema: { type: integer } }
+        - { name: ch, in: query, required: false, description: Distribution channel; inferred as email for answer links and link for plain links, schema: { type: string, enum: [email, link, qr] } }
       responses:
         '200': { description: Thank-you page (HTML), content: { text/html: {} } }
         '400': { description: 'Link not complete or not valid, an answer that is not one of the choices, or the plain public link without an answer (asks to answer from the email until #105) (HTML)' }
@@ -542,6 +554,17 @@ components:
               properties:
                 score: { type: string, example: NPS +42 }
                 note: { type: string, example: scale −100 to +100 }
+    PerformanceRow:
+      type: object
+      required: [survey_id, survey, channel, views, responses, response_rate, main_result]
+      properties:
+        survey_id: { type: string, format: uuid }
+        survey: { type: string }
+        channel: { type: string, enum: [email, link, qr] }
+        views: { type: integer, minimum: 0 }
+        responses: { type: integer, minimum: 0 }
+        response_rate: { type: [integer, 'null'], minimum: 0, description: Responses divided by views, as a whole percentage }
+        main_result: { type: [string, 'null'], example: NPS +42 }
     QuestionKind:
       type: string
       enum: [single_choice, multiple_choice, dropdown, text, long_text, rating, nps, reasons, thumbs]

@@ -105,6 +105,7 @@ export const api = {
   /** Creates a draft survey from a template and returns it. */
   useTemplate: (templateId: string) =>
     send<Survey>('POST', `/api/v1/templates/${encodeURIComponent(templateId)}/surveys`),
+  performance: () => getJson<PerformanceRow[]>('/api/v1/results/performance'),
 };
 
 function questionsPath(surveyId: string, questionId?: string) {
@@ -188,6 +189,16 @@ export type SurveyListItem = Survey & {
   answers: number;
   /** "Headline score", e.g. { score: 'NPS +42', note: 'scale −100 to +100' }; null before answers. */
   headline: { score: string; note: string } | null;
+};
+
+export type PerformanceRow = {
+  survey_id: string;
+  survey: string;
+  channel: 'email' | 'link' | 'qr';
+  views: number;
+  responses: number;
+  response_rate: number | null;
+  main_result: string | null;
 };
 
 export type Template = {

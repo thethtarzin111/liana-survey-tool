@@ -10,6 +10,7 @@ derived from the reader reference is stored, to count each reader once.
 """
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
@@ -57,6 +58,7 @@ async def answer(
     r: str | None = None,
     s: str | None = None,
     a: str | None = None,
+    ch: Literal["email", "link", "qr"] | None = None,
     queue: AnswerQueue = Depends(get_answer_queue),
 ) -> HTMLResponse:
     """Record a one-tap answer from the email and show the thank-you page."""
@@ -64,12 +66,14 @@ async def answer(
     tenant_id = await run_in_threadpool(repo.tenant_for_token, link_token)
     if tenant_id is None:
         return _page(pages.problem(NOT_VALID), 404)
-    if r is None and s is None and a is None:
-        # The plain public link (copied, or from the QR code): the full survey page is #105.
-        return _page(pages.page("Answer from your email", FROM_EMAIL), 400)
     survey = await run_in_threadpool(repo.survey_for_token, tenant_id, link_token)
     if survey is None:
         return _page(pages.problem(NOT_VALID), 404)
+    channel = ch or ("email" if a is not None else "link")
+    if r is None and s is None and a is None:
+        await run_in_threadpool(repo.record_view, tenant_id, survey["id"], channel)
+        # The full public survey page is #105; this valid visit still belongs in performance.
+        return _page(pages.page("Answer from your email", FROM_EMAIL), 400)
     try:
         links.check_link(
             settings.link_signing_secret,
@@ -86,11 +90,14 @@ async def answer(
     except domain.AnswerProblem as problem:
         return _page(pages.problem(str(problem)), problem.status_code)
 
+    await run_in_threadpool(repo.record_view, tenant_id, survey["id"], channel)
+
     message = AnswerSubmitted(
         tenant_id=tenant_id,
         survey_id=survey["id"],
         # Not the reader reference itself: anonymous answers keep no link to the reader.
         link_token_hash=links.response_key(settings.link_signing_secret, link_token, r or ""),
+        channel=channel,
         answers=[AnswerValue(question_id=survey["main_id"], number=value)],
     )
     try:

@@ -64,11 +64,19 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> bool:
         raise BadMessage("unknown survey")
 
     response = conn.execute(
-        """insert into responses (tenant_id, survey_id, submitted_at, link_token_hash, contact_ref)
-           values (%s, %s, %s, %s, %s)
+        """insert into responses
+             (tenant_id, survey_id, submitted_at, link_token_hash, contact_ref, channel)
+           values (%s, %s, %s, %s, %s, %s)
            on conflict (survey_id, link_token_hash) do nothing
            returning id""",
-        (msg.tenant_id, msg.survey_id, msg.created_at, msg.link_token_hash, msg.contact_ref),
+        (
+            msg.tenant_id,
+            msg.survey_id,
+            msg.created_at,
+            msg.link_token_hash,
+            msg.contact_ref,
+            msg.channel,
+        ),
     ).fetchone()
     if response is None:
         return False
