@@ -165,6 +165,11 @@ jobs:
           DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
           REQUIRE_DB: '1'
         run: cd backend/services/respondent && python -m pytest -q -m db -rs
+      - name: Data analyzer tests against the database (survey performance)
+        env:
+          DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
+          REQUIRE_DB: '1'
+        run: cd backend/services/data-analyzer && python -m pytest -q -m db -rs
       - name: Answer path through RabbitMQ (tap -> queue -> worker -> saved once; broken -> dead letter)
         env:
           DATABASE_URL: postgresql://survey_app:ci-app@localhost:5432/survey
