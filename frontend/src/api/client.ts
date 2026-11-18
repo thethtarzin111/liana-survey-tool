@@ -46,7 +46,7 @@ export const api = {
   },
   updateSurvey: async (
     id: string,
-    changes: Partial<Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'>>,
+    changes: Partial<Pick<Survey, 'reader_title' | 'title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'>>,
   ): Promise<Survey> => {
     const res = await fetch(`/api/v1/surveys/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -166,6 +166,7 @@ export type SurveyStatus = 'draft' | 'scheduled' | 'live' | 'closed';
 export type Snippet = { campaign: string; segment: string; html: string };
 
 export type Survey = {
+  reader_title?: string | null;
   id: string;
   title: string;
   description: string | null;

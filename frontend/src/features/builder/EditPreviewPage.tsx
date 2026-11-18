@@ -140,6 +140,8 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
   const type = survey.type as Exclude<SurveyType, 'custom'>;
   const { questions, setQuestions, loadError, retry, busy, save, update, updateOptions } = useSavedQuestions(survey.id);
   const [name, setName] = useState(survey.title);
+  const [readerTitle, setReaderTitle] = useState(survey.reader_title ?? '');
+  const [description, setDescription] = useState(survey.description ?? '');
   const [thanks, setThanks] = useState(survey.thank_you ?? '');
   const [options, setOptions] = useState<ReaderOptions>(() => readerOptionsOf(survey));
   const [accent, setAccent] = useState(survey.accent_color);
@@ -200,7 +202,9 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
     setSaveError('');
     if (Object.keys(found).length) return false;
 
-    const changes: { title?: string; thank_you?: string; accent_color?: string; background_color?: string } & Partial<ReaderOptions> = {};
+    const changes: { reader_title?: string; description?: string; title?: string; thank_you?: string; accent_color?: string; background_color?: string } & Partial<ReaderOptions> = {};
+    if (readerTitle !== (survey.reader_title ?? '')) changes.reader_title = readerTitle;
+    if (description !== (survey.description ?? '')) changes.description = description;
     if (accent !== survey.accent_color) changes.accent_color = accent;
     if (background !== survey.background_color) changes.background_color = background;
     if (name.trim() !== survey.title) changes.title = name;
@@ -265,6 +269,8 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
               disabled={saving}
               onChange={(event) => { setName(event.target.value); setErrors((e) => ({ ...e, title: undefined })); }}
             />
+            <TextField label="Title readers see" value={readerTitle} maxLength={200} onChange={(event) => setReaderTitle(event.target.value)} />
+            <TextArea label="Description" value={description} maxLength={1000} onChange={(event) => setDescription(event.target.value)} />
             {loadError ? (
               <div className="survey-error" role="alert">
                 <p>We couldn’t load the questions. Please try again.</p>
@@ -387,6 +393,8 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
         {saveError ? <p className="survey-save-error" role="alert">{saveError}</p> : null}
       </form>
       <TemplatePreview
+        readerTitle={readerTitle}
+        description={description}
         type={type}
         question={questionText}
         reasons={reasons?.options ?? []}

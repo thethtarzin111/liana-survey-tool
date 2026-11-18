@@ -28,6 +28,7 @@ class AnswerSubmitted(Message):
     survey_id: UUID
     # Hash of the signed link token, so the same link is not counted twice.
     link_token_hash: str
+    channel: Literal["email", "link", "qr"] = "email"
     answers: list[AnswerValue]
     # Only set in identified mode, after the respondent opted in.
     contact_ref: str | None = None

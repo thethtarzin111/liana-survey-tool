@@ -21,7 +21,8 @@ def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
     with tenant_connection(tenant_id) as conn:
         conn.row_factory = dict_row
         survey = conn.execute(
-            """select id, status, title, thank_you, accent_color, background_color,
+            """select id, status, title, reader_title, description, type, comment_field,
+                      contact_opt_in, thank_you, accent_color, background_color,
                       newsletter_links
                from surveys where link_token = %s""",
             (link_token,),
@@ -37,3 +38,13 @@ def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
         "main_id": main["id"] if main else None,
         "main_kind": main["kind"] if main else None,
     }
+
+
+def questions(tenant_id: UUID, survey_id: UUID) -> list[dict]:
+    with tenant_connection(tenant_id) as conn:
+        conn.row_factory = dict_row
+        return conn.execute(
+            """select id, kind, prompt, options, required from questions
+               where survey_id = %s order by position""",
+            (survey_id,),
+        ).fetchall()

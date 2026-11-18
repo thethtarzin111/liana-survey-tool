@@ -103,6 +103,8 @@ function Panel({ tabs, children }: { tabs?: ReactNode; children: ReactNode }) {
 }
 
 type TemplateProps = Brand & {
+  readerTitle?: string;
+  description?: string;
   type: Exclude<SurveyType, 'custom'>;
   question: string;
   reasons: string[];
@@ -112,10 +114,11 @@ type TemplateProps = Brand & {
 };
 
 /** The preview next to "Edit and preview" (thumbs, NPS and CSAT surveys). */
-export function TemplatePreview({ type, question, reasons, extras, thanks, options, ...brand }: TemplateProps) {
+export function TemplatePreview({ readerTitle, description, type, question, reasons, extras, thanks, options, ...brand }: TemplateProps) {
   const screens = type === 'thumbs'
     ? [{ value: 'email', label: 'Email block' }, { value: 'good', label: 'Thank-you: Good / Loved it' }, { value: 'bad', label: 'Thank-you: Not for me' }]
     : [{ value: 'email', label: 'Email block' }, { value: 'survey', label: 'Survey page' }];
+  screens.push({ value: 'link', label: 'Link page' });
   const [screen, setScreen] = useState('email');
   const current = screens.some((s) => s.value === screen) ? screen : 'email';
   const shown = question.trim() || 'Untitled question';
@@ -124,7 +127,9 @@ export function TemplatePreview({ type, question, reasons, extras, thanks, optio
     : null;
 
   let body: ReactNode;
-  if (current === 'email') {
+  if (current === 'link') {
+    body = <div><h2>{readerTitle || 'Survey'}</h2><p>{description}</p><PreviewQuestion question={{kind: type === 'nps' ? 'nps' : type === 'csat' ? 'rating' : 'thumbs', prompt: shown, options: [], required: true}} />{extraQuestions}</div>;
+  } else if (current === 'email') {
     body = (
       <div className="preview-email">
         <span className="preview-hint">Bottom of the newsletter</span>

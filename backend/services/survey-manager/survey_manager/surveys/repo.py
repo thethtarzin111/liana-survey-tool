@@ -10,6 +10,7 @@ import psycopg
 from .schemas import SurveyCreate, SurveyStatus, SurveyUpdate
 
 COLUMN_NAMES = (
+    "reader_title",
     "id",
     "title",
     "description",

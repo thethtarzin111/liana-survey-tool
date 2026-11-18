@@ -10,16 +10,19 @@ derived from the reader reference is stored, to count each reader once.
 """
 
 import logging
+import secrets
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
 
 from liana_survey_shared import links
 from liana_survey_shared.config import get_settings
 from liana_survey_shared.messages import AnswerSubmitted, AnswerValue
 
-from . import domain, pages, repo
+from . import domain, pages, public_form, repo
 from .answer_queue import AnswerQueue
 
 log = logging.getLogger(__name__)
@@ -65,8 +68,17 @@ async def answer(
     if tenant_id is None:
         return _page(pages.problem(NOT_VALID), 404)
     if r is None and s is None and a is None:
-        # The plain public link (copied, or from the QR code): the full survey page is #105.
-        return _page(pages.page("Answer from your email", FROM_EMAIL), 400)
+        survey = await run_in_threadpool(repo.survey_for_token, tenant_id, link_token)
+        if survey is None:
+            return _page(pages.problem(NOT_VALID), 404)
+        try:
+            domain.check_open(survey["status"])
+        except domain.AnswerProblem as problem:
+            return _page(pages.problem(str(problem)), problem.status_code)
+        questions = await run_in_threadpool(repo.questions, tenant_id, survey["id"])
+        reader = secrets.token_hex(16)
+        key = reader + "." + links.signature(settings.link_signing_secret, link_token, reader)
+        return _page(public_form.render(survey, questions, key))
     survey = await run_in_threadpool(repo.survey_for_token, tenant_id, link_token)
     if survey is None:
         return _page(pages.problem(NOT_VALID), 404)
@@ -99,6 +111,51 @@ async def answer(
         log.exception("could not queue answer for survey %s", survey["id"])
         return _page(pages.problem(TRY_AGAIN), 503)
 
+    return _page(
+        pages.thank_you(survey["thank_you"], survey["accent_color"], survey["background_color"])
+    )
+
+
+class PublicSubmission(BaseModel):
+    key: str = Field(max_length=100)
+    answers: dict[str, list[str]] = Field(max_length=100)
+
+
+@router.post("/r/{link_token}/submit", response_class=HTMLResponse)
+async def submit_public(
+    link_token: str,
+    data: PublicSubmission,
+    ch: Literal["link", "qr"] = "link",
+    queue: AnswerQueue = Depends(get_answer_queue),
+) -> HTMLResponse:
+    settings = get_settings()
+    tenant = await run_in_threadpool(repo.tenant_for_token, link_token)
+    if tenant is None:
+        return _page(pages.problem(NOT_VALID), 404)
+    survey = await run_in_threadpool(repo.survey_for_token, tenant, link_token)
+    if survey is None:
+        return _page(pages.problem(NOT_VALID), 404)
+    try:
+        reader, signature = data.key.split(".", 1)
+        links.check_signature(settings.link_signing_secret, link_token, reader, signature)
+        domain.check_open(survey["status"])
+        questions = await run_in_threadpool(repo.questions, tenant, survey["id"])
+        answers = public_form.validate(questions, data.answers, survey["type"])
+    except (ValueError, links.LinkError) as error:
+        return _page(pages.problem(str(error)), 400)
+    except domain.AnswerProblem as error:
+        return _page(pages.problem(str(error)), error.status_code)
+    message = AnswerSubmitted(
+        tenant_id=tenant,
+        survey_id=survey["id"],
+        channel=ch,
+        link_token_hash=links.response_key(settings.link_signing_secret, link_token, reader),
+        answers=answers,
+    )
+    try:
+        await queue.publish(message)
+    except Exception:
+        return _page(pages.problem(TRY_AGAIN), 503)
     return _page(
         pages.thank_you(survey["thank_you"], survey["accent_color"], survey["background_color"])
     )

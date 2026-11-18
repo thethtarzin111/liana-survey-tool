@@ -414,6 +414,28 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such template for this organisation }
+  /r/{link_token}/submit:
+    post:
+      tags: [respondent]
+      summary: Submit a public survey using the signed session key from its form
+      parameters:
+        - { name: link_token, in: path, required: true, schema: { type: string } }
+        - { name: ch, in: query, schema: { type: string, enum: [link, qr], default: link } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, answers]
+              properties:
+                key: { type: string }
+                answers: { type: object, additionalProperties: { type: array, items: { type: string } } }
+      responses:
+        '200': { description: Thank-you HTML }
+        '400': { description: Invalid key or answers }
+        '404': { description: Unknown survey }
+        '503': { description: Queue unavailable }
   /r/{link_token}:
     get:
       tags: [respondent]

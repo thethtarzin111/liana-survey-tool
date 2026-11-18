@@ -78,6 +78,7 @@ class SurveyUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: Title | None = None
+    reader_title: Annotated[str, StringConstraints(max_length=200)] | None = None
     description: Description | None = None
     thank_you: ThankYou | None = None
     type: SurveyType | None = None
@@ -107,6 +108,7 @@ class SurveyUpdate(BaseModel):
 
 
 class Survey(BaseModel):
+    reader_title: str | None = None
     id: UUID
     title: str
     description: str | None
