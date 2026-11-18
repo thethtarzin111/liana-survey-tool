@@ -50,6 +50,7 @@
 .template-picker-card { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
 .template-options { display: flex; flex-direction: column; gap: 8px; }
 .template-option { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-text); font: inherit; text-align: left; cursor: pointer; }
+.template-option-name { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .template-option:hover:not(:disabled) { border-color: var(--color-brand); }
 .template-option[aria-pressed='true'] { border-color: var(--color-brand); background: var(--color-mint-light); }
 .template-contents { display: flex; flex-direction: column; gap: 12px; }

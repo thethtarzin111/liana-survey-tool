@@ -29,6 +29,9 @@ beforeEach(() => {
   fetchMock.mockReset().mockImplementation(async (input, init) => {
     const { pathname, searchParams } = url(input);
     if (pathname === '/api/v1/me') return Response.json({ tenant_name: 'Example Members Association' });
+    if (pathname === '/api/v1/templates') {
+      return Response.json({ id: 'own-1', ...JSON.parse(String(init?.body)) }, { status: 201 });
+    }
     if (init?.method === 'DELETE') {
       rows = rows.filter((r) => !pathname.endsWith(r.id));
       return new Response(null, { status: 204 });
@@ -149,9 +152,45 @@ test('menus offer only the actions the status allows', async () => {
     await openMenu(title);
     return within(await rowFor(title)).getAllByRole('menuitem').map((item) => item.textContent);
   };
-  expect(await items('Member NPS 2026')).toEqual(['Edit', 'Unpublish', 'Close survey', 'Delete']);
-  expect(await items('Newsletter thumbs')).toEqual(['Edit', 'Unpublish', 'Delete']);
-  expect(await items('Course feedback')).toEqual(['Edit', 'Publish', 'Delete']);
+  expect(await items('Member NPS 2026')).toEqual(['Edit', 'Unpublish', 'Close survey', 'Save as template', 'Delete']);
+  expect(await items('Newsletter thumbs')).toEqual(['Edit', 'Unpublish', 'Save as template', 'Delete']);
+  expect(await items('Course feedback')).toEqual(['Edit', 'Publish', 'Save as template', 'Delete']);
+});
+
+test('Save as template asks for a name and description and saves the survey', async () => {
+  renderPage();
+  await openMenu('Member NPS 2026');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Save as template' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Save “Member NPS 2026” as a template' });
+  expect(dialog).toHaveTextContent('It keeps the questions and the thank-you message.');
+  const name = within(dialog).getByRole('textbox', { name: /Template name/ });
+  expect(name).toHaveValue('Member NPS 2026');
+
+  fireEvent.change(name, { target: { value: 'Yearly member NPS' } });
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Description/ }), { target: { value: ' For the spring check ' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save template' }));
+  expect(await screen.findByText('“Yearly member NPS” is saved in Templates.')).toBeInTheDocument();
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+
+  const post = fetchMock.mock.calls.find(([input]) => url(input).pathname === '/api/v1/templates');
+  expect(post?.[1]?.method).toBe('POST');
+  expect(JSON.parse(String(post?.[1]?.body))).toEqual({
+    survey_id: 'live-1', name: 'Yearly member NPS', description: 'For the spring check',
+  });
+});
+
+test('Save as template shows why a survey cannot be saved', async () => {
+  renderPage();
+  await openMenu('Course feedback');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Save as template' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Save “Course feedback” as a template' });
+  fetchMock.mockResolvedValueOnce(Response.json(
+    { detail: 'Add a question before you save the survey as a template.' }, { status: 409 },
+  ));
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save template' }));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Add a question before you save the survey as a template.');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
 });
 
 test('close and unpublish call the API, toast and refresh the row', async () => {

@@ -119,6 +119,14 @@ export const api = {
   /** Creates a draft survey from a template and returns it. */
   useTemplate: (templateId: string) =>
     send<Survey>('POST', `/api/v1/templates/${encodeURIComponent(templateId)}/surveys`),
+  /** Saves a survey's type, questions and thank-you message as the organisation's own template. */
+  saveAsTemplate: (surveyId: string, details: TemplateDetails) =>
+    send<Template>('POST', '/api/v1/templates', { survey_id: surveyId, ...details }),
+  /** Renames one of the organisation's own templates. Built-in ones get 403. */
+  updateTemplate: (templateId: string, details: Partial<TemplateDetails>) =>
+    send<Template>('PATCH', `/api/v1/templates/${encodeURIComponent(templateId)}`, details),
+  deleteTemplate: (templateId: string) =>
+    send<void>('DELETE', `/api/v1/templates/${encodeURIComponent(templateId)}`),
 };
 
 function questionsPath(surveyId: string, questionId?: string) {
@@ -224,9 +232,14 @@ export type Template = {
   thank_you: string;
   /** Shown as a card on the Templates page. */
   featured: boolean;
+  /** Saved by the organisation. Built-in templates (false) are read-only. */
+  own: boolean;
   /** The first is the main question; thumbs, NPS and CSAT templates follow it with reason bubbles. */
   questions: Pick<Question, 'kind' | 'prompt' | 'options' | 'required'>[];
 };
+
+/** The name and description a user gives their own template. */
+export type TemplateDetails = { name: string; description: string };
 
 /** The `detail` text of an API error (e.g. a 409 "Add a question before publishing."), if any. */
 export function errorDetail(error: unknown): string | null {

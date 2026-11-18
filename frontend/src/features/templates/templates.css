@@ -3,4 +3,8 @@
 .template-card h2 { margin: 0; font: 600 var(--text-section) var(--font-heading); }
 .template-card p { margin: 0; font-size: var(--text-body); line-height: 1.45; }
 .template-card .btn { margin-top: auto; }
+.template-card-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+.template-card-badges .menu-wrap { margin-left: auto; }
+.template-details { display: flex; flex-direction: column; gap: 12px; }
+.template-details > p { margin: 0; }
 .templates-error { padding: 12px 16px; border: 1px solid var(--color-error-border); border-radius: var(--radius-nav); background: var(--color-error-bg); color: var(--color-error-text); }

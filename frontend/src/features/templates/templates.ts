@@ -11,7 +11,10 @@ export const TYPE_LABEL: Record<SurveyType, string> = {
   custom: 'Quick poll',
 };
 
-export const USE_ERROR = 'We couldn’t create the survey. Please try again.';
+/** Badge on the organisation's own templates, next to the built-in ones. */
+export const YOURS = 'Yours';
+
+export const USE_ERROR ='We couldn’t create the survey. Please try again.';
 
 /** The parts of a template shown in "What the template contains" and on its card. */
 export function templateParts(template: Template) {
