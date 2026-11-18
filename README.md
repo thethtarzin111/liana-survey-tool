@@ -73,6 +73,12 @@ processes instead, install RabbitMQ, set `RABBITMQ_URL` in `.env` or your
 environment, and set `LOCAL_QUEUE_WORKERS=1` before `npm run dev`. The local
 launcher does not change `.env`.
 
+"New responses" emails work the same way: without RabbitMQ the local gateway
+also runs the worker's sweep and hands each email to the connector's mock mail
+adapter, which prints it in the backend terminal (`[mock mail] ...`). For a
+quick demo, start with `RESPONSE_DIGEST_INTERVAL_SECONDS=60 npm run dev`, tick
+"Notify me of new responses by email" on a live survey and answer it a few times.
+
 #### Try answering a survey
 
 1. `npm run dev`, then open http://localhost:8000/docs.
