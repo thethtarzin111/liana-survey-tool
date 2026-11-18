@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { FrontPage } from './FrontPage';
 
@@ -23,7 +23,7 @@ test('shows getting-started steps and empty-state actions to a new user', async 
   renderPage([]);
   expect(await screen.findByRole('heading', { name: 'Get started with LianaSurvey' })).toBeInTheDocument();
   expect(screen.getByText('Publish and share it')).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Browse templates' })).toHaveAttribute('href', '/templates');
+  expect(within(screen.getByRole('region', { name: 'Get started with LianaSurvey' })).getByRole('link', { name: 'Browse templates' })).toHaveAttribute('href', '/templates');
 });
 
 test('summarises surveys, results, contact requests and news', async () => {
