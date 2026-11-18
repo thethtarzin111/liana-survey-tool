@@ -5,7 +5,7 @@ import { Columns } from './charts/Columns';
 import { Donut } from './charts/Donut';
 import { percentOf } from './charts/tone';
 import { plural } from './format';
-import { groupsFor, THUMBS_LABEL, toneOf } from './groups';
+import { RATING_GROUPS, THUMBS_LABEL, toneOf } from './groups';
 
 const MORE_THAN_ONE = 'People could pick more than one, so the percentages add up to more than 100%.';
 const MAX_DONUT_OPTIONS = 6;
@@ -65,20 +65,15 @@ function visual(q: OverviewQuestion, onReadAll: () => void) {
         count: o.count,
         tone: toneOf(q.kind as 'nps' | 'rating' | 'thumbs', q.kind === 'thumbs' ? String(i) : o.label),
       }));
+      const satisfied = q.options.filter((o) => RATING_GROUPS[2].values.includes(o.label)).reduce((n, o) => n + o.count, 0);
       return (
         <>
           <Columns label={q.prompt} bars={bars} />
           {q.kind === 'rating' ? (
-            <Donut
-              label="Answer split"
-              center={q.average == null ? '—' : q.average.toFixed(1)}
-              centerNote="average"
-              slices={groupsFor('rating').map((g) => ({
-                label: g.label,
-                tone: g.tone,
-                count: q.options.filter((o) => g.values.includes(o.label)).reduce((s, o) => s + o.count, 0),
-              }))}
-            />
+            <p className="question-numbers">
+              <strong>Satisfied (4–5) {percentOf(satisfied, optionTotal)}%</strong>
+              <span>Average {q.average == null ? '—' : q.average.toFixed(1)}</span>
+            </p>
           ) : null}
         </>
       );

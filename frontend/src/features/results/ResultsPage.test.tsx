@@ -337,3 +337,14 @@ test('the Responses tab shows the number of responses', async () => {
   expect(await screen.findByRole('tab', { name: 'Responses 12' })).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByText('Responses will appear here soon.')).toBeInTheDocument();
 });
+
+test('"Read all answers →" opens the Responses tab', async () => {
+  overviews['custom-1'] = overview({
+    type: 'custom', main: null,
+    questions: [{ id: 'q9', kind: 'text', prompt: 'Any comments?', required: false, answers: 3, options: [], average: null }],
+  });
+  renderPage('/results?survey=custom-1');
+  fireEvent.click(await screen.findByRole('button', { name: 'Read all answers →' }));
+  await waitFor(() => expect(location()).toContain('tab=responses'));
+  expect(screen.getByRole('tab', { selected: true, name: /^Responses/ })).toBeInTheDocument();
+});
