@@ -7,8 +7,8 @@ const LIMIT_MAX = 1_000_000;
 
 const LANGUAGES: { value: SurveyLanguage; label: string }[] = [
   { value: 'en', label: 'English' },
-  { value: 'fi', label: 'suomi' },
-  { value: 'sv', label: 'svenska' },
+  { value: 'fi', label: 'Suomi' },
+  { value: 'sv', label: 'Svenska' },
 ];
 
 type Form = { day: string; limit: string; notify: boolean; language: SurveyLanguage };
