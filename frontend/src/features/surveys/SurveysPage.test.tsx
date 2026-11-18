@@ -149,9 +149,9 @@ test('menus offer only the actions the status allows', async () => {
     await openMenu(title);
     return within(await rowFor(title)).getAllByRole('menuitem').map((item) => item.textContent);
   };
-  expect(await items('Member NPS 2026')).toEqual(['Unpublish', 'Close survey', 'Delete']);
-  expect(await items('Newsletter thumbs')).toEqual(['Unpublish', 'Delete']);
-  expect(await items('Course feedback')).toEqual(['Publish', 'Delete']);
+  expect(await items('Member NPS 2026')).toEqual(['Edit', 'Unpublish', 'Close survey', 'Delete']);
+  expect(await items('Newsletter thumbs')).toEqual(['Edit', 'Unpublish', 'Delete']);
+  expect(await items('Course feedback')).toEqual(['Edit', 'Publish', 'Delete']);
 });
 
 test('close and unpublish call the API, toast and refresh the row', async () => {
@@ -236,4 +236,12 @@ test('a draft that is not ready keeps the dialog open with the reason', async ()
   expect(await screen.findByText('Add the survey’s main question before publishing.')).toBeInTheDocument();
   expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: 'Live page' })).not.toBeInTheDocument();
+});
+
+test('Edit in the menu opens the editor, also for live surveys', async () => {
+  renderPage();
+  await openMenu('Member NPS 2026');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+  expect(await screen.findByRole('heading', { name: 'Builder' })).toBeInTheDocument();
+  expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/live-1');
 });

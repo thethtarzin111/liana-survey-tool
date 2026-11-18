@@ -49,7 +49,12 @@ export function LivePage() {
       <PageHeader
         title={`${survey.title} is live`}
         description="Share the link to start collecting answers."
-        actions={<ButtonLink to="/surveys" variant="secondary">Back to surveys</ButtonLink>}
+        actions={
+          <div className="live-actions">
+            <ButtonLink to={`/surveys/${encodeURIComponent(survey.id)}`} variant="ghost">Edit survey</ButtonLink>
+            <ButtonLink to="/surveys" variant="secondary">Back to surveys</ButtonLink>
+          </div>
+        }
       />
       <div className="live-layout">
         <ShareLinkCard title={survey.title} url={survey.public_url} />
