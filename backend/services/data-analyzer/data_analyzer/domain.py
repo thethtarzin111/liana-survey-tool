@@ -1,9 +1,12 @@
 """Survey performance rules: plain Python, no framework code."""
 
+import hashlib
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from liana_survey_shared.scoring import (
@@ -253,3 +256,131 @@ def overview(rows: dict[str, Any], segment: str) -> dict[str, Any]:
         "trend": trend,
         "by_segment": by_segment,
     }
+
+
+# Answer groups of the scale kinds, as values of the main question.
+GROUPS: dict[str, dict[str, tuple[int, ...]]] = {
+    "thumbs": {"not-for-me": (0,), "good": (1,), "loved-it": (2,)},
+    "nps": {
+        "detractors": tuple(range(0, 7)),
+        "passives": (7, 8),
+        "promoters": (9, 10),
+    },
+    "rating": {"low": (1, 2), "neutral": (3,), "high": (4, 5)},
+}
+
+
+def group_values(kind: str | None, group: str) -> tuple[int, ...] | None:
+    """The answers an answer group stands for, None when the kind has no such group."""
+    return GROUPS.get(kind or "", {}).get(group)
+
+
+def segment_labels(groups: list[SegmentGroup]) -> dict[str, str]:
+    """The label of every stored segment the shown groups cover."""
+    return {stored: group.label for group in groups for stored in group.members}
+
+
+# Patterns written for both PostgreSQL (regexp_replace with the "g" flag) and Python
+# `re`: no lookarounds, no \b. A phone number starts with "+", "0" or "(0" and has
+# at least 8 digits, spaces, brackets or dashes in all, so dates and plain numbers stay. The
+# first group of PHONE_PATTERN is the character before the number and is kept.
+EMAIL_PATTERN = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+PHONE_PATTERN = r"(^|[^0-9A-Za-z(])((\+[0-9]|\(?0)[0-9 ()-]{6,}[0-9])"
+HIDDEN = "[hidden]"
+EMAIL_REPLACEMENT = HIDDEN
+PHONE_REPLACEMENT = r"\1" + HIDDEN
+
+_EMAIL = re.compile(EMAIL_PATTERN)
+_PHONE = re.compile(PHONE_PATTERN)
+
+
+def mask(text: str) -> tuple[str, bool]:
+    """The text with emails and phone numbers replaced, and whether anything was."""
+    masked = _PHONE.sub(PHONE_REPLACEMENT, _EMAIL.sub(EMAIL_REPLACEMENT, text))
+    return masked, masked != text
+
+
+def display_id(response_id: UUID) -> str:
+    """A short id for a response: "R-" and 6 hex characters of its hashed id."""
+    digest = hashlib.sha256(str(response_id).encode()).hexdigest()
+    return "R-" + digest[:6].upper()
+
+
+def response_row(row: dict[str, Any], labels: dict[str, str]) -> dict[str, Any]:
+    """One response of the list as the API shows it. The segment label is None when
+    segments are off (`labels` is empty)."""
+    return {
+        "id": row["id"],
+        "display_id": display_id(row["id"]),
+        "submitted_at": row["submitted_at"],
+        "answer": row["answer"],
+        "reason": row["reason"],
+        "comment": row["comment"],
+        "masked": row["was_masked"],
+        "segment_label": labels.get(row["segment"]),
+    }
+
+
+def _number(value: Any) -> int | float:
+    return int(value) if value == int(value) else float(value)
+
+
+def response_detail(detail: dict[str, Any], labels: dict[str, str]) -> dict[str, Any]:
+    """One response with all its answers. Text is masked already, `masked` says whether
+    a replacement was made."""
+    answers = []
+    for row in detail["answers"]:
+        if row["value_number"] is not None:
+            value: Any = _number(row["value_number"])
+        elif row["value_choices"] is not None:
+            value = row["value_choices"]
+        else:
+            value = row["text"]
+        answers.append(
+            {
+                "question_id": row["question_id"],
+                "prompt": row["prompt"],
+                "kind": row["kind"],
+                "value": value,
+                "masked": row["raw_text"] is not None and row["text"] != row["raw_text"],
+            }
+        )
+    return {
+        "display_id": display_id(detail["id"]),
+        "submitted_at": detail["submitted_at"],
+        "segment_label": labels.get(detail["segment"]),
+        "answers": answers,
+    }
+
+
+def _csv_text(text: str) -> str:
+    """Text a spreadsheet would not run as a formula."""
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+def csv_cell(answer: dict[str, Any] | None) -> str:
+    """One answer as a CSV cell: a number, the masked text or the choices joined by "; "."""
+    if answer is None:
+        return ""
+    if answer["value_number"] is not None:
+        return str(_number(answer["value_number"]))
+    if answer["value_choices"] is not None:
+        return _csv_text("; ".join(answer["value_choices"]))
+    return _csv_text(answer["text"] or "")
+
+
+def csv_rows(
+    questions: list[dict[str, Any]], rows: list[dict[str, Any]], labels: dict[str, str]
+) -> list[list[str]]:
+    """The header and one line per response: ID, Received, Segment, then each question."""
+    lines = [["ID", "Received", "Segment", *(_csv_text(q["prompt"]) for q in questions)]]
+    for row in rows:
+        lines.append(
+            [
+                display_id(row["id"]),
+                row["submitted_at"].astimezone(TIME_ZONE).isoformat(timespec="seconds"),
+                labels.get(row["segment"], ""),
+                *(csv_cell(row["answers"].get(q["id"])) for q in questions),
+            ]
+        )
+    return lines

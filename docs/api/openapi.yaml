@@ -467,6 +467,99 @@ paths:
         '400': { description: 'Segment not available: unknown, or too small to show' }
         '404': { description: Survey not found }
         '422': { description: survey_id is not a UUID }
+  /api/v1/results/{survey_id}/responses:
+    get:
+      tags: [results]
+      summary: Responses of one survey, newest first
+      description: >-
+        Answer, reason and comment are those of the first scale, reasons and text question.
+        Emails and phone numbers in comments are replaced with `[hidden]` in the same query, so
+        `q`, `total` and paging only see the hidden text. `segment_label` is null when segments
+        are off (see the overview); small segments are labelled "Other" and answers without a
+        segment "No segment". The contact reference and the link key are never returned.
+      parameters:
+        - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - name: segment
+          in: query
+          required: false
+          description: "`all` (default) for no filter, or a `value` from the overview's `segments`"
+          schema: { type: string, default: all }
+        - name: q
+          in: query
+          required: false
+          description: Text to find in the comments after emails and phone numbers are hidden
+          schema: { type: string }
+        - name: group
+          in: query
+          required: false
+          description: >-
+            Answer group of the survey's first scale question. Thumbs: not-for-me, good, loved-it.
+            NPS: detractors, passives, promoters. Rating: low (1-2), neutral (3), high (4-5).
+          schema: { type: string }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        '200':
+          description: One page of responses and how many match
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResponsesPage' }
+        '400': { description: 'Segment not available: unknown, too small to show, or segments are off' }
+        '404': { description: Survey not found }
+        '422': { description: Unknown answer group for this survey, limit or offset out of range, or survey_id is not a UUID }
+  /api/v1/results/{survey_id}/responses.csv:
+    get:
+      tags: [results]
+      summary: Export the matching responses as CSV
+      description: >-
+        All matching responses (not one page), newest first, with the same filters and masking as
+        the list. Columns are ID, Received (Europe/Helsinki), Segment and one per question in
+        question order. Multiple choices are joined with "; ". Text starting with =, +, - or @ gets
+        a leading apostrophe so a spreadsheet does not run it. Segment is empty when segments are off.
+      parameters:
+        - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - name: segment
+          in: query
+          required: false
+          description: "`all` (default) for no filter, or a `value` from the overview's `segments`"
+          schema: { type: string, default: all }
+        - name: q
+          in: query
+          required: false
+          description: Text to find in the comments after emails and phone numbers are hidden
+          schema: { type: string }
+        - name: group
+          in: query
+          required: false
+          description: >-
+            Answer group of the survey's first scale question. Thumbs: not-for-me, good, loved-it.
+            NPS: detractors, passives, promoters. Rating: low (1-2), neutral (3), high (4-5).
+          schema: { type: string }
+      responses:
+        '200':
+          description: The CSV file
+          content:
+            text/csv:
+              schema: { type: string }
+        '400': { description: 'Segment not available: unknown, too small to show, or segments are off' }
+        '404': { description: Survey not found }
+        '422': { description: Unknown answer group for this survey, or survey_id is not a UUID }
+  /api/v1/results/{survey_id}/responses/{response_id}:
+    get:
+      tags: [results]
+      summary: Every answer of one response
+      description: Answers in question order, text masked like the list. A question without an answer has a null value.
+      parameters:
+        - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: response_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The response
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResponseDetail' }
+        '404': { description: Survey or response not found }
+        '422': { description: An id is not a UUID }
   /r/{link_token}:
     get:
       tags: [respondent]
@@ -620,6 +713,49 @@ components:
         responses: { type: integer, minimum: 0 }
         response_rate: { type: [integer, 'null'], minimum: 0, description: Responses divided by views, as a whole percentage }
         main_result: { type: [string, 'null'], example: NPS +42 }
+    ResponsesPage:
+      type: object
+      required: [total, rows]
+      properties:
+        total: { type: integer, minimum: 0, description: Responses matching the filters }
+        rows:
+          type: array
+          items:
+            type: object
+            required: [id, display_id, submitted_at, answer, reason, comment, masked, segment_label]
+            properties:
+              id: { type: string, format: uuid }
+              display_id: { type: string, example: R-5337A1 }
+              submitted_at: { type: string, format: date-time }
+              answer: { type: [integer, 'null'], description: Answer to the first scale question }
+              reason: { type: [string, 'null'], description: Picked reasons joined with "; " }
+              comment: { type: [string, 'null'], description: First text question, emails and phone numbers hidden }
+              masked: { type: boolean, description: True when something in the comment was hidden }
+              segment_label: { type: [string, 'null'], description: Null when segments are off }
+    ResponseDetail:
+      type: object
+      required: [display_id, submitted_at, segment_label, answers]
+      properties:
+        display_id: { type: string }
+        submitted_at: { type: string, format: date-time }
+        segment_label: { type: [string, 'null'] }
+        answers:
+          type: array
+          items:
+            type: object
+            required: [question_id, prompt, kind, value, masked]
+            properties:
+              question_id: { type: string, format: uuid }
+              prompt: { type: string }
+              kind: { $ref: '#/components/schemas/QuestionKind' }
+              value:
+                description: A number, text, the picked options, or null when unanswered
+                oneOf:
+                  - { type: number }
+                  - { type: string }
+                  - { type: array, items: { type: string } }
+                  - { type: 'null' }
+              masked: { type: boolean }
     SurveyOverview:
       type: object
       required: [survey_id, title, type, status, closes_at, last_answer_at, channels, segment, segments, responses, views, response_rate, completed_all, main, questions, reasons, trend, by_segment]
