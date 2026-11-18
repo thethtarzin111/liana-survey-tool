@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useCurrentUser } from '../../api/useCurrentUser';
 import { api, type SurveyListItem, type SurveyType } from '../../api/client';
-import { PageHeader } from '../../components/PageHeader';
+import { Icon } from '../../components/Icon';
 import { Button, ButtonLink, Card, CardBody, CardHeader, EmptyState, SurveyStatusBadge, Table, icons, type Column } from '../../components/ui';
 import './front.css';
 import { WelcomeBanner } from './WelcomeBanner';
@@ -44,7 +43,6 @@ function ArticleList({ items }: { items: readonly (readonly [string, string])[] 
 }
 
 export function FrontPage() {
-  const user = useCurrentUser();
   const [surveys, setSurveys] = useState<SurveyListItem[] | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -67,17 +65,16 @@ export function FrontPage() {
 
   return <div className="front-page">
     <WelcomeBanner />
-    <PageHeader title={user ? `Welcome, ${user.name.split(' ')[0]}` : 'Welcome'} description="Your surveys and the latest results at a glance." actions={<ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>} />
     {failed ? <Card padded className="front-error" role="alert"><strong>We couldn’t load your dashboard.</strong><p>Your survey information is temporarily unavailable.</p><Button onClick={() => window.location.reload()}>Try again</Button></Card>
       : surveys === null ? <p role="status">Loading dashboard…</p>
       : surveys.length === 0 ? <GettingStarted />
       : <>
         <h2 className="section-header">Overview</h2>
         <Card className="front-overview" aria-labelledby="overall-statistics-title"><CardHeader id="overall-statistics-title" title="Overall statistics" actions={<ButtonLink size="sm" to="/results">View all results →</ButtonLink>} /><div className="front-stats">
-          <div><span>Live surveys</span><strong>{live}</strong><Link to="/surveys?status=live">View surveys</Link></div>
-          <div><span>Responses</span><strong>{responses}</strong><Link to="/responses">View responses</Link></div>
-          <div><span>Surveys</span><strong>{surveys.length}</strong><Link to="/surveys">View all surveys</Link></div>
-          <div><span>With results</span><strong>{answered.length}</strong><Link to="/results">View performance</Link></div>
+          <div><span className="front-stat-icon"><Icon path={icons.list} size={32} /></span><span>Live surveys</span><strong>{live}</strong><ButtonLink size="sm" to="/surveys?status=live">View surveys</ButtonLink></div>
+          <div><span className="front-stat-icon"><Icon path={icons.chart} size={32} /></span><span>Responses</span><strong>{responses}</strong><ButtonLink size="sm" to="/responses">View responses</ButtonLink></div>
+          <div><span className="front-stat-icon"><Icon path={icons.list} size={32} /></span><span>Surveys</span><strong>{surveys.length}</strong><ButtonLink size="sm" to="/surveys">View all surveys</ButtonLink></div>
+          <div><span className="front-stat-icon"><Icon path={icons.chart} size={32} /></span><span>With results</span><strong>{answered.length}</strong><ButtonLink size="sm" to="/results">View performance</ButtonLink></div>
         </div></Card>
         <h2 className="section-header">Results</h2>
         <div className="front-results-grid">

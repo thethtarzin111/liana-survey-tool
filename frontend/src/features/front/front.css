@@ -2,6 +2,9 @@
 @media(max-width:900px){.front-stats{grid-template-columns:repeat(2,1fr)}.front-stats>div:nth-child(3){border-left:0}.front-results-grid,.front-news-grid{grid-template-columns:1fr}}
 @media(max-width:620px){.front-stats,.front-steps{grid-template-columns:1fr}.front-stats>div{border-left:0;border-top:1px solid var(--color-row-line)}.front-stats>div:first-child{border-top:0}.front-result-list li{grid-template-columns:1fr}}
 .welcome-banner { position: relative; margin: -24px -24px 16px; background: var(--color-mint); }
+.front-stats { padding: 28px 8px; }
+.front-stats > div { border-left: 0; gap: 12px; }
+.front-stat-icon { display: grid !important; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: var(--color-mint-light); color: var(--color-brand) !important; }
 .welcome-content { padding: 48px 48px 56px; display: flex; align-items: center; justify-content: center; gap: 72px; }
 .welcome-content[hidden] { display: none; }
 .welcome-copy { flex: 1 1 380px; max-width: 560px; display: flex; flex-direction: column; gap: 14px; }

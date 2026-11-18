@@ -56,7 +56,7 @@ test('sidebar has the prototype items in order', () => {
 
 test('front page greets the demo user', async () => {
   renderAt('/');
-  expect(await screen.findByRole('heading', { name: 'Welcome, Anna' })).toBeInTheDocument();
+  expect(await screen.findByRole('heading', { name: 'Welcome to LianaSurvey – hear what your readers think' })).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
 });
 
