@@ -64,7 +64,7 @@ export function LivePage() {
           <ShareLinkCard title={survey.title} url={survey.public_url} />
           {import.meta.env.DEV ? <TryAsReader survey={survey} /> : null}
         </div>
-        <aside className="live-side" aria-label="Survey settings">
+        <aside className="live-side">
           <SurveySettingsCard survey={survey} onSaved={setSurvey} />
         </aside>
       </div>

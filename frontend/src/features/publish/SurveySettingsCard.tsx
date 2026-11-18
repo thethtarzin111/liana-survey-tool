@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { api, errorDetail, type Survey } from '../../api/client';
+import { api, errorDetail, type Survey, type SurveySettings } from '../../api/client';
 import { Button, ButtonLink, Card, CardHeader, Checkbox, TextField, useToast } from '../../components/ui';
 import { closesAtFromDay, dayFromClosesAt, today } from './closeDate';
 
@@ -15,8 +15,9 @@ function formFor(survey: Survey): Form {
   };
 }
 
-function dayError(day: string): string | null {
-  return day !== '' && day < today() ? 'Pick today or a later day.' : null;
+/** A day already saved may have passed; only a newly picked day must be today or later. */
+function dayError(day: string, savedDay: string): string | null {
+  return day !== '' && day !== savedDay && day < today() ? 'Pick today or a later day.' : null;
 }
 
 function limitError(limit: string): string | null {
@@ -36,7 +37,7 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
   const [problem, setProblem] = useState<string | null>(null);
 
   const changed = form.day !== saved.day || form.limit.trim() !== saved.limit || form.notify !== saved.notify;
-  const errors = { day: dayError(form.day), limit: limitError(form.limit) };
+  const errors = { day: dayError(form.day, saved.day), limit: limitError(form.limit) };
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -44,11 +45,12 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
     setSaving(true);
     setProblem(null);
     try {
-      const updated = await api.updateSurvey(survey.id, {
-        closes_at: form.day ? closesAtFromDay(form.day) : null,
-        response_limit: form.limit.trim() ? Number(form.limit) : null,
-        notify_on_response: form.notify,
-      });
+      // Send only what changed, so an untouched close date keeps its exact time and isn't re-checked.
+      const changes: Partial<SurveySettings> = {};
+      if (form.day !== saved.day) changes.closes_at = form.day ? closesAtFromDay(form.day) : null;
+      if (form.limit.trim() !== saved.limit) changes.response_limit = form.limit.trim() ? Number(form.limit) : null;
+      if (form.notify !== saved.notify) changes.notify_on_response = form.notify;
+      const updated = await api.updateSurvey(survey.id, changes);
       onSaved(updated);
       setSaved(formFor(updated));
       setForm(formFor(updated));
@@ -68,7 +70,7 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
           <TextField
             label="Closes on"
             type="date"
-            min={today()}
+            min={saved.day && saved.day < today() ? saved.day : today()}
             value={form.day}
             error={errors.day}
             onChange={(e) => setForm({ ...form, day: e.target.value })}
@@ -94,6 +96,7 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
           checked={form.notify}
           onChange={(e) => setForm({ ...form, notify: e.target.checked })}
         />
+        <p className="live-hint">The setting is saved now. The emails start in a later update.</p>
         <p className="settings-privacy">
           Answers are anonymous. Readers who tick “Contact me” share their contact so you can follow up.
         </p>

@@ -22,17 +22,19 @@ function dayFromToday(days: number) {
 
 const fetchMock = vi.fn<typeof fetch>();
 const onSaved = vi.fn<(saved: Survey) => void>();
+let current: Survey = survey;
 
 beforeEach(() => {
   onSaved.mockReset();
   fetchMock.mockReset().mockImplementation(async (_url, init) =>
-    Response.json({ ...survey, ...JSON.parse(String(init?.body)) }),
+    Response.json({ ...current, ...JSON.parse(String(init?.body)) }),
   );
   vi.stubGlobal('fetch', fetchMock);
 });
 afterEach(() => vi.unstubAllGlobals());
 
 function renderCard(saved: Survey = survey) {
+  current = saved;
   render(
     <ToastProvider>
       <MemoryRouter>
@@ -70,7 +72,7 @@ test('emptying the fields removes the close date and the limit', async () => {
   fireEvent.change(screen.getByLabelText('Response limit'), { target: { value: '' } });
   fireEvent.click(save());
   await screen.findByText('Settings saved');
-  expect(sentBody()).toEqual({ closes_at: null, response_limit: null, notify_on_response: false });
+  expect(sentBody()).toEqual({ closes_at: null, response_limit: null });
 });
 
 test('a past day and a bad limit are explained and not saved', () => {
@@ -84,6 +86,19 @@ test('a past day and a bad limit are explained and not saved', () => {
   expect(screen.getByLabelText('Response limit')).toHaveAttribute('aria-invalid', 'true');
   fireEvent.click(save());
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+test('only changed settings are sent, so a past close date does not block other changes', async () => {
+  const closedAt = '2026-01-15T12:30:00.000Z';
+  renderCard({ ...survey, closes_at: closedAt, response_limit: 200 });
+  expect(screen.queryByText('Pick today or a later day.')).not.toBeInTheDocument();
+  expect(Number(new Date(`${(screen.getByLabelText('Closes on') as HTMLInputElement).min}T12:00`))).toBeLessThan(Date.now());
+  fireEvent.change(screen.getByLabelText('Response limit'), { target: { value: '300' } });
+  fireEvent.click(screen.getByLabelText('Notify me of new responses by email'));
+  fireEvent.click(save());
+  await screen.findByText('Settings saved');
+  expect(sentBody()).toEqual({ response_limit: 300, notify_on_response: true });
+  expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ closes_at: closedAt }));
 });
 
 test('today is a valid close day', () => {
@@ -104,6 +119,7 @@ test('an API refusal is shown with its reason', async () => {
 
 test('says answers are anonymous and links to results and all surveys', () => {
   renderCard();
+  expect(screen.getByText('The setting is saved now. The emails start in a later update.')).toBeInTheDocument();
   expect(screen.getByText(/Answers are anonymous. Readers who tick “Contact me” share their contact/)).toBeInTheDocument();
   expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Go to results' })).toHaveAttribute('href', '/results');
