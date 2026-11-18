@@ -22,6 +22,7 @@ beforeEach(() => {
   testLinks = null;
   fetchMock.mockReset().mockImplementation(async (input) => {
     if (String(input).endsWith('/test-links')) return testLinks ?? Response.json({ links });
+    if (String(input).includes('/snippet')) return Response.json({ campaign: 'member-nps', segment: 'all', html: '<table></table>' });
     return Response.json(current);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -45,6 +46,8 @@ test('shows the survey is live with its public link', async () => {
   expect(screen.getByLabelText('Public link')).toHaveAttribute('readonly');
   expect(screen.getByRole('link', { name: 'Back to surveys' })).toHaveAttribute('href', '/surveys');
   expect(screen.getByRole('link', { name: 'Edit survey' })).toHaveAttribute('href', '/surveys/nps-1');
+  expect(screen.getByRole('heading', { name: 'Newsletter snippet' })).toBeInTheDocument();
+  expect(await screen.findByLabelText('Campaign tag')).toHaveValue('member-nps');
 });
 
 test('in local development, each test reader has one link per answer', async () => {
