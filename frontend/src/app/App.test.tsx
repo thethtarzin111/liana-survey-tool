@@ -8,8 +8,8 @@ beforeEach(() => {
   // No API in unit tests: pretend the dev-auth stub answered.
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      Response.json({
+    vi.fn(async (input: RequestInfo | URL) =>
+      String(input).startsWith('/api/v1/templates') ? Response.json([]) : Response.json({
         user_id: 'u',
         tenant_id: 't',
         tenant_name: 'Example Members Association',
