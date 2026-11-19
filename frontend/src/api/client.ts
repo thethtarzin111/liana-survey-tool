@@ -73,6 +73,14 @@ export const api = {
     getJson<SurveyOverview>(
       `/api/v1/results/${encodeURIComponent(surveyId)}/overview?segment=${encodeURIComponent(segment)}`,
     ),
+  /** One page of a survey's responses, newest first. Comments are masked by the server. */
+  responses: (surveyId: string, filters: ResponseFilters & { limit?: number; offset?: number }) =>
+    getJson<ResponsesPage>(
+      `${resultsPath(surveyId)}/responses?${responseQuery(filters, { limit: filters.limit ?? 50, offset: filters.offset ?? 0 })}`,
+    ),
+  /** Every answer of one response. */
+  responseDetail: (surveyId: string, responseId: string) =>
+    getJson<ResponseDetail>(`${resultsPath(surveyId)}/responses/${encodeURIComponent(responseId)}`),
   /** Close (live → closed) or unpublish (live/scheduled → draft) a survey. */
   changeSurveyStatus: (id: string, action: 'close' | 'unpublish') =>
     send<Survey>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/${action}`),
@@ -298,6 +306,55 @@ export type SurveyOverview = {
   trend: { month: string; score: number | null; answers: number }[];
   by_segment: { value: string; label: string; answers: number; score: number | null; counts: Record<string, number> }[];
 };
+
+export type ResponseFilters = { segment?: string; q?: string; group?: string };
+
+export type ResponseRow = {
+  id: string;
+  display_id: string;
+  submitted_at: string;
+  answer: number | null;
+  reason: string | null;
+  comment: string | null;
+  masked: boolean;
+  /** Null when the survey has no segments to show. */
+  segment_label: string | null;
+};
+
+export type ResponsesPage = { total: number; rows: ResponseRow[] };
+
+export type ResponseDetail = {
+  display_id: string;
+  submitted_at: string;
+  segment_label: string | null;
+  answers: {
+    question_id: string;
+    prompt: string;
+    kind: string;
+    value: number | string | string[] | null;
+    masked: boolean;
+  }[];
+};
+
+const resultsPath = (surveyId: string) => `/api/v1/results/${encodeURIComponent(surveyId)}`;
+
+function responseQuery(filters: ResponseFilters, paging?: { limit: number; offset: number }): string {
+  const params = new URLSearchParams();
+  if (paging) {
+    params.set('limit', String(paging.limit));
+    params.set('offset', String(paging.offset));
+  }
+  if (filters.segment && filters.segment !== 'all') params.set('segment', filters.segment);
+  if (filters.q) params.set('q', filters.q);
+  if (filters.group) params.set('group', filters.group);
+  return params.toString();
+}
+
+/** Where the CSV of all matching responses is served; it carries the same filters. */
+export function responsesCsvUrl(surveyId: string, filters: ResponseFilters = {}): string {
+  const query = responseQuery(filters);
+  return `${resultsPath(surveyId)}/responses.csv${query ? `?${query}` : ''}`;
+}
 
 export type Template = {
   id: string;

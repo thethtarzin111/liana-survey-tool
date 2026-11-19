@@ -11,13 +11,15 @@ type Props = {
   /** The chosen survey's id; null when the URL names a survey that does not exist. */
   value: string | null;
   onPick: (id: string) => void;
+  /** Smaller, for the tab row: the "Survey" label is for screen readers only. */
+  compact?: boolean;
 };
 
 /**
  * A button with the chosen survey that opens a searchable list. Focus is in the search
  * field while the list is open: arrow keys move, Enter picks, Escape closes.
  */
-export function SurveyPicker({ surveys, value, onPick }: Props) {
+export function SurveyPicker({ surveys, value, onPick, compact = false }: Props) {
   const base = useId();
   const labelId = `${base}-label`;
   const listId = `${base}-list`;
@@ -77,12 +79,14 @@ export function SurveyPicker({ surveys, value, onPick }: Props) {
 
   return (
     <div
-      className="results-picker"
+      className={compact ? 'results-picker results-picker-compact' : 'results-picker'}
       onBlur={(e) => {
         if (open && !e.currentTarget.contains(e.relatedTarget)) close(false);
       }}
     >
-      <span id={labelId} className="results-picker-label">Survey</span>
+      <span id={labelId} className={compact ? 'results-picker-label visually-hidden' : 'results-picker-label'}>
+        Survey
+      </span>
       <button
         ref={button}
         type="button"

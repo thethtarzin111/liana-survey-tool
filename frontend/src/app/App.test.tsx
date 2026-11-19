@@ -77,6 +77,7 @@ test('/responses lands on Results with the Responses tab', async () => {
           { id: 's1', title: 'Member NPS', type: 'nps', status: 'live', answers: 3, last_answer_at: null, headline: null },
         ]);
       }
+      if (path.includes('/responses')) return Response.json({ total: 0, rows: [] });
       return Response.json({
         survey_id: 's1', title: 'Member NPS', type: 'nps', status: 'live', closes_at: null, last_answer_at: null,
         channels: [], segment: 'all', segments: [], responses: 3, views: 0, response_rate: null, completed_all: null,

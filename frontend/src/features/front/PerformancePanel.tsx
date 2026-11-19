@@ -6,6 +6,8 @@ const CHANNEL = { email: 'Email', link: 'Link', qr: 'QR code' } as const;
 const REFRESH_MS = 30_000;
 /** Surveys on the front page; the Surveys list has them all. */
 const FRONT_PAGE_SURVEYS = 5;
+/** Each survey has one row per channel, so the card shows only the first rows of the result. */
+const FRONT_PAGE_ROWS = 5;
 
 const columns: Column<PerformanceRow>[] = [
   { key: 'survey', header: 'Survey', render: (row) => <strong>{row.survey}</strong> },
@@ -63,7 +65,7 @@ export function PerformancePanel() {
       <Table
         caption="Survey performance"
         columns={columns}
-        rows={rows}
+        rows={rows.slice(0, FRONT_PAGE_ROWS)}
         rowKey={(row) => `${row.survey_id}-${row.channel}`}
       />
     );

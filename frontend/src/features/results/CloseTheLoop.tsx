@@ -11,7 +11,7 @@ const TEXT: Record<'thumbs' | 'nps' | 'csat', string> = {
 export function CloseTheLoop({ type }: { type: SurveyOverview['type'] }) {
   if (type === 'custom') return null;
   return (
-    <Card padded className="results-loop">
+    <Card className="results-card results-loop">
       <div className="results-loop-text">
         <h2 className="results-loop-title">Close the loop</h2>
         <p className="results-loop-note">{TEXT[type]}</p>

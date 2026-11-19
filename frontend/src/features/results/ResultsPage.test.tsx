@@ -51,6 +51,7 @@ beforeEach(() => {
       const base = overviews[match[1]] ?? overview({ survey_id: match[1] });
       return Response.json({ ...base, segment: url.searchParams.get('segment') ?? 'all' });
     }
+    if (/\/responses$/.test(url.pathname)) return Response.json({ total: 0, rows: [] });
     return new Response(null, { status: 404 });
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -163,23 +164,44 @@ test('segment filter lists all segments and the answers of each', async () => {
   ]);
 });
 
-test('the status line tells state, last answer, close date and channels', async () => {
+test('there is no status line under the survey picker', async () => {
   overviews['nps-1'] = overview({
     last_answer_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
     closes_at: '2026-12-31T12:00:00',
     channels: ['email', 'link', 'qr'],
   });
   renderPage('/results?survey=nps-1');
-  const line = await screen.findByTestId('status-line');
-  expect(line).toHaveTextContent(
-    'Collecting answers · last one 2 h ago · Closes Thu 31/12/2026 · Sent by email, shared by link, QR code',
-  );
+  await screen.findByRole('tab', { name: /Overview/ });
+  expect(screen.queryByTestId('status-line')).toBeNull();
+  expect(screen.queryByText(/Collecting answers/)).toBeNull();
+  expect(screen.queryByText(/last one/)).toBeNull();
+  expect(screen.queryByText(/shared by link/i)).toBeNull();
 });
 
-test('the status line of a closed survey without answers', async () => {
-  overviews['nps-1'] = overview({ status: 'closed', last_answer_at: null, channels: [], responses: 0 });
+test('the segment filter sits on the same row as the tabs', async () => {
+  overviews['nps-1'] = overview({ segments });
   renderPage('/results?survey=nps-1');
-  expect(await screen.findByTestId('status-line')).toHaveTextContent('Closed · no answers yet');
+  const tablist = await screen.findByRole('tablist', { name: 'Results views' });
+  const select = screen.getByLabelText('Segment');
+  const row = tablist.parentElement as HTMLElement;
+  expect(row).toHaveClass('tabs-row');
+  expect(row.contains(select)).toBe(true);
+  expect(tablist.contains(select)).toBe(false);
+});
+
+test('the survey picker sits on the tab row, next to the segment filter', async () => {
+  overviews['nps-1'] = overview({ segments });
+  renderPage('/results?survey=nps-1');
+  const tablist = await screen.findByRole('tablist', { name: 'Results views' });
+  const row = tablist.parentElement as HTMLElement;
+  const picker = document.querySelector('.results-picker') as HTMLElement;
+  expect(row).toHaveClass('tabs-row');
+  expect(row.contains(picker)).toBe(true);
+  expect(tablist.contains(picker)).toBe(false);
+  expect(row.contains(screen.getByLabelText('Segment'))).toBe(true);
+  expect(document.querySelector('.results-top')).toBeNull();
+  // The label stays for screen readers only.
+  expect(screen.getByText('Survey', { selector: '.results-picker-label' })).toHaveClass('visually-hidden');
 });
 
 describe('KPI cards per survey type', () => {
@@ -335,7 +357,27 @@ test('a failed survey list offers to try again', async () => {
 test('the Responses tab shows the number of responses', async () => {
   renderPage('/results?survey=nps-1&tab=responses');
   expect(await screen.findByRole('tab', { name: 'Responses 12' })).toHaveAttribute('aria-selected', 'true');
-  expect(screen.getByText('Responses will appear here soon.')).toBeInTheDocument();
+  expect(await screen.findByText('No responses yet')).toBeInTheDocument();
+});
+
+test('the segment applies to the Responses tab and survives, while a new survey resets search and group', async () => {
+  overviews['nps-1'] = overview({ segments });
+  renderPage('/results?survey=nps-1&tab=responses&segment=members&q=slow&group=detractors');
+  await screen.findByText('No responses match.');
+  const call = fetchMock.mock.calls
+    .map(([input]) => new URL(String(input), 'http://localhost'))
+    .filter((u) => u.pathname.endsWith('/responses'))
+    .at(-1);
+  expect(call?.searchParams.get('segment')).toBe('members');
+  expect(call?.searchParams.get('q')).toBe('slow');
+  expect(call?.searchParams.get('group')).toBe('detractors');
+
+  fireEvent.change(screen.getByLabelText('Segment'), { target: { value: 'guests' } });
+  expect(location()).toBe('/results?survey=nps-1&tab=responses&segment=guests&q=slow&group=detractors');
+
+  fireEvent.click(pickerButton());
+  fireEvent.click(screen.getByRole('option', { name: /Course feedback/ }));
+  expect(location()).toBe('/results?survey=csat-1&tab=responses');
 });
 
 test('"Read all answers →" opens the Responses tab', async () => {

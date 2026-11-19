@@ -1,7 +1,7 @@
 import type { SurveyOverview } from '../../api/client';
 import { Card, EmptyState, icons } from '../../components/ui';
 import { AiComingSoon } from './AiComingSoon';
-import { AnswerSplit } from './AnswerSplit';
+import { AnswerSplit, TopReasons, hasTopReasons } from './AnswerSplit';
 import { CloseTheLoop } from './CloseTheLoop';
 import { KpiCards } from './KpiCards';
 import { QuestionCard } from './QuestionCard';
@@ -26,23 +26,35 @@ export function OverviewTab({ overview, onReadAll }: { overview: SurveyOverview;
   }
   const short = overview.type === 'custom' ? takeaway(overview) : null;
   const kind = overview.main?.kind;
+  const custom = overview.type === 'custom';
+  const trendCard = kind && overview.trend.length >= 2 ? <TrendCard kind={kind} trend={overview.trend} /> : null;
+  const reasonsCard = !custom && hasTopReasons(overview) ? <TopReasons overview={overview} /> : null;
+  const pair = [reasonsCard, trendCard].filter(Boolean);
   return (
     <div className="results-overview">
       <KpiCards overview={overview} />
-      {short ? (
-        <Card padded>
-          <h2 className="results-short-title">In short</h2>
-          <p className="results-short-text">{short}</p>
-        </Card>
-      ) : null}
-      {kind ? <TrendCard kind={kind} trend={overview.trend} /> : null}
-      {overview.type === 'custom' ? (
-        overview.questions.map((q) => <QuestionCard key={q.id} question={q} onReadAll={onReadAll} />)
+      {custom ? (
+        <>
+          {overview.questions.length > 0 ? (
+            <div className="results-row">
+              {overview.questions.map((q) => (
+                <QuestionCard key={q.id} question={q} onReadAll={onReadAll} />
+              ))}
+            </div>
+          ) : null}
+          {short ? (
+            <Card className="results-card">
+              <h2 className="results-card-title">In short</h2>
+              <p className="results-short-text">{short}</p>
+            </Card>
+          ) : null}
+        </>
       ) : (
         <AnswerSplit overview={overview} />
       )}
-      {kind ? <SegmentCard kind={kind} rows={overview.by_segment} /> : null}
+      {pair.length > 0 ? <div className="results-row">{pair}</div> : null}
       <AiComingSoon />
+      {kind ? <SegmentCard kind={kind} rows={overview.by_segment} /> : null}
       <CloseTheLoop type={overview.type} />
     </div>
   );

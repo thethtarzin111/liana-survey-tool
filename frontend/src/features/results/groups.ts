@@ -32,3 +32,12 @@ export function toneOf(kind: 'nps' | 'thumbs' | 'rating', value: string): Tone {
 }
 
 export const THUMBS_LABEL: Record<string, string> = { '0': 'Not for me', '1': 'Good', '2': 'Loved it' };
+
+/** The donut slices of a scale question: one per group, counted from the per-value counts. */
+export function groupSlices(kind: 'nps' | 'thumbs' | 'rating', counts: Record<string, number>) {
+  return groupsFor(kind).map((g) => ({
+    label: g.label,
+    tone: g.tone,
+    count: g.values.reduce((sum, v) => sum + (counts[v] ?? 0), 0),
+  }));
+}

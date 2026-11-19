@@ -88,4 +88,39 @@ describe('charts', () => {
     expect(container.querySelector('circle.tone-negative')?.getAttribute('stroke')).toBe(`url(#${id})`);
     expect(container.querySelector('circle.tone-positive')?.getAttribute('stroke')).toBeNull();
   });
+
+  it('the negative slice falls back to the token colour when the pattern cannot be used', () => {
+    const { container } = render(
+      <Donut label="L" center="c" centerNote="n" slices={[{ label: 'A', count: 1, tone: 'negative' }, { label: 'B', count: 1, tone: 'positive' }]} />,
+    );
+    const id = container.querySelector('pattern')?.id;
+    const circle = container.querySelector('circle.tone-negative') as SVGElement;
+    expect(circle.getAttribute('style')).toContain(`url(#${id}) var(--color-chart-negative)`);
+  });
+
+  it('donut keeps a fixed-size ring and a viewBox that holds the whole stroke', () => {
+    const { container } = render(
+      <Donut label="L" center="c" centerNote="n" slices={[{ label: 'A', count: 3, tone: 'positive' }, { label: 'B', count: 1, tone: 'neutral' }]} />,
+    );
+    expect(container.querySelector('.donut-ring')).not.toBeNull();
+    const svg = container.querySelector('.donut-ring svg') as SVGSVGElement;
+    const [x, y, w, h] = (svg.getAttribute('viewBox') ?? '').split(/\s+/).map(Number);
+    expect([x, y]).toEqual([0, 0]);
+    expect(w).toBe(h);
+    for (const c of container.querySelectorAll('circle')) {
+      const r = Number(c.getAttribute('r'));
+      const stroke = Number(c.getAttribute('stroke-width'));
+      expect(Number(c.getAttribute('cx')) - (r + stroke / 2)).toBeGreaterThanOrEqual(0);
+      expect(Number(c.getAttribute('cx')) + (r + stroke / 2)).toBeLessThanOrEqual(w);
+      expect(Number(c.getAttribute('cy')) + (r + stroke / 2)).toBeLessThanOrEqual(h);
+    }
+  });
+
+  it('columns show the count above each bar and the label below', () => {
+    const { container } = render(<Columns label="D" bars={[{ label: 'Yes', count: 3, tone: 0 }]} />);
+    const item = container.querySelector('.columns-item') as HTMLElement;
+    const kids = [...item.querySelectorAll('.columns-count, .columns-bar, .columns-label')].map((e) => e.className.split(' ')[0]);
+    expect(kids).toEqual(['columns-count', 'columns-bar', 'columns-label']);
+    expect(item.querySelector('.columns-count')?.textContent).toBe('3');
+  });
 });

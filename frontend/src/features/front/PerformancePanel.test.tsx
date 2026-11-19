@@ -48,6 +48,17 @@ test('lists each survey and channel with its rate and main result', async () => 
   expect(within(qr).getAllByText('—')).toHaveLength(2);
 });
 
+test('shows at most five rows, the first five', async () => {
+  const eight = Array.from({ length: 8 }, (_, i) => ({ ...emailRow, survey_id: `s${i}`, survey: `Survey ${i + 1}` }));
+  stubRows(eight);
+  renderPanel();
+  const table = await screen.findByRole('table', { name: 'Survey performance' });
+  const dataRows = within(table).getAllByRole('row').slice(1);
+  expect(dataRows).toHaveLength(5);
+  expect(dataRows.map((r) => within(r).getByText(/^Survey \d$/).textContent)).toEqual([1, 2, 3, 4, 5].map((n) => `Survey ${n}`));
+  expect(screen.getByRole('link', { name: 'View all →' })).toHaveAttribute('href', '/surveys');
+});
+
 test('says there is nothing to report before any survey is viewed', async () => {
   stubRows([]);
   renderPanel();

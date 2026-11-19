@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { OverviewQuestion, SurveyOverview } from '../../api/client';
-import { AnswerSplit } from './AnswerSplit';
+import { AnswerSplit, TopReasons } from './AnswerSplit';
 import { QuestionCard } from './QuestionCard';
 
 function question(overrides: Partial<OverviewQuestion>): OverviewQuestion {
@@ -72,6 +72,47 @@ describe('QuestionCard scales', () => {
   });
 });
 
+describe('QuestionCard donut and numbers', () => {
+  it('nps shows a donut, the signed NPS and promoters vs detractors', () => {
+    const options = [{ label: '3', count: 8 }, { label: '8', count: 0 }, { label: '10', count: 4 }];
+    const { container } = render(<QuestionCard onReadAll={() => {}} question={question({ kind: 'nps', answers: 12, options })} />);
+    expect(container.querySelector('.donut svg')?.getAttribute('aria-label')).toBe('Detractors 67%, Passives 0%, Promoters 33%');
+    expect(screen.getByText('NPS −33')).toBeInTheDocument();
+    expect(screen.getByText('Promoters 33%')).toBeInTheDocument();
+    expect(screen.getByText('Detractors 67%')).toBeInTheDocument();
+  });
+
+  it('thumbs shows a donut, Positive (Good + Loved it) and Loved it', () => {
+    const options = [{ label: '0', count: 1 }, { label: '1', count: 1 }, { label: '2', count: 2 }];
+    const { container } = render(<QuestionCard onReadAll={() => {}} question={question({ kind: 'thumbs', answers: 4, options })} />);
+    expect(container.querySelector('.donut svg')?.getAttribute('aria-label')).toBe('Not for me 25%, Good 25%, Loved it 50%');
+    expect(screen.getByText('Positive 75%')).toBeInTheDocument();
+    expect(screen.getByText('Loved it 50%')).toBeInTheDocument();
+  });
+});
+
+describe('QuestionCard without answers', () => {
+  const scale = (kind: 'nps' | 'rating' | 'thumbs') => question({ kind, answers: 0, options: [{ label: '1', count: 0 }, { label: '2', count: 0 }], average: null });
+  it.each([
+    ['rating', scale('rating')],
+    ['nps', scale('nps')],
+    ['thumbs', scale('thumbs')],
+    ['single choice', question({ kind: 'single_choice', answers: 0, options: [{ label: 'A', count: 0 }] })],
+    ['multiple choice', question({ kind: 'multiple_choice', answers: 0, options: [{ label: 'A', count: 0 }] })],
+  ])('%s shows "No answers yet" instead of 0%% visuals', (_name, q) => {
+    const { container } = render(<QuestionCard onReadAll={() => {}} question={q} />);
+    expect(screen.getByText('No answers yet')).toBeInTheDocument();
+    expect(container.querySelector('.donut, .columns, .barlist, .question-numbers')).toBeNull();
+    expect(container.textContent).not.toMatch(/0%/);
+  });
+
+  it('text keeps its own count line', () => {
+    render(<QuestionCard onReadAll={() => {}} question={question({ kind: 'text', answers: 0 })} />);
+    expect(screen.getAllByText('0 answers').length).toBeGreaterThan(0);
+    expect(screen.queryByText('No answers yet')).toBeNull();
+  });
+});
+
 describe('AnswerSplit', () => {
   it('CSAT shows the donut once, with Unsatisfied / Neutral / Satisfied', () => {
     const overview = {
@@ -102,6 +143,18 @@ describe('AnswerSplit', () => {
     expect(screen.getByText('−33')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Detractors 67%, Passives 0%, Promoters 33%' })).toBeInTheDocument();
     expect(container.querySelector('.donut-slice.tone-negative')).not.toBeNull();
+    // Top reasons is a separate card now, shown next to the trend.
+    expect(screen.queryByText('Top reasons')).toBeNull();
+  });
+
+  it('Top reasons is its own card, and absent without reasons', () => {
+    const overview = {
+      type: 'nps', responses: 12, reasons: [{ label: 'Price', count: 3, percent: 25 }],
+      main: { question_id: 'q', kind: 'nps', score: -33, change: null, counts: { '3': 8, '10': 4 } },
+    } as unknown as SurveyOverview;
+    const { rerender } = render(<TopReasons overview={overview} />);
     expect(screen.getByText('Top reasons', { selector: 'h3' })).toBeInTheDocument();
+    rerender(<TopReasons overview={{ ...overview, reasons: [] }} />);
+    expect(screen.queryByText('Top reasons')).toBeNull();
   });
 });

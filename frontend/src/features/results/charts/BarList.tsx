@@ -2,14 +2,14 @@ import { plural } from '../format';
 
 export type BarRow = { label: string; count: number; percent: number };
 
-type Props = { label: string; rows: BarRow[]; note?: string };
+type Props = { label: string; hideLabel?: boolean; rows: BarRow[]; note?: string };
 
 /** Horizontal bars with the label, share and count of each row. */
-export function BarList({ label, rows, note }: Props) {
+export function BarList({ label, hideLabel, rows, note }: Props) {
   const summary = rows.map((r) => `${r.label} ${r.percent}%`).join(', ');
   return (
     <figure className="chart barlist">
-      <figcaption className="chart-label">{label}</figcaption>
+      <figcaption className={hideLabel ? 'chart-label chart-label-hidden' : 'chart-label'}>{label}</figcaption>
       <ul className="barlist-rows" role="img" aria-label={summary}>
         {rows.map((r) => (
           <li
