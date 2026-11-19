@@ -141,6 +141,7 @@ describe('OverviewTab order', () => {
   it('custom survey without a takeaway: the AI card spans its row', () => {
     const { container } = renderTab(overview({ type: 'custom', main: null, questions: [] }));
     expect(container.querySelector('.results-row-ai')).toHaveClass('results-row-solo');
+    expect(container.querySelector('.results-row:not(.results-row-ai)')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'In short' })).toBeNull();
   });
 });

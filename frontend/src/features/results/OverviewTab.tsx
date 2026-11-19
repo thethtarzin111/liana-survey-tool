@@ -32,11 +32,13 @@ export function OverviewTab({ overview, onReadAll }: { overview: SurveyOverview;
       <KpiCards overview={overview} />
       {custom ? (
         <>
-          <div className="results-row">
-            {overview.questions.map((q) => (
-              <QuestionCard key={q.id} question={q} onReadAll={onReadAll} />
-            ))}
-          </div>
+          {overview.questions.length > 0 ? (
+            <div className="results-row">
+              {overview.questions.map((q) => (
+                <QuestionCard key={q.id} question={q} onReadAll={onReadAll} />
+              ))}
+            </div>
+          ) : null}
           <AiRow>
             {short ? (
               <Card className="results-card">
