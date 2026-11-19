@@ -70,7 +70,7 @@ test.each([
 test('Start from scratch saves a custom draft and opens it', async () => {
   renderPage();
   fireEvent.click(screen.getByRole('button', { name: /^Start from scratch/ }));
-  expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
+  await waitFor(() => expect(screen.getByLabelText(/^Survey title/)).toHaveValue('Untitled survey'));
   expect(screen.getByRole('heading', { name: 'Build your survey' })).toBeInTheDocument();
   expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/saved-survey');
   expect(fetchMock).toHaveBeenCalledWith('/api/v1/surveys', {
@@ -93,7 +93,7 @@ test('disables every card while saving and prevents duplicate requests', async (
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(screen.getByText('Saving your draft…')).toBeInTheDocument();
   complete(Response.json(draft));
-  expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
+  await waitFor(() => expect(screen.getByLabelText(/^Survey title/)).toHaveValue('Untitled survey'));
 });
 
 test.each(['server', 'network'])('shows page and toast errors after a %s failure and allows retry', async (failure) => {
@@ -108,7 +108,7 @@ test.each(['server', 'network'])('shows page and toast errors after a %s failure
   const retry = screen.getByRole('button', { name: /^Start from scratch/ });
   expect(retry).toBeEnabled();
   fireEvent.click(retry);
-  expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
+  await waitFor(() => expect(screen.getByLabelText(/^Survey title/)).toHaveValue('Untitled survey'));
   expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(2);
 });
 
@@ -138,5 +138,5 @@ test('a draft URL loads the saved survey and can recover from a load failure', a
   expect(await screen.findByRole('alert')).toHaveTextContent('We couldn’t load this survey.');
   fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
   await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
-  expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Untitled survey');
+  await waitFor(() => expect(screen.getByLabelText(/^Survey title/)).toHaveValue('Untitled survey'));
 });

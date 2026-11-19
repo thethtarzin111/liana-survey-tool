@@ -75,7 +75,7 @@ const calls = (method: string) => fetchMock.mock.calls.filter(([, init]) => (ini
 
 test('shows each question with its number, text and actions', async () => {
   renderList();
-  expect(await screen.findByRole('textbox', { name: 'Question 1' })).toHaveValue('Prompt 1');
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Question 1' })).toHaveValue('Prompt 1'));
   expect(prompts()).toEqual(['Prompt 1', 'Prompt 2', 'Prompt 3']);
   expect(screen.getByRole('textbox', { name: 'Question 2' })).toHaveAttribute('placeholder', 'Untitled question');
   expect(screen.getByRole('button', { name: 'Move question 1 up' })).toBeDisabled();
@@ -225,7 +225,7 @@ test('choice types show their options with + Add option and remove buttons', asy
   expect(first).toHaveValue('Yes');
 
   fireEvent.click(card(1).getByRole('button', { name: '+ Add option' }));
-  expect(await screen.findByRole('textbox', { name: 'Question 1, option 3' })).toHaveValue('Option 3');
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Question 1, option 3' })).toHaveValue('Option 3'));
   await waitFor(() => expect(saved[0].options).toEqual(['Yes', 'No', 'Option 3']));
 
   fireEvent.click(card(1).getByRole('button', { name: 'Remove option 1' }));
@@ -289,7 +289,7 @@ test('switching from a scale to a choice type starts with Option 1', async () =>
   renderList();
   await screen.findByRole('group', { name: 'Question 1' });
   fireEvent.change(await card(1).findByRole('combobox', { name: 'Answer type' }), { target: { value: 'multiple_choice' } });
-  expect(await screen.findByRole('textbox', { name: 'Question 1, option 1' })).toHaveValue('Option 1');
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Question 1, option 1' })).toHaveValue('Option 1'));
   await waitFor(() => expect(saved[0]).toMatchObject({ kind: 'multiple_choice', options: ['Option 1'] }));
 });
 
