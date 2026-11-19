@@ -4,8 +4,9 @@
 .results-page .page-header p { margin: 4px 0 0; color: var(--color-text-muted); }
 .results-top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 20px; }
 .results-error { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
-.results-tab-actions { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 8px 12px; padding-bottom: 6px; min-width: 0; }
-.results-picker-compact { flex: 0 1 440px; }
+.results-tab-actions { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 8px 12px; padding-bottom: 6px; min-width: 0; }
+/* Two classes, so this wins over .results-picker further down. */
+.results-picker.results-picker-compact { flex: 0 1 520px; max-width: 520px; }
 .results-picker-compact .results-picker-button { min-height: 40px; padding-top: 4px; padding-bottom: 4px; }
 .results-segment .field { flex-direction: row; align-items: center; gap: 8px; }
 .results-segment .field-label { color: var(--color-text-muted); font-weight: 600; }
