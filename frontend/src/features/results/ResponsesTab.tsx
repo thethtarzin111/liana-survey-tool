@@ -149,7 +149,7 @@ export function ResponsesTab({ surveyId, segment, scale }: Props) {
         <EmptyState
           icon={icons.search}
           title="No responses match."
-          actions={<Button onClick={() => set({ q: '', group: '' })}>Clear filters</Button>}
+          actions={<Button onClick={() => set({ q: '', group: '', segment: 'all' }, { replace: true })}>Clear filters</Button>}
         />
       </Card>
     );

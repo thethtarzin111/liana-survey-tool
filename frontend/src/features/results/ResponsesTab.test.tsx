@@ -267,3 +267,12 @@ test('a late Load more failure from old filters is not shown under new ones', as
   await new Promise((r) => setTimeout(r, 20));
   expect(screen.queryByText('We couldn’t load more responses.')).not.toBeInTheDocument();
 });
+
+test('a refused segment recovers: Clear filters also resets the segment', async () => {
+  failWith = (u) => (u.searchParams.get('segment') ? 400 : null);
+  renderTab('/results?survey=s1&tab=responses&segment=tiny');
+  expect(await screen.findByText('No responses match.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+  await waitFor(() => expect(location()).toBe('/results?survey=s1&tab=responses'));
+  expect(await screen.findByRole('table')).toBeInTheDocument();
+});
