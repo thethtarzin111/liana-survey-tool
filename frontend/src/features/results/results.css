@@ -133,7 +133,7 @@
 .segment-answers { text-align: right; color: var(--color-text-muted); font-size: var(--text-hint); }
 .segment-hidden { grid-column: 2 / -1; color: var(--color-text-muted); font-size: var(--text-hint); }
 
-.results-loop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; }
+.results-loop { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; }
 .results-loop-text { flex: 1 1 320px; min-width: 0; }
 .results-loop-note { margin: 4px 0 0; color: var(--color-text-muted); font-size: var(--text-hint); }
 .results-ai { border-color: color-mix(in srgb, var(--color-ai) 35%, var(--color-border)); }
