@@ -5,7 +5,7 @@
 .results-top { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 20px; }
 .results-error { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .results-tab-actions { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: flex-end; gap: 8px 12px; padding-bottom: 6px; min-width: 0; }
-.results-picker-compact { flex: 0 1 320px; }
+.results-picker-compact { flex: 0 1 440px; }
 .results-picker-compact .results-picker-button { min-height: 40px; padding-top: 4px; padding-bottom: 4px; }
 .results-segment .field { flex-direction: row; align-items: center; gap: 8px; }
 .results-segment .field-label { color: var(--color-text-muted); font-weight: 600; }
