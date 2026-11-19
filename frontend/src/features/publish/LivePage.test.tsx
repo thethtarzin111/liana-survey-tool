@@ -114,3 +114,8 @@ test('the QR code of the public link is shown and can be downloaded (#6)', async
   expect(download).toHaveAttribute('download', 'member-nps-qr.png');
   await act(async () => {});
 });
+
+test('See results opens /results?survey=<id>', async () => {
+  renderPage();
+  expect(await screen.findByRole('link', { name: 'See results' })).toHaveAttribute('href', '/results?survey=nps-1');
+});

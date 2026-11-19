@@ -189,6 +189,7 @@ class SurveyListItem(Survey):
     """A survey as shown on the Surveys list."""
 
     answers: int  # submitted responses, from the worker's totals
+    last_answer_at: datetime | None = None  # when the newest response arrived
     # Answers per value of the main question, from the worker's totals.
     distribution: dict[str, int] = Field(default_factory=dict, exclude=True)
 

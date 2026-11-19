@@ -15,6 +15,7 @@ function survey(overrides: Partial<SurveyListItem>): SurveyListItem {
     opens_at: null,
     closes_at: null,
     answers: 0,
+    last_answer_at: null,
     headline: null,
     comment_field: true,
     show_results: true,
@@ -78,6 +79,12 @@ test('latest results show the split, the score and a link to that survey', async
   expect(within(latest).getByText('NPS +25')).toBeInTheDocument();
   expect(within(latest).getByRole('link', { name: 'See results' })).toHaveAttribute('href', '/results?survey=s1');
   expect(within(region('Overall statistics')).getByText('Member NPS').parentElement).toHaveTextContent('+25');
+});
+
+test('View responses opens the Responses tab of Results', async () => {
+  renderPage([survey({ answers: 3 })]);
+  const stats = await screen.findByRole('region', { name: 'Overall statistics' });
+  expect(within(stats).getByRole('link', { name: 'View responses' })).toHaveAttribute('href', '/results?tab=responses');
 });
 
 test('a thumbs score splits into the number and its label', async () => {

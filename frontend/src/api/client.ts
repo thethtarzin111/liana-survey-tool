@@ -68,6 +68,11 @@ export const api = {
     const query = params.toString();
     return getJson<SurveyListItem[]>(`/api/v1/surveys${query ? `?${query}` : ''}`);
   },
+  /** Everything the Results overview shows for one survey. 400 for an unknown segment, 404 for an unknown survey. */
+  overview: (surveyId: string, segment = 'all') =>
+    getJson<SurveyOverview>(
+      `/api/v1/results/${encodeURIComponent(surveyId)}/overview?segment=${encodeURIComponent(segment)}`,
+    ),
   /** Close (live → closed) or unpublish (live/scheduled → draft) a survey. */
   changeSurveyStatus: (id: string, action: 'close' | 'unpublish') =>
     send<Survey>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/${action}`),
@@ -227,6 +232,8 @@ export type SurveyListItem = Survey & {
   closes_at: string | null;
   /** Submitted responses so far. */
   answers: number;
+  /** When the newest response arrived; null before the first. */
+  last_answer_at: string | null;
   /** "Headline score", e.g. { score: 'NPS +42', note: 'scale −100 to +100' }; null before answers. */
   headline: { score: string; note: string } | null;
 };
@@ -239,6 +246,57 @@ export type PerformanceRow = {
   responses: number;
   response_rate: number | null;
   main_result: string | null;
+};
+
+export type OverviewSegment = { value: string; label: string; answers: number };
+
+/** The first nps, thumbs or rating question of a survey and how it scored. */
+export type OverviewMain = {
+  question_id: string;
+  kind: 'nps' | 'thumbs' | 'rating';
+  /** NPS, thumbs positive % or rating satisfied %; null before any answer. */
+  score: number | null;
+  /** Score now minus the score at the end of the previous month; null when there is none. */
+  change: number | null;
+  /** Answers per scale value. */
+  counts: Record<string, number>;
+};
+
+export type OverviewQuestion = {
+  id: string;
+  kind: QuestionKind;
+  prompt: string;
+  required: boolean;
+  answers: number;
+  options: { label: string; count: number }[];
+  /** Scale questions only, one decimal. */
+  average: number | null;
+};
+
+export type SurveyOverview = {
+  survey_id: string;
+  title: string;
+  type: SurveyType;
+  status: SurveyStatus;
+  closes_at: string | null;
+  last_answer_at: string | null;
+  /** Channels with views or answers. */
+  channels: ('email' | 'link' | 'qr')[];
+  /** The segment filter that was applied. */
+  segment: string;
+  /** Segments that can be chosen; empty when there are fewer than 2. */
+  segments: OverviewSegment[];
+  responses: number;
+  views: number;
+  /** Whole percent; null with a segment or without views. */
+  response_rate: number | null;
+  /** Percent of responses that answered every question; custom surveys only. */
+  completed_all: number | null;
+  main: OverviewMain | null;
+  questions: OverviewQuestion[];
+  reasons: { label: string; count: number; percent: number | null }[];
+  trend: { month: string; score: number | null; answers: number }[];
+  by_segment: { value: string; label: string; answers: number; score: number | null; counts: Record<string, number> }[];
 };
 
 export type Template = {
