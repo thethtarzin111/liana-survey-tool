@@ -29,7 +29,7 @@
 }
 .results-picker-value, .results-picker-name { display: flex; flex-direction: column; min-width: 0; }
 .results-picker-value strong, .results-picker-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.results-picker small { color: var(--color-text-muted); font-size: var(--text-hint); }
+.results-picker small { color: var(--color-text-muted); font-size: var(--text-body); }
 .results-picker-panel {
   position: absolute; z-index: 10; top: 100%; left: 0; right: 0; margin-top: 4px; padding: 8px;
   border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface);
@@ -45,8 +45,8 @@
 /* KPI cards */
 .results-kpis { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .results-kpi { height: 100%; padding: 16px 18px; display: flex; flex-direction: column; gap: 4px; }
-.results-kpi-label { font-size: var(--text-hint); font-weight: 600; color: var(--color-text-muted); }
-.results-kpi-value { font: 600 var(--text-dashboard-stat) var(--font-heading); }
+.results-kpi-label { font-size: var(--text-body); font-weight: 600; color: var(--color-text-muted); }
+.results-kpi-value { font: 600 var(--text-kpi-value) var(--font-heading); }
 .results-kpi-note { font-size: var(--text-hint); color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; }
 .results-kpi-note.up { color: var(--color-chart-positive); }
 .results-kpi-note.down { color: var(--color-chart-negative); }
@@ -101,14 +101,14 @@
 .columns-count { text-align: center; font-size: var(--text-xs); font-weight: 600; }
 .columns-track { flex: 1; min-height: 0; display: flex; align-items: flex-end; }
 .columns-bar { display: block; width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; }
-.columns-label { text-align: center; font-size: var(--text-hint); color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.columns-label { text-align: center; font-size: var(--text-body); color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .barlist-rows { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
 .barlist-row { display: grid; grid-template-columns: minmax(80px, 1fr) 2fr 40px 32px; align-items: center; gap: 10px; font-size: var(--text-body); }
 .barlist-track { height: 10px; border-radius: var(--radius-sm); background: var(--color-surface-muted); overflow: hidden; }
 .barlist-bar { display: block; height: 100%; background: var(--color-chart-positive); }
 .barlist-percent { text-align: right; }
-.barlist-count { text-align: right; color: var(--color-text-muted); font-size: var(--text-hint); }
+.barlist-count { text-align: right; color: var(--color-text-muted); font-size: var(--text-body); }
 
 .question-text { display: flex; align-items: center; gap: 12px; }
 .question-numbers { margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: var(--text-body); }
@@ -129,7 +129,7 @@
 .segment-bar { display: flex; height: 12px; border-radius: var(--radius-sm); overflow: hidden; background: var(--color-surface-muted); }
 .segment-part { display: block; height: 100%; }
 .segment-score { text-align: right; }
-.segment-answers { text-align: right; color: var(--color-text-muted); font-size: var(--text-hint); }
+.segment-answers { text-align: right; color: var(--color-text-muted); font-size: var(--text-body); }
 .segment-hidden { grid-column: 2 / -1; color: var(--color-text-muted); font-size: var(--text-hint); }
 
 .results-loop { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; }
