@@ -164,23 +164,39 @@ test('segment filter lists all segments and the answers of each', async () => {
   ]);
 });
 
-test('the status line tells state, last answer, close date and channels', async () => {
+test('there is no status line under the survey picker', async () => {
   overviews['nps-1'] = overview({
     last_answer_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
     closes_at: '2026-12-31T12:00:00',
     channels: ['email', 'link', 'qr'],
   });
   renderPage('/results?survey=nps-1');
-  const line = await screen.findByTestId('status-line');
-  expect(line).toHaveTextContent(
-    'Collecting answers · last one 2 h ago · Closes Thu 31/12/2026 · Sent by email, shared by link, QR code',
-  );
+  await screen.findByRole('tab', { name: /Overview/ });
+  expect(screen.queryByTestId('status-line')).toBeNull();
+  expect(screen.queryByText(/Collecting answers/)).toBeNull();
+  expect(screen.queryByText(/last one/)).toBeNull();
+  expect(screen.queryByText(/shared by link/i)).toBeNull();
 });
 
-test('the status line of a closed survey without answers', async () => {
-  overviews['nps-1'] = overview({ status: 'closed', last_answer_at: null, channels: [], responses: 0 });
+test('the segment filter sits on the same row as the tabs', async () => {
+  overviews['nps-1'] = overview({ segments });
   renderPage('/results?survey=nps-1');
-  expect(await screen.findByTestId('status-line')).toHaveTextContent('Closed · no answers yet');
+  const tablist = await screen.findByRole('tablist', { name: 'Results views' });
+  const select = screen.getByLabelText('Segment');
+  const row = tablist.parentElement as HTMLElement;
+  expect(row).toHaveClass('tabs-row');
+  expect(row.contains(select)).toBe(true);
+  expect(tablist.contains(select)).toBe(false);
+});
+
+test('the tabs follow the picker directly', async () => {
+  overviews['nps-1'] = overview({ segments });
+  renderPage('/results?survey=nps-1');
+  const tablist = await screen.findByRole('tablist', { name: 'Results views' });
+  const picker = document.querySelector('.results-picker') as HTMLElement;
+  const row = tablist.parentElement as HTMLElement;
+  expect(picker.parentElement).toHaveClass('results-top');
+  expect(picker.parentElement?.nextElementSibling?.firstElementChild).toBe(row);
 });
 
 describe('KPI cards per survey type', () => {

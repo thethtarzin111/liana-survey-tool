@@ -1,6 +1,6 @@
 import type { SurveyOverview } from '../../api/client';
 import { Card, EmptyState, icons } from '../../components/ui';
-import { AiComingSoon } from './AiComingSoon';
+import { AiRow } from './AiComingSoon';
 import { AnswerSplit } from './AnswerSplit';
 import { CloseTheLoop } from './CloseTheLoop';
 import { KpiCards } from './KpiCards';
@@ -26,23 +26,31 @@ export function OverviewTab({ overview, onReadAll }: { overview: SurveyOverview;
   }
   const short = overview.type === 'custom' ? takeaway(overview) : null;
   const kind = overview.main?.kind;
+  const custom = overview.type === 'custom';
   return (
     <div className="results-overview">
       <KpiCards overview={overview} />
-      {short ? (
-        <Card padded>
-          <h2 className="results-short-title">In short</h2>
-          <p className="results-short-text">{short}</p>
-        </Card>
-      ) : null}
-      {kind ? <TrendCard kind={kind} trend={overview.trend} /> : null}
-      {overview.type === 'custom' ? (
-        overview.questions.map((q) => <QuestionCard key={q.id} question={q} onReadAll={onReadAll} />)
+      {custom ? (
+        <>
+          <div className="results-row">
+            {overview.questions.map((q) => (
+              <QuestionCard key={q.id} question={q} onReadAll={onReadAll} />
+            ))}
+          </div>
+          <AiRow>
+            {short ? (
+              <Card className="results-card">
+                <h2 className="results-card-title">In short</h2>
+                <p className="results-short-text">{short}</p>
+              </Card>
+            ) : null}
+          </AiRow>
+        </>
       ) : (
         <AnswerSplit overview={overview} />
       )}
+      {kind ? <TrendCard kind={kind} trend={overview.trend} /> : null}
       {kind ? <SegmentCard kind={kind} rows={overview.by_segment} /> : null}
-      <AiComingSoon />
       <CloseTheLoop type={overview.type} />
     </div>
   );

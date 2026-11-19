@@ -1,4 +1,4 @@
-import { Card, CardBody, CardHeader } from '../../components/ui';
+import { Card } from '../../components/ui';
 import { signed } from './format';
 
 type Kind = 'nps' | 'thumbs' | 'rating';
@@ -29,36 +29,34 @@ export function TrendCard({ kind, trend }: { kind: Kind; trend: Point[] }) {
     .map((p) => `${monthName(p.month)} ${p.score === null ? 'no score' : valueText(kind, p.score)}`)
     .join(', ')}`;
   return (
-    <Card>
-      <CardHeader title="Trend" />
-      <CardBody>
-        <svg className="trend" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary}>
-          {grid.map((g) => (
-            <g key={g}>
-              <line className="trend-grid" x1={LEFT} x2={RIGHT} y1={y(g)} y2={y(g)} />
-              <text className="trend-axis" x={LEFT - 8} y={y(g) + 4} textAnchor="end">
-                {valueText(kind, g)}
-              </text>
-            </g>
-          ))}
-          <polyline className="trend-line" points={line} />
-          {shown.map((p) => (
-            <g key={p.month}>
-              <circle className="trend-dot" cx={x(p.i)} cy={y(p.score)} r={5}>
-                <title>{`${monthName(p.month)}: ${valueText(kind, p.score)}, ${p.answers} answers`}</title>
-              </circle>
-              <text className="trend-value" x={x(p.i)} y={y(p.score) - 12} textAnchor="middle">
-                {valueText(kind, p.score)}
-              </text>
-            </g>
-          ))}
-          {trend.map((p, i) => (
-            <text key={p.month} className="trend-axis" x={x(i)} y={H - 16} textAnchor="middle">
-              {monthName(p.month)}
+    <Card className="results-card">
+      <h2 className="results-card-title">Trend</h2>
+      <svg className="trend" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary}>
+        {grid.map((g) => (
+          <g key={g}>
+            <line className="trend-grid" x1={LEFT} x2={RIGHT} y1={y(g)} y2={y(g)} />
+            <text className="trend-axis" x={LEFT - 8} y={y(g) + 4} textAnchor="end">
+              {valueText(kind, g)}
             </text>
-          ))}
-        </svg>
-      </CardBody>
+          </g>
+        ))}
+        <polyline className="trend-line" points={line} />
+        {shown.map((p) => (
+          <g key={p.month}>
+            <circle className="trend-dot" cx={x(p.i)} cy={y(p.score)} r={5}>
+              <title>{`${monthName(p.month)}: ${valueText(kind, p.score)}, ${p.answers} answers`}</title>
+            </circle>
+            <text className="trend-value" x={x(p.i)} y={y(p.score) - 12} textAnchor="middle">
+              {valueText(kind, p.score)}
+            </text>
+          </g>
+        ))}
+        {trend.map((p, i) => (
+          <text key={p.month} className="trend-axis" x={x(i)} y={H - 16} textAnchor="middle">
+            {monthName(p.month)}
+          </text>
+        ))}
+      </svg>
     </Card>
   );
 }

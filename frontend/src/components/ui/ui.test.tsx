@@ -244,6 +244,17 @@ test('Tag and TagInput add with Enter and remove with ×', () => {
 
 // --- Tabs, segmented control, stepper, option card ---------------------------
 
+test('Tabs: extra actions share the row with the tab list', () => {
+  render(
+    <Tabs label="Views" value="a" onChange={() => {}} tabs={[{ id: 'a', label: 'A' }]} actions={<button type="button">Filter</button>}>
+      <p>Panel</p>
+    </Tabs>,
+  );
+  const tablist = screen.getByRole('tablist', { name: 'Views' });
+  expect(tablist.parentElement).toContainElement(screen.getByRole('button', { name: 'Filter' }));
+  expect(tablist).not.toContainElement(screen.getByRole('button', { name: 'Filter' }));
+});
+
 test('Tabs: click and arrow keys change the tab, only the selected one is tabbable', () => {
   function Demo() {
     const [tab, setTab] = useState('summary');

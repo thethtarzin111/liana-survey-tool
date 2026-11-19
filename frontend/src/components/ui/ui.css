@@ -141,6 +141,8 @@ select.input { width: auto; max-width: 100%; padding-right: 6px; }
 }
 .tab[aria-selected='true'] { color: var(--color-brand-dark); border-bottom-color: var(--color-brand); font-weight: 600; }
 .tab:hover { color: var(--color-text); }
+.tabs-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--color-border); }
+.tabs-row .tabs { border-bottom: 0; }
 
 .segmented { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; background: var(--color-surface-muted); border-radius: var(--radius-pill); }
 .segment {

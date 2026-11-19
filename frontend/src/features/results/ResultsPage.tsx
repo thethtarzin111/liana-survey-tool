@@ -4,9 +4,7 @@ import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, EmptyState, Select, Tabs, icons } from '../../components/ui';
 import { OverviewTab } from './OverviewTab';
 import { ResponsesTab, type Scale } from './ResponsesTab';
-import { StatusLine } from './StatusLine';
 import { SurveyPicker } from './SurveyPicker';
-import { TYPE_LABEL } from './format';
 import { useResultsParams } from './useResultsParams';
 import './results.css';
 
@@ -138,53 +136,51 @@ export function ResultsPage() {
   } else {
     const showSegments = overview.segments.length >= 2;
     body = (
-      <>
-        {showSegments ? (
-          <div className="results-segment">
-            <Select
-              label="Segment"
-              value={segment}
-              onChange={(e) => set({ segment: e.target.value })}
-              options={[
-                { value: 'all', label: 'All segments' },
-                ...overview.segments.map((s) => ({ value: s.value, label: `${s.label} (${s.answers})` })),
-              ]}
-            />
-          </div>
-        ) : null}
-        <Tabs
-          label="Results views"
-          value={tab}
-          onChange={(id) => set({ tab: id === 'responses' ? 'responses' : 'overview' })}
-          tabs={[
-            { id: 'overview', label: 'Overview' },
-            {
-              id: 'responses',
-              label: (
-                <>
-                  Responses <span className="results-count">{overview.responses}</span>
-                </>
-              ),
-            },
-          ]}
-        >
-          {tab === 'responses' ? (
-            <ResponsesTab surveyId={chosen.id} segment={segment} scale={scaleOf(overview)} />
-          ) : (
-            <OverviewTab overview={overview} onReadAll={() => set({ tab: 'responses' })} />
-          )}
-        </Tabs>
-      </>
+      <Tabs
+        className="results-tabs"
+        label="Results views"
+        value={tab}
+        actions={
+          showSegments ? (
+            <div className="results-segment">
+              <Select
+                label="Segment"
+                value={segment}
+                onChange={(e) => set({ segment: e.target.value })}
+                options={[
+                  { value: 'all', label: 'All segments' },
+                  ...overview.segments.map((s) => ({ value: s.value, label: `${s.label} (${s.answers})` })),
+                ]}
+              />
+            </div>
+          ) : undefined
+        }
+        onChange={(id) => set({ tab: id === 'responses' ? 'responses' : 'overview' })}
+        tabs={[
+          { id: 'overview', label: 'Overview' },
+          {
+            id: 'responses',
+            label: (
+              <>
+                Responses <span className="results-count">{overview.responses}</span>
+              </>
+            ),
+          },
+        ]}
+      >
+        {tab === 'responses' ? (
+          <ResponsesTab surveyId={chosen.id} segment={segment} scale={scaleOf(overview)} />
+        ) : (
+          <OverviewTab overview={overview} onReadAll={() => set({ tab: 'responses' })} />
+        )}
+      </Tabs>
     );
   }
 
   return (
     <div className="results-page">
       {header}
-      <div className="results-top">
-        {picker}
-        {overview ? <StatusLine overview={overview} /> : <p className="results-status">{TYPE_LABEL[chosen.type]}</p>}
-      </div>
+      <div className="results-top">{picker}</div>
       {body}
     </div>
   );

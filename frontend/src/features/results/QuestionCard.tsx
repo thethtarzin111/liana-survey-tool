@@ -1,5 +1,5 @@
 import type { OverviewQuestion } from '../../api/client';
-import { Button, Card, CardBody, CardHeader } from '../../components/ui';
+import { Button, Card } from '../../components/ui';
 import { BarList } from './charts/BarList';
 import { Columns } from './charts/Columns';
 import { Donut } from './charts/Donut';
@@ -27,6 +27,7 @@ function visual(q: OverviewQuestion, onReadAll: () => void) {
       return (
         <BarList
           label={q.prompt}
+          hideLabel
           note={MORE_THAN_ONE}
           rows={q.options.map((o) => ({ label: o.label, count: o.count, percent: percentOf(o.count, q.answers) }))}
         />
@@ -37,6 +38,7 @@ function visual(q: OverviewQuestion, onReadAll: () => void) {
         return (
           <BarList
             label={q.prompt}
+            hideLabel
             rows={q.options.map((o) => ({ label: o.label, count: o.count, percent: percentOf(o.count, optionTotal) }))}
           />
         );
@@ -44,6 +46,7 @@ function visual(q: OverviewQuestion, onReadAll: () => void) {
       return (
         <Donut
           label={q.prompt}
+          hideLabel
           center={String(q.answers)}
           centerNote={q.answers === 1 ? 'answer' : 'answers'}
           slices={q.options.map((o, i) => ({ label: o.label, count: o.count, tone: i }))}
@@ -53,6 +56,7 @@ function visual(q: OverviewQuestion, onReadAll: () => void) {
       return (
         <BarList
           label={q.prompt}
+          hideLabel
           rows={q.options
             .slice()
             .sort((a, b) => b.count - a.count)
@@ -77,12 +81,13 @@ function visual(q: OverviewQuestion, onReadAll: () => void) {
           {kind !== 'rating' ? (
             <Donut
               label={q.prompt}
+              hideLabel
               center={String(optionTotal)}
               centerNote={optionTotal === 1 ? 'answer' : 'answers'}
               slices={slices}
             />
           ) : null}
-          <Columns label={q.prompt} bars={bars} />
+          <Columns label={q.prompt} hideLabel bars={bars} />
           <p className="question-numbers">
             {kind === 'nps' ? (
               <>
@@ -111,13 +116,12 @@ function visual(q: OverviewQuestion, onReadAll: () => void) {
 /** One question of a custom survey, drawn the way its kind is best read. */
 export function QuestionCard({ question, onReadAll }: { question: OverviewQuestion; onReadAll: () => void }) {
   return (
-    <Card as="article">
-      <CardHeader
-        title={question.prompt}
-        level={3}
-        actions={<span className="results-count">{plural(question.answers, 'answer', 'answers')}</span>}
-      />
-      <CardBody>{visual(question, onReadAll)}</CardBody>
+    <Card as="article" className="results-card">
+      <div className="results-card-head">
+        <h3 className="results-card-title">{question.prompt}</h3>
+        <span className="results-count">{plural(question.answers, 'answer', 'answers')}</span>
+      </div>
+      {visual(question, onReadAll)}
     </Card>
   );
 }

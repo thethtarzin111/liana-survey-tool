@@ -1,5 +1,6 @@
 import type { SurveyOverview } from '../../api/client';
-import { Card, CardBody, CardHeader } from '../../components/ui';
+import { Card } from '../../components/ui';
+import { AiRow } from './AiComingSoon';
 import { BarList } from './charts/BarList';
 import { Columns } from './charts/Columns';
 import { Donut } from './charts/Donut';
@@ -27,24 +28,25 @@ export function AnswerSplit({ overview }: { overview: SurveyOverview }) {
     count: r.count,
     percent: r.percent ?? percentOf(r.count, overview.responses),
   }));
+  const showReasons = total > 0 && topReasons.length > 0;
   return (
     <>
-      <div className="results-split">
-        <Card padded>
+      <div className="results-row">
+        <Card className="results-card">
           <Donut label="Answer split" center={center} centerNote={centerNote} slices={slices} />
         </Card>
-        <Card padded>
+        <Card className="results-card">
           <Columns label="Distribution" bars={bars} />
         </Card>
       </div>
-      {total > 0 && topReasons.length > 0 ? (
-        <Card>
-          <CardHeader title="Top reasons" level={3} />
-          <CardBody>
-            <BarList label="Top reasons" rows={topReasons} />
-          </CardBody>
-        </Card>
-      ) : null}
+      <AiRow>
+        {showReasons ? (
+          <Card className="results-card">
+            <h3 className="results-card-title">Top reasons</h3>
+            <BarList label="Top reasons" hideLabel rows={topReasons} />
+          </Card>
+        ) : null}
+      </AiRow>
     </>
   );
 }

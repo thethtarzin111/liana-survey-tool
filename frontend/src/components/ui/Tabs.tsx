@@ -7,6 +7,10 @@ type TabsProps = {
   tabs: TabItem[];
   value: string;
   onChange: (id: string) => void;
+  /** Shown at the right end of the tab row, e.g. a filter that applies to every tab. */
+  actions?: ReactNode;
+  /** Extra class on the outer element. */
+  className?: string;
   /** The panel for the selected tab. */
   children: ReactNode;
 };
@@ -15,7 +19,7 @@ type TabsProps = {
  * Tabs with the WAI-ARIA keyboard pattern: arrow keys move between tabs,
  * Home/End jump to the first/last, only the selected tab is in the tab order.
  */
-export function Tabs({ label, tabs, value, onChange, children }: TabsProps) {
+export function Tabs({ label, tabs, value, onChange, actions, className, children }: TabsProps) {
   const base = useId();
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const current = Math.max(
@@ -33,28 +37,39 @@ export function Tabs({ label, tabs, value, onChange, children }: TabsProps) {
     refs.current[i]?.focus();
   };
 
+  const list = (
+    <div role="tablist" aria-label={label} className="tabs" onKeyDown={onKey}>
+      {tabs.map((t, i) => (
+        <button
+          key={t.id}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          type="button"
+          role="tab"
+          id={`${base}-tab-${t.id}`}
+          aria-selected={t.id === value}
+          aria-controls={`${base}-panel`}
+          tabIndex={t.id === value ? 0 : -1}
+          className="tab"
+          onClick={() => onChange(t.id)}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div>
-      <div role="tablist" aria-label={label} className="tabs" onKeyDown={onKey}>
-        {tabs.map((t, i) => (
-          <button
-            key={t.id}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            type="button"
-            role="tab"
-            id={`${base}-tab-${t.id}`}
-            aria-selected={t.id === value}
-            aria-controls={`${base}-panel`}
-            tabIndex={t.id === value ? 0 : -1}
-            className="tab"
-            onClick={() => onChange(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <div className={className}>
+      {actions ? (
+        <div className="tabs-row">
+          {list}
+          {actions}
+        </div>
+      ) : (
+        list
+      )}
       <div role="tabpanel" id={`${base}-panel`} aria-labelledby={`${base}-tab-${tabs[current]?.id}`} tabIndex={0}>
         {children}
       </div>
