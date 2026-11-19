@@ -11,6 +11,7 @@ from fastapi.concurrency import run_in_threadpool
 
 from liana_survey_shared import links
 from liana_survey_shared.config import get_settings
+from liana_survey_shared.messages import RESERVED_SEGMENTS, is_valid_segment
 from liana_survey_shared.web.auth import CurrentUser, current_user
 from liana_survey_shared.web.db import TenantDB, tenant_db
 
@@ -154,14 +155,21 @@ def make_snippet(
         str | None,
         Query(pattern=TAG_PATTERN, description="Campaign tag; default: the survey name as a slug"),
     ] = None,
-    segment: Annotated[str, Query(pattern=TAG_PATTERN, description="Segment tag")] = "all",
+    segment: Annotated[
+        str, Query(pattern=TAG_PATTERN, description="Segment tag, not none or other")
+    ] = "all",
     db: TenantDB = Depends(tenant_db),
 ) -> dict:
     """The LianaMailer newsletter snippet for a live thumbs, NPS or CSAT survey:
     its main question and one link per answer, tagged with the campaign and
     segment. Make one per segment. Its links are not signed per reader, so making
     a snippet also lets this survey (and only this one) accept them. 409 when the
-    survey isn't live, is custom or has no main question."""
+    survey isn't live, is custom or has no main question. 422 for a reserved segment."""
+    if not is_valid_segment(segment):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"{' and '.join(RESERVED_SEGMENTS)} are reserved segment names",
+        )
     with db() as conn:
         row = repo.get_for_update(conn, survey_id)
         if row is None:

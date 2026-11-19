@@ -6,6 +6,8 @@ import { useCopy } from './useCopy';
 /** Same rule as the API's tag pattern: a lower-case slug of 1–40 characters. */
 const TAG = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 const TAG_ERROR = 'Use 1–40 lower-case letters, digits or dashes. Start and end with a letter or digit.';
+const RESERVED = ['none', 'other'];
+const RESERVED_ERROR = 'This name is reserved. Pick another segment name.';
 /** Wait for a pause in typing before asking for a new snippet. */
 const TYPING_PAUSE_MS = 400;
 
@@ -27,7 +29,7 @@ export function MailerSnippetCard({ surveyId }: { surveyId: string }) {
   shown.current = snippet;
 
   const campaignError = campaign === null ? null : tagError(campaign);
-  const segmentError = tagError(segment);
+  const segmentError = RESERVED.includes(segment) ? RESERVED_ERROR : tagError(segment);
   const ready = campaign !== '' && segment !== '' && !campaignError && !segmentError;
 
   useEffect(() => {

@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse
 
 from liana_survey_shared import links
 from liana_survey_shared.config import get_settings
-from liana_survey_shared.messages import AnswerSubmitted, AnswerValue
+from liana_survey_shared.messages import AnswerSubmitted, AnswerValue, is_valid_segment
 from liana_survey_shared.texts import text
 
 from . import domain, pages, repo
@@ -59,6 +59,7 @@ async def answer(
     r: str | None = None,
     s: str | None = None,
     a: str | None = None,
+    seg: str | None = None,
     ch: Literal["email", "link", "qr"] | None = None,
     queue: AnswerQueue = Depends(get_answer_queue),
 ) -> HTMLResponse:
@@ -86,6 +87,9 @@ async def answer(
         )
     except links.LinkError:
         return _page(pages.problem(text("link_not_complete", language), language), 400)
+    segment = "all" if seg is None else seg
+    if not is_valid_segment(segment):
+        return _page(pages.problem(text("link_not_complete", language), language), 400)
     # Not the reader reference itself: anonymous answers keep no link to the reader.
     response_key = links.response_key(settings.link_signing_secret, link_token, r or "")
     answered = await run_in_threadpool(repo.answered_before, tenant_id, survey["id"], response_key)
@@ -107,6 +111,7 @@ async def answer(
         survey_id=survey["id"],
         link_token_hash=response_key,
         channel=channel,
+        segment=segment,
         answers=[AnswerValue(question_id=survey["main_id"], number=value)],
     )
     try:

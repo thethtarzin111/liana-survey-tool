@@ -51,6 +51,7 @@ jobs:
               - 'backend/infra/postgres/**'
               - 'backend/services/survey-manager/**'
               - 'backend/services/worker/**'
+              - 'backend/services/data-analyzer/**'
               - 'backend/services/respondent/**'
               - 'backend/scripts/**'
               - 'backend/packages/shared-py/**'

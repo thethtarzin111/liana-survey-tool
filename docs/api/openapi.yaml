@@ -210,7 +210,7 @@ paths:
         - name: segment
           in: query
           required: false
-          description: Segment tag
+          description: Segment tag. none and other are reserved (they are the Results filter values) and give 422.
           schema: { type: string, pattern: '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$', default: all, example: members }
       responses:
         '200':
@@ -458,7 +458,7 @@ paths:
         - { name: r, in: query, required: true, description: Reader reference, schema: { type: string } }
         - { name: s, in: query, required: false, description: Signature of the token and reader; none on newsletter snippet links, schema: { type: string } }
         - { name: c, in: query, required: false, description: Campaign tag (newsletter snippet links), schema: { type: string } }
-        - { name: seg, in: query, required: false, description: Segment tag (newsletter snippet links), schema: { type: string } }
+        - { name: seg, in: query, required: false, description: 'Segment tag (newsletter snippet links), default all. Lowercase letters, digits and hyphens; none and other are reserved. An invalid tag shows the incomplete-link page (400).', schema: { type: string, pattern: '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$', default: all } }
         - { name: ch, in: query, required: false, description: 'Distribution channel for survey performance (email, link or qr). Without it, an answer link counts as email and a plain visit as link.', schema: { type: string, enum: [email, link, qr] } }
         - { name: a, in: query, required: true, description: The tapped answer, schema: { type: integer } }
         - { name: ch, in: query, required: false, description: Distribution channel; inferred as email for answer links and link for plain links, schema: { type: string, enum: [email, link, qr] } }

@@ -11,6 +11,18 @@ from liana_survey_shared.messages import (
 )
 
 
+@pytest.mark.parametrize("segment", ["none", "other", "Bad!", "-x", "x" * 41, ""])
+def test_answer_submitted_refuses_invalid_or_reserved_segments(segment):
+    with pytest.raises(ValidationError):
+        AnswerSubmitted(
+            tenant_id=uuid4(),
+            survey_id=uuid4(),
+            link_token_hash="abc",
+            segment=segment,
+            answers=[AnswerValue(question_id=uuid4(), number=9)],
+        )
+
+
 def test_answer_submitted_round_trips_through_json():
     msg = AnswerSubmitted(
         tenant_id=uuid4(),
