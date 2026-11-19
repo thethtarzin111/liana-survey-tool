@@ -12,9 +12,24 @@ test('front page loads the dashboard and the demo user through the API', async (
 
 test('sidebar links open their pages', async ({ page }) => {
   await page.goto('/');
-  for (const name of ['Surveys', 'Results', 'Responses', 'Contact requests', 'Templates']) {
+  for (const name of ['Surveys', 'Results', 'Contact requests', 'Templates']) {
     await page.getByRole('link', { name, exact: true }).click();
     await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+  }
+});
+
+// Responses is a tab of Results. The old /responses path redirects there.
+test('/responses opens the Responses tab of Results', async ({ page }) => {
+  await page.goto('/responses');
+  await expect(page).toHaveURL(/\/results\?.*tab=responses/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Results' })).toBeVisible();
+
+  // The tabs appear only when the demo database has surveys.
+  const responsesTab = page.getByRole('tab', { name: /^Responses/ });
+  const noSurveys = page.getByText('No surveys yet', { exact: true });
+  await expect(responsesTab.or(noSurveys)).toBeVisible();
+  if (await responsesTab.isVisible()) {
+    await expect(responsesTab).toHaveAttribute('aria-selected', 'true');
   }
 });
 
