@@ -1,7 +1,7 @@
 import type { SurveyOverview } from '../../api/client';
 import { Card, EmptyState, icons } from '../../components/ui';
-import { AiRow } from './AiComingSoon';
-import { AnswerSplit } from './AnswerSplit';
+import { AiComingSoon } from './AiComingSoon';
+import { AnswerSplit, TopReasons, hasTopReasons } from './AnswerSplit';
 import { CloseTheLoop } from './CloseTheLoop';
 import { KpiCards } from './KpiCards';
 import { QuestionCard } from './QuestionCard';
@@ -27,6 +27,9 @@ export function OverviewTab({ overview, onReadAll }: { overview: SurveyOverview;
   const short = overview.type === 'custom' ? takeaway(overview) : null;
   const kind = overview.main?.kind;
   const custom = overview.type === 'custom';
+  const trendCard = kind && overview.trend.length >= 2 ? <TrendCard kind={kind} trend={overview.trend} /> : null;
+  const reasonsCard = !custom && hasTopReasons(overview) ? <TopReasons overview={overview} /> : null;
+  const pair = [reasonsCard, trendCard].filter(Boolean);
   return (
     <div className="results-overview">
       <KpiCards overview={overview} />
@@ -39,19 +42,18 @@ export function OverviewTab({ overview, onReadAll }: { overview: SurveyOverview;
               ))}
             </div>
           ) : null}
-          <AiRow>
-            {short ? (
-              <Card className="results-card">
-                <h2 className="results-card-title">In short</h2>
-                <p className="results-short-text">{short}</p>
-              </Card>
-            ) : null}
-          </AiRow>
+          {short ? (
+            <Card className="results-card">
+              <h2 className="results-card-title">In short</h2>
+              <p className="results-short-text">{short}</p>
+            </Card>
+          ) : null}
         </>
       ) : (
         <AnswerSplit overview={overview} />
       )}
-      {kind ? <TrendCard kind={kind} trend={overview.trend} /> : null}
+      {pair.length > 0 ? <div className="results-row">{pair}</div> : null}
+      <AiComingSoon />
       {kind ? <SegmentCard kind={kind} rows={overview.by_segment} /> : null}
       <CloseTheLoop type={overview.type} />
     </div>

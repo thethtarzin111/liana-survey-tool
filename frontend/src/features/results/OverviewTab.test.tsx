@@ -94,34 +94,44 @@ describe('OverviewTab order', () => {
   }
   const heading = (name: string | RegExp) => screen.getByRole('heading', { name });
 
-  it('standard survey: KPIs, split and distribution, AI and reasons, trend, segments, close the loop', () => {
+  it('standard survey: KPIs, split and distribution, reasons and trend, AI, segments, close the loop', () => {
     const { container } = renderTab(overview({ reasons: [{ label: 'Price', count: 3, percent: 25 }], trend, by_segment }));
     expectOrder([
       container.querySelector('.results-kpis'),
       screen.getByText('Answer split'),
       screen.getByText('Distribution'),
-      heading('AI summary of comments'),
       heading('Top reasons'),
       heading(/trend/i),
+      heading('AI summary of comments'),
       heading('By segment'),
       heading('Close the loop'),
     ]);
     const rows = container.querySelectorAll('.results-row');
     expect(rows[0].textContent).toContain('Answer split');
     expect(rows[0].textContent).toContain('Distribution');
-    expect(rows[1]).toHaveClass('results-row-ai');
-    expect(rows[1].textContent).toContain('AI summary of comments');
     expect(rows[1].textContent).toContain('Top reasons');
+    expect(rows[1].querySelector('h2, h3')).not.toBeNull();
+    expect(rows[1].contains(heading(/trend/i))).toBe(true);
+    // The AI card is a section of its own, not part of a row.
+    expect(heading('AI summary of comments').closest('.results-row')).toBeNull();
   });
 
-  it('standard survey without reasons: the AI card spans its row', () => {
-    const { container } = renderTab(overview());
-    const row = container.querySelector('.results-row-ai') as HTMLElement;
-    expect(row).toHaveClass('results-row-solo');
+  it('standard survey without reasons: the trend has the row to itself', () => {
+    const { container } = renderTab(overview({ reasons: [], trend }));
     expect(screen.queryByRole('heading', { name: 'Top reasons' })).toBeNull();
+    const row = heading(/trend/i).closest('.results-row') as HTMLElement;
+    expect(row).not.toBeNull();
+    expect(row.children).toHaveLength(1);
+    expect(container.querySelectorAll('.results-ai')).toHaveLength(1);
   });
 
-  it('custom survey: KPIs, questions, AI and In short, trend, segments', () => {
+  it('standard survey without reasons or trend: no empty row, AI still shown', () => {
+    const { container } = renderTab(overview({ reasons: [], trend: [] }));
+    expect(container.querySelectorAll('.results-row')).toHaveLength(1);
+    expect(heading('AI summary of comments').closest('.results-row')).toBeNull();
+  });
+
+  it('custom survey: KPIs, questions, In short, AI', () => {
     const { container } = renderTab(
       overview({
         type: 'custom', main: null, trend: [], by_segment: [],
@@ -132,16 +142,17 @@ describe('OverviewTab order', () => {
     expectOrder([
       container.querySelector('.results-kpis'),
       screen.getByRole('heading', { name: 'the information' }),
-      heading('AI summary of comments'),
       heading('In short'),
+      heading('AI summary of comments'),
     ]);
+    expect(heading('AI summary of comments').closest('.results-row')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Close the loop' })).toBeNull();
   });
 
-  it('custom survey without a takeaway: the AI card spans its row', () => {
+  it('custom survey without a takeaway: AI card on its own, no In short', () => {
     const { container } = renderTab(overview({ type: 'custom', main: null, questions: [] }));
-    expect(container.querySelector('.results-row-ai')).toHaveClass('results-row-solo');
-    expect(container.querySelector('.results-row:not(.results-row-ai)')).toBeNull();
+    expect(container.querySelector('.results-row')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'In short' })).toBeNull();
+    expect(container.querySelectorAll('.results-ai')).toHaveLength(1);
   });
 });

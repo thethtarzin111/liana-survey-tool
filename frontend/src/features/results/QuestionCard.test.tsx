@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { OverviewQuestion, SurveyOverview } from '../../api/client';
-import { AnswerSplit } from './AnswerSplit';
+import { AnswerSplit, TopReasons } from './AnswerSplit';
 import { QuestionCard } from './QuestionCard';
 
 function question(overrides: Partial<OverviewQuestion>): OverviewQuestion {
@@ -143,6 +143,18 @@ describe('AnswerSplit', () => {
     expect(screen.getByText('−33')).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Detractors 67%, Passives 0%, Promoters 33%' })).toBeInTheDocument();
     expect(container.querySelector('.donut-slice.tone-negative')).not.toBeNull();
+    // Top reasons is a separate card now, shown next to the trend.
+    expect(screen.queryByText('Top reasons')).toBeNull();
+  });
+
+  it('Top reasons is its own card, and absent without reasons', () => {
+    const overview = {
+      type: 'nps', responses: 12, reasons: [{ label: 'Price', count: 3, percent: 25 }],
+      main: { question_id: 'q', kind: 'nps', score: -33, change: null, counts: { '3': 8, '10': 4 } },
+    } as unknown as SurveyOverview;
+    const { rerender } = render(<TopReasons overview={overview} />);
     expect(screen.getByText('Top reasons', { selector: 'h3' })).toBeInTheDocument();
+    rerender(<TopReasons overview={{ ...overview, reasons: [] }} />);
+    expect(screen.queryByText('Top reasons')).toBeNull();
   });
 });
