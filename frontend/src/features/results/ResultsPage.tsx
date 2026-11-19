@@ -141,19 +141,22 @@ export function ResultsPage() {
         label="Results views"
         value={tab}
         actions={
-          showSegments ? (
-            <div className="results-segment">
-              <Select
-                label="Segment"
-                value={segment}
-                onChange={(e) => set({ segment: e.target.value })}
-                options={[
-                  { value: 'all', label: 'All segments' },
-                  ...overview.segments.map((s) => ({ value: s.value, label: `${s.label} (${s.answers})` })),
-                ]}
-              />
-            </div>
-          ) : undefined
+          <div className="results-tab-actions">
+            <SurveyPicker compact surveys={surveys} value={surveyId} onPick={(id) => set({ survey: id })} />
+            {showSegments ? (
+              <div className="results-segment">
+                <Select
+                  label="Segment"
+                  value={segment}
+                  onChange={(e) => set({ segment: e.target.value })}
+                  options={[
+                    { value: 'all', label: 'All segments' },
+                    ...overview.segments.map((s) => ({ value: s.value, label: `${s.label} (${s.answers})` })),
+                  ]}
+                />
+              </div>
+            ) : null}
+          </div>
         }
         onChange={(id) => set({ tab: id === 'responses' ? 'responses' : 'overview' })}
         tabs={[
@@ -180,7 +183,7 @@ export function ResultsPage() {
   return (
     <div className="results-page">
       {header}
-      <div className="results-top">{picker}</div>
+      {overview && !failed ? null : <div className="results-top">{picker}</div>}
       {body}
     </div>
   );

@@ -189,14 +189,19 @@ test('the segment filter sits on the same row as the tabs', async () => {
   expect(tablist.contains(select)).toBe(false);
 });
 
-test('the tabs follow the picker directly', async () => {
+test('the survey picker sits on the tab row, next to the segment filter', async () => {
   overviews['nps-1'] = overview({ segments });
   renderPage('/results?survey=nps-1');
   const tablist = await screen.findByRole('tablist', { name: 'Results views' });
-  const picker = document.querySelector('.results-picker') as HTMLElement;
   const row = tablist.parentElement as HTMLElement;
-  expect(picker.parentElement).toHaveClass('results-top');
-  expect(picker.parentElement?.nextElementSibling?.firstElementChild).toBe(row);
+  const picker = document.querySelector('.results-picker') as HTMLElement;
+  expect(row).toHaveClass('tabs-row');
+  expect(row.contains(picker)).toBe(true);
+  expect(tablist.contains(picker)).toBe(false);
+  expect(row.contains(screen.getByLabelText('Segment'))).toBe(true);
+  expect(document.querySelector('.results-top')).toBeNull();
+  // The label stays for screen readers only.
+  expect(screen.getByText('Survey', { selector: '.results-picker-label' })).toHaveClass('visually-hidden');
 });
 
 describe('KPI cards per survey type', () => {
