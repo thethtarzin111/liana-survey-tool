@@ -33,9 +33,18 @@ describe('SegmentCard', () => {
     expect(screen.queryByText(/Fewer than 5 answers/)).toBeNull();
   });
 
-  it('shows the anonymity line instead of numbers for a row below 5 answers', () => {
-    render(<SegmentCard kind="nps" rows={[rows[0], row('x', 'Alumni', 3, 33, { '9': 3 })]} />);
-    expect(screen.getByText('Fewer than 5 answers. Hidden to protect anonymity.')).toBeInTheDocument();
+  it('never shows or names a row below 5 answers, even if the API sent one', () => {
+    const { container } = render(
+      <SegmentCard kind="nps" rows={[...rows, row('x', 'Alumni', 3, 33, { '9': 3 })]} />,
+    );
+    const labels = [...container.querySelectorAll('.segment-label')].map((n) => n.textContent);
+    expect(labels).toEqual(['Members', 'Guests']);
+    expect(screen.queryByText('Alumni')).toBeNull();
     expect(screen.queryByText('+33')).toBeNull();
+  });
+
+  it('counts groups after dropping small rows, so one group left hides the card', () => {
+    const { container } = render(<SegmentCard kind="nps" rows={[rows[0], row('x', 'Alumni', 3, 33, { '9': 3 })]} />);
+    expect(container.firstChild).toBeNull();
   });
 });
