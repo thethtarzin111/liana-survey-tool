@@ -44,7 +44,7 @@ function renderPage() {
 
 test('loads the survey and fills the title and description fields', async () => {
   renderPage();
-  expect(await screen.findByLabelText(/^Survey title/)).toHaveValue('Member survey');
+  await waitFor(() => expect(screen.getByLabelText(/^Survey title/)).toHaveValue('Member survey'));
   expect(screen.getByLabelText('Description (optional)')).toHaveValue("Members' view of 2026");
   expect(fetchMock).toHaveBeenCalledWith('/api/v1/surveys/survey-1', {
     headers: { Accept: 'application/json' },

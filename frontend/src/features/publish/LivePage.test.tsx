@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Survey } from '../../api/client';
 import { ToastProvider } from '../../components/ui';
@@ -51,7 +51,7 @@ test('shows the survey is live with its public link', async () => {
   expect(screen.getByRole('link', { name: 'Edit survey' })).toHaveAttribute('href', '/surveys/nps-1');
   expect(screen.getByRole('heading', { name: 'Newsletter snippet' })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Survey settings' })).toBeInTheDocument();
-  expect(await screen.findByLabelText('Campaign tag')).toHaveValue('member-nps');
+  await waitFor(() => expect(screen.getByLabelText('Campaign tag')).toHaveValue('member-nps'));
 });
 
 test('in local development, each test reader has one link per answer', async () => {
