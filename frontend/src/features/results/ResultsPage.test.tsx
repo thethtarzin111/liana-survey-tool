@@ -188,14 +188,14 @@ describe('KPI cards per survey type', () => {
     vi.setSystemTime(new Date('2026-11-19T12:00:00'));
   });
   afterEach(() => vi.useRealTimers());
-  const kpi = (label: string) => within(screen.getByRole('list')).getByText(label).closest('li') as HTMLElement;
+  const kpi = (label: string) => within(document.querySelector('.results-kpis') as HTMLElement).getByText(label).closest('li') as HTMLElement;
 
   test('NPS', async () => {
     overviews['nps-1'] = overview({
       main: { question_id: 'q1', kind: 'nps', score: -33, change: -5, counts: { '3': 5, '8': 3, '10': 4 } },
     });
     renderPage('/results?survey=nps-1');
-    await screen.findByText('Promoters');
+    await screen.findByText('Response rate');
     expect(kpi('NPS')).toHaveTextContent('−33');
     expect(kpi('NPS')).toHaveTextContent('−5 since October');
     expect(kpi('Responses')).toHaveTextContent('12');
@@ -211,7 +211,7 @@ describe('KPI cards per survey type', () => {
       main: { question_id: 'q1', kind: 'nps', score: 40, change: 5, counts: {} },
     });
     renderPage('/results?survey=nps-1');
-    await screen.findByText('Promoters');
+    await screen.findByText('Response rate');
     expect(kpi('NPS')).toHaveTextContent('+40');
     expect(kpi('NPS')).toHaveTextContent('+5 since October');
   });
@@ -269,17 +269,17 @@ describe('KPI cards per survey type', () => {
 test('response rate shows "—" and "Not available per segment" with a segment', async () => {
   overviews['nps-1'] = overview({ segments, response_rate: null });
   renderPage('/results?survey=nps-1&segment=members');
-  await screen.findByText('Promoters');
+  await screen.findByText('Response rate');
   const card = screen.getByText('Response rate').closest('li') as HTMLElement;
   expect(card).toHaveTextContent('—');
   expect(card).toHaveTextContent('Not available per segment');
-  expect(within(screen.getByRole('list')).getByText('Responses').closest('li')).toHaveTextContent('segment: Members');
+  expect(within(document.querySelector('.results-kpis') as HTMLElement).getByText('Responses').closest('li')).toHaveTextContent('segment: Members');
 });
 
 test('response rate without views shows "—"', async () => {
   overviews['nps-1'] = overview({ views: 0, response_rate: null });
   renderPage('/results?survey=nps-1');
-  await screen.findByText('Promoters');
+  await screen.findByText('Response rate');
   expect(screen.getByText('Response rate').closest('li')).toHaveTextContent('—No views yet');
 });
 
@@ -336,4 +336,15 @@ test('the Responses tab shows the number of responses', async () => {
   renderPage('/results?survey=nps-1&tab=responses');
   expect(await screen.findByRole('tab', { name: 'Responses 12' })).toHaveAttribute('aria-selected', 'true');
   expect(screen.getByText('Responses will appear here soon.')).toBeInTheDocument();
+});
+
+test('"Read all answers →" opens the Responses tab', async () => {
+  overviews['custom-1'] = overview({
+    type: 'custom', main: null,
+    questions: [{ id: 'q9', kind: 'text', prompt: 'Any comments?', required: false, answers: 3, options: [], average: null }],
+  });
+  renderPage('/results?survey=custom-1');
+  fireEvent.click(await screen.findByRole('button', { name: 'Read all answers →' }));
+  await waitFor(() => expect(location()).toContain('tab=responses'));
+  expect(screen.getByRole('tab', { selected: true, name: /^Responses/ })).toBeInTheDocument();
 });
