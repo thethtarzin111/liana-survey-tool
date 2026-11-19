@@ -13,6 +13,6 @@ export function takeaway(overview: SurveyOverview): string | null {
     .reduce((sum, o) => sum + o.count, 0);
   const share = percentOf(high, total);
   return share >= 50
-    ? `Most respondents rated ${q.prompt} 4–5 (${share}%).`
-    : `Ratings for ${q.prompt} are mixed: ${share}% gave 4–5.`;
+    ? `“${q.prompt}”: most respondents rated it 4–5 (${share}%).`
+    : `“${q.prompt}”: ratings are mixed, ${share}% gave 4–5.`;
 }

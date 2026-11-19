@@ -88,4 +88,13 @@ describe('charts', () => {
     expect(container.querySelector('circle.tone-negative')?.getAttribute('stroke')).toBe(`url(#${id})`);
     expect(container.querySelector('circle.tone-positive')?.getAttribute('stroke')).toBeNull();
   });
+
+  it('the negative slice falls back to the token colour when the pattern cannot be used', () => {
+    const { container } = render(
+      <Donut label="L" center="c" centerNote="n" slices={[{ label: 'A', count: 1, tone: 'negative' }, { label: 'B', count: 1, tone: 'positive' }]} />,
+    );
+    const id = container.querySelector('pattern')?.id;
+    const circle = container.querySelector('circle.tone-negative') as SVGElement;
+    expect(circle.getAttribute('style')).toContain(`url(#${id}) var(--color-chart-negative)`);
+  });
 });

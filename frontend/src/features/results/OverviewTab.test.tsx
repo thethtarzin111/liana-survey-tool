@@ -73,6 +73,6 @@ describe('OverviewTab extras', () => {
       }),
     );
     expect(screen.getByRole('heading', { name: 'In short' })).toBeInTheDocument();
-    expect(screen.getByText('Most respondents rated the information 4–5 (80%).')).toBeInTheDocument();
+    expect(screen.getByText('“the information”: most respondents rated it 4–5 (80%).')).toBeInTheDocument();
   });
 });

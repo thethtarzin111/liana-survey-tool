@@ -10,10 +10,15 @@ const survey = (questions: OverviewQuestion[]) => ({ type: 'custom', questions }
 
 describe('takeaway', () => {
   it('says most respondents rated 4–5 when at least half did', () => {
-    expect(takeaway(survey([text, rating([1, 1, 5, 9, 14])]))).toBe('Most respondents rated the information 4–5 (77%).');
+    expect(takeaway(survey([text, rating([1, 1, 5, 9, 14])]))).toBe('“the information”: most respondents rated it 4–5 (77%).');
   });
   it('calls the ratings mixed below half', () => {
-    expect(takeaway(survey([rating([4, 4, 3, 5, 4])]))).toBe('Ratings for the information are mixed: 45% gave 4–5.');
+    expect(takeaway(survey([rating([4, 4, 3, 5, 4])]))).toBe('“the information”: ratings are mixed, 45% gave 4–5.');
+  });
+  it('quotes a question-shaped prompt so the sentence still reads', () => {
+    expect(takeaway(survey([rating([1, 1, 5, 9, 14], 'How easy was it to get help?')]))).toBe(
+      '“How easy was it to get help?”: most respondents rated it 4–5 (77%).',
+    );
   });
   it('is null without a rating question or without answers', () => {
     expect(takeaway(survey([text]))).toBeNull();

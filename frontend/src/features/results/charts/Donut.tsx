@@ -45,6 +45,7 @@ export function Donut({ label, center, centerNote, slices }: Props) {
                       strokeDasharray={`${length} ${100 - length}`}
                       strokeDashoffset={25 - start}
                       stroke={s.tone === 'negative' ? `url(#${patternId})` : undefined}
+                      style={s.tone === 'negative' ? { stroke: `url(#${patternId}) var(--color-chart-negative)` } : undefined}
                     >
                       <title>{`${s.label}: ${plural(s.count, 'answer', 'answers')}, ${percentOf(s.count, total)}%`}</title>
                     </circle>

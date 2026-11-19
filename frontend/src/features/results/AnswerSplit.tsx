@@ -5,20 +5,15 @@ import { Columns } from './charts/Columns';
 import { Donut } from './charts/Donut';
 import { percentOf } from './charts/tone';
 import { signed } from './format';
-import { groupsFor, scaleValues, THUMBS_LABEL, toneOf } from './groups';
+import { groupSlices, scaleValues, THUMBS_LABEL, toneOf } from './groups';
 
 /** Standard surveys: the main question as a donut and a distribution chart, then the top reasons. */
 export function AnswerSplit({ overview }: { overview: SurveyOverview }) {
   const { main, reasons } = overview;
   if (!main) return null;
   const counts = main.counts;
-  const groups = groupsFor(main.kind);
   const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
-  const slices = groups.map((g) => ({
-    label: g.label,
-    tone: g.tone,
-    count: g.values.reduce((sum, v) => sum + (counts[v] ?? 0), 0),
-  }));
+  const slices = groupSlices(main.kind, counts);
   const center =
     main.score === null ? '—' : main.kind === 'nps' ? signed(main.score) : `${main.score}%`;
   const centerNote = main.kind === 'nps' ? 'NPS' : main.kind === 'thumbs' ? 'positive' : 'satisfied';
