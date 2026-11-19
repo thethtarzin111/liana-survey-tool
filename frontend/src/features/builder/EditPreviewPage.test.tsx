@@ -98,7 +98,7 @@ test('NPS, thumbs and CSAT surveys open on Edit and preview with their settings'
   expect(await screen.findByRole('heading', { name: 'Edit and preview' })).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: 'Build your survey' })).not.toBeInTheDocument();
   expect(screen.getByLabelText('Name (only you see this)')).toHaveValue('Member NPS');
-  expect(await screen.findByRole('textbox', { name: 'Question' })).toHaveValue('How likely are you to recommend Example Members Association?');
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Question' })).toHaveValue('How likely are you to recommend Example Members Association?'));
   expect(screen.getByText('Detractors 0–6')).toBeInTheDocument();
   expect(screen.getByText('The scale is fixed so results can be compared over time.')).toBeInTheDocument();
   expect(within(reasonsGroup()).getByRole('textbox', { name: 'Reason 2' })).toHaveValue('Membership fee');
