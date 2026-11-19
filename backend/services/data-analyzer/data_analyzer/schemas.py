@@ -83,3 +83,34 @@ class SurveyOverview(BaseModel):
     reasons: list[OverviewReason]
     trend: list[OverviewMonth]
     by_segment: list[OverviewSegmentScore]
+
+
+class ResponseRow(BaseModel):
+    id: UUID
+    display_id: str
+    submitted_at: datetime
+    answer: int | None
+    reason: str | None
+    comment: str | None
+    masked: bool
+    segment_label: str | None
+
+
+class ResponsesPage(BaseModel):
+    total: int
+    rows: list[ResponseRow]
+
+
+class ResponseAnswer(BaseModel):
+    question_id: UUID
+    prompt: str
+    kind: str
+    value: int | float | str | list[str] | None
+    masked: bool
+
+
+class ResponseDetail(BaseModel):
+    display_id: str
+    submitted_at: datetime
+    segment_label: str | None
+    answers: list[ResponseAnswer]

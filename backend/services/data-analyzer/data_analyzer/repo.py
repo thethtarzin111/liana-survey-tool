@@ -4,6 +4,8 @@ from uuid import UUID
 
 import psycopg
 
+from .domain import EMAIL_PATTERN, EMAIL_REPLACEMENT, PHONE_PATTERN, PHONE_REPLACEMENT
+
 
 def performance_rows(
     conn: psycopg.Connection, *, limit: int | None = None, offset: int = 0
@@ -196,3 +198,166 @@ def overview_rows(
         "main_rows": main_rows,
         "completed": completed,
     }
+
+
+def mask_sql(column: str) -> str:
+    """SQL that hides emails and phone numbers in `column`, as `domain.mask` does.
+
+    Needs the named parameters `email` and `phone` (see MASK_PARAMS)."""
+    return (
+        f"regexp_replace(regexp_replace({column}, %(email)s, '{EMAIL_REPLACEMENT}', 'g'),"
+        f" %(phone)s, '{PHONE_REPLACEMENT}', 'g')"
+    )
+
+
+MASK_PARAMS = {"email": EMAIL_PATTERN, "phone": PHONE_PATTERN}
+
+# The responses of one survey in the allowed segments, with the main answer, the
+# reason and the comment. The comment is masked here, so the search, the counts and
+# the paging only ever see the masked text.
+_FILTERED = f"""
+with picked as (
+  select
+    (select id from questions where survey_id = %(survey)s and kind::text = any(%(scale)s)
+     order by position limit 1) as scale,
+    (select id from questions where survey_id = %(survey)s and kind::text = 'reasons'
+     order by position limit 1) as reasons,
+    (select id from questions where survey_id = %(survey)s and kind::text = any(%(text)s)
+     order by position limit 1) as comment
+), base as (
+  select r.id, r.submitted_at, r.segment,
+    (select a.value_number::integer from answers a
+     where a.response_id = r.id and a.question_id = picked.scale limit 1) as answer,
+    (select case when a.value_choices is not null
+                 then (select string_agg(c.value, '; ' order by c.ord)
+                       from jsonb_array_elements_text(a.value_choices)
+                            with ordinality c(value, ord))
+                 else a.value_text end
+     from answers a where a.response_id = r.id and a.question_id = picked.reasons
+     limit 1) as reason,
+    (select a.value_text from answers a
+     where a.response_id = r.id and a.question_id = picked.comment limit 1) as raw_comment
+  from responses r cross join picked
+  where r.survey_id = %(survey)s
+    and (%(stored)s::text[] is null or r.segment = any(%(stored)s))
+), masked as (
+  select base.*, {mask_sql("raw_comment")} as comment from base
+), filtered as (
+  select masked.*, raw_comment is not null and comment <> raw_comment as was_masked
+  from masked
+  where (%(search)s::text is null or comment ilike %(search)s)
+    and (%(group)s::integer[] is null or answer = any(%(group)s))
+)
+"""
+
+
+def _filter_params(
+    survey_id: UUID,
+    stored: tuple[str, ...] | None,
+    search: str | None,
+    group: tuple[int, ...] | None,
+) -> dict[str, Any]:
+    """The parameters of `_FILTERED`. `search` is a plain string: its LIKE characters are
+    escaped here."""
+    pattern = None
+    if search:
+        escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+    return {
+        **MASK_PARAMS,
+        "survey": survey_id,
+        "stored": list(stored) if stored is not None else None,
+        "search": pattern,
+        "group": list(group) if group is not None else None,
+        "scale": list(SCALE_KINDS),
+        "text": list(TEXT_KINDS),
+    }
+
+
+def scale_kind(conn: psycopg.Connection, survey_id: UUID) -> str | None:
+    """The kind of the survey's first scale question, None when it has none."""
+    row = conn.execute(
+        """select kind::text as kind from questions
+           where survey_id = %s and kind::text = any(%s) order by position limit 1""",
+        (survey_id, list(SCALE_KINDS)),
+    ).fetchone()
+    return row["kind"] if row else None
+
+
+def responses(
+    conn: psycopg.Connection,
+    survey_id: UUID,
+    stored: tuple[str, ...] | None,
+    search: str | None,
+    group: tuple[int, ...] | None,
+    limit: int,
+    offset: int,
+) -> tuple[int, list[dict[str, Any]]]:
+    """The matching responses, newest first, and how many match in all.
+
+    `stored` limits to those stored segments (None for no limit), `search` looks in the
+    masked comment and `group` keeps the main answers in it."""
+    params = _filter_params(survey_id, stored, search, group)
+    total = conn.execute(
+        _FILTERED + "select count(*)::integer as n from filtered", params
+    ).fetchone()["n"]
+    rows = conn.execute(
+        _FILTERED
+        + """select id, submitted_at, segment, answer, reason, comment, was_masked
+             from filtered order by submitted_at desc, id desc
+             limit %(limit)s offset %(offset)s""",
+        {**params, "limit": limit, "offset": offset},
+    ).fetchall()
+    return total, rows
+
+
+def response_detail(
+    conn: psycopg.Connection, survey_id: UUID, response_id: UUID
+) -> dict[str, Any] | None:
+    """One response with every question of its survey in order (text masked), or None."""
+    response = conn.execute(
+        "select id, submitted_at, segment from responses where id = %s and survey_id = %s",
+        (response_id, survey_id),
+    ).fetchone()
+    if response is None:
+        return None
+    response["answers"] = conn.execute(
+        f"""select q.id as question_id, q.prompt, q.kind::text as kind,
+                   a.value_number, a.value_choices, a.value_text as raw_text,
+                   {mask_sql("a.value_text")} as text
+            from questions q
+            left join answers a on a.question_id = q.id and a.response_id = %(response)s
+            where q.survey_id = %(survey)s order by q.position""",
+        {**MASK_PARAMS, "response": response_id, "survey": survey_id},
+    ).fetchall()
+    return response
+
+
+def responses_export(
+    conn: psycopg.Connection,
+    survey_id: UUID,
+    stored: tuple[str, ...] | None,
+    search: str | None,
+    group: tuple[int, ...] | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The questions in order, and every matching response (newest first) with its masked
+    answers in `answers`, a dict by question id."""
+    questions = conn.execute(
+        "select id, prompt from questions where survey_id = %s order by position", (survey_id,)
+    ).fetchall()
+    rows = conn.execute(
+        _FILTERED
+        + "select id, submitted_at, segment from filtered order by submitted_at desc, id desc",
+        _filter_params(survey_id, stored, search, group),
+    ).fetchall()
+    by_response: dict[UUID, dict[UUID, dict[str, Any]]] = {row["id"]: {} for row in rows}
+    for answer in conn.execute(
+        f"""select a.response_id, a.question_id, a.value_number, a.value_choices,
+                   {mask_sql("a.value_text")} as text
+            from answers a where a.response_id = any(%(ids)s)""",
+        {**MASK_PARAMS, "ids": list(by_response)},
+    ).fetchall():
+        by_response[answer["response_id"]][answer["question_id"]] = answer
+    for row in rows:
+        row["answers"] = by_response[row["id"]]
+    return questions, rows
