@@ -5,17 +5,20 @@ import { App } from './App';
 import { Sidebar } from './Sidebar';
 
 beforeEach(() => {
-  // No API in unit tests: pretend the dev-auth stub answered.
+  // No API in unit tests: pretend the dev-auth stub answered. Lists (templates)
+  // get an empty list, so pages that load them do not fail after the test.
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () =>
-      Response.json({
-        user_id: 'u',
-        tenant_id: 't',
-        tenant_name: 'Example Members Association',
-        name: 'Anna Virtanen',
-        email: 'anna.virtanen@example.org',
-      }),
+    vi.fn(async (input: RequestInfo | URL) =>
+      String(input).includes('/api/v1/templates')
+        ? Response.json([])
+        : Response.json({
+            user_id: 'u',
+            tenant_id: 't',
+            tenant_name: 'Example Members Association',
+            name: 'Anna Virtanen',
+            email: 'anna.virtanen@example.org',
+          }),
     ),
   );
 });
