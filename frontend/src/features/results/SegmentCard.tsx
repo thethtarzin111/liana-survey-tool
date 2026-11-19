@@ -8,28 +8,26 @@ type Row = SurveyOverview['by_segment'][number];
 
 const MIN_ANSWERS = 5;
 
-/** One split bar and score per allowed group; hidden below two groups. Renders only what the API sends. */
+/** One split bar and score per allowed group; hidden below two groups. A row below the
+ * anonymity threshold is dropped entirely, never shown or named, even if the API sent one. */
 export function SegmentCard({ kind, rows }: { kind: Kind; rows: Row[] }) {
-  if (rows.length < 2) return null;
+  const shown = rows.filter((row) => row.answers >= MIN_ANSWERS);
+  if (shown.length < 2) return null;
   const groups = groupsFor(kind);
   return (
     <Card>
       <CardHeader title="By segment" />
       <CardBody>
         <ul className="segment-rows">
-          {rows.map((row) => {
+          {shown.map((row) => {
             const parts = groups.map((g) => ({
               ...g,
               count: g.values.reduce((sum, v) => sum + (row.counts[v] ?? 0), 0),
             }));
             const total = parts.reduce((sum, p) => sum + p.count, 0);
-            const hidden = row.answers < MIN_ANSWERS;
             return (
               <li key={row.value} className="segment-row">
                 <span className="segment-label">{row.label}</span>
-                {hidden ? (
-                  <span className="segment-hidden">Fewer than 5 answers. Hidden to protect anonymity.</span>
-                ) : (
                   <>
                     <span
                       className="segment-bar"
@@ -52,7 +50,6 @@ export function SegmentCard({ kind, rows }: { kind: Kind; rows: Row[] }) {
                     </strong>
                     <span className="segment-answers">{plural(row.answers, 'answer', 'answers')}</span>
                   </>
-                )}
               </li>
             );
           })}
