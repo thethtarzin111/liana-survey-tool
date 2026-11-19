@@ -30,6 +30,11 @@ on conflict (survey_id, position) do nothing;
 -- Results redesign demo data: four surveys with responses from
 -- September to November 2026. Everything is derived from fixed keys with
 -- generate_series, so a second run inserts nothing new.
+-- Segments: Member NPS 2026 has members, volunteers and untagged answers of 5
+-- or more, plus 4 'partners' and 3 'board' answers. Both are under 5, so they
+-- are grouped as Other (7 answers, shown). Student services moves its untagged
+-- answers into 'members', so every group has 5 or more. Segments are therefore
+-- on for both surveys.
 -- ---------------------------------------------------------------------------
 
 insert into surveys (id, tenant_id, title, type, status, created_by, created_at, opens_at,
@@ -143,7 +148,9 @@ from (
     md5('resp-' || s.slug || '-' || g)::uuid as id,
     md5('link-' || s.slug || '-' || g) as link_token_hash,
     r.submitted_at,
-    case when s.has_partners and g > s.n then 'partners'
+    case when s.has_partners and g > s.n + 4 then 'board'
+         when s.has_partners and g > s.n then 'partners'
+         when s.slug = 'services' and g % 8 = 7 then 'members'
          else (array['members','members','members','members','members',
                      'volunteers','volunteers','all'])[1 + g % 8] end as segment,
     (array['email','link','qr','email','link','email'])[1 + g % 6] as channel,
@@ -153,10 +160,10 @@ from (
     case when g in (3, 9, 15) or (s.slug = 'nps' and g in (21, 27, 33))
          then 'C-' || (1000 + s.idx * 100 + g) end as contact_ref
   from seed_surveys s
-  cross join lateral generate_series(1, s.n + case when s.has_partners then 4 else 0 end) g
+  cross join lateral generate_series(1, s.n + case when s.has_partners then 7 else 0 end) g
   cross join lateral (
     select (('2026-09-02 09:00'::timestamp
-             + floor((g - 1) * 76.0 / (s.n + case when s.has_partners then 4 else 0 end))
+             + floor((g - 1) * 76.0 / (s.n + case when s.has_partners then 7 else 0 end))
                * interval '1 day'
              + ((g * 37) % 9) * interval '1 hour') at time zone 'Europe/Helsinki') as submitted_at
   ) r
@@ -167,7 +174,7 @@ insert into responses (id, tenant_id, survey_id, submitted_at, link_token_hash, 
 select id, '00000000-0000-4000-8000-000000000001', survey_id, submitted_at, link_token_hash,
        contact_ref, channel::distribution_channel, segment
 from seed_resp
-on conflict (survey_id, link_token_hash) do nothing;
+on conflict (survey_id, link_token_hash) do update set segment = excluded.segment;
 
 -- Question 1 (score) of the three standard surveys and the rating of the custom one.
 insert into answers (tenant_id, response_id, question_id, value_number)
