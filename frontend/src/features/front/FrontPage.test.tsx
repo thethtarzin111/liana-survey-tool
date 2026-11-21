@@ -2,6 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { SurveyListItem } from '../../api/client';
 import { DEFAULT_ACCENT, DEFAULT_BACKGROUND } from '../builder/branding';
+import { writeFlag } from '../settings/featureFlags';
 import { FrontPage } from './FrontPage';
 
 function survey(overrides: Partial<SurveyListItem>): SurveyListItem {
@@ -35,7 +36,11 @@ function renderPage(surveys: unknown) {
     </MemoryRouter>,
   );
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  localStorage.clear();
+});
 
 const region = (name: string) => screen.getByRole('region', { name });
 
@@ -119,8 +124,26 @@ test('the surveys table says when each survey closes', async () => {
   expect(within(row('Open ended')).getByRole('link', { name: 'Open' })).toHaveAttribute('href', '/surveys/a/live');
 });
 
-test('news and inspiration list the articles', async () => {
+test('news and inspiration are hidden by default (#153)', async () => {
   renderPage([]);
+  expect(await screen.findByRole('heading', { name: 'Get started with LianaSurvey' })).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'News and inspiration' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Recent news' })).not.toBeInTheDocument();
+});
+
+test('news and inspiration are hidden when the browser blocks storage', async () => {
+  vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+    throw new DOMException('blocked', 'SecurityError');
+  });
+  renderPage([]);
+  expect(await screen.findByRole('heading', { name: 'Get started with LianaSurvey' })).toBeInTheDocument();
+  expect(screen.queryByRole('region', { name: 'Recent news' })).not.toBeInTheDocument();
+});
+
+test('news and inspiration list the articles when the flag is on', async () => {
+  writeFlag('newsAndInspiration', true);
+  renderPage([]);
+  expect(await screen.findByRole('heading', { name: 'News and inspiration' })).toBeInTheDocument();
   const news = await screen.findByRole('region', { name: 'Recent news' });
   expect(within(news).getAllByRole('listitem')).toHaveLength(4);
   expect(within(news).getByRole('link', { name: 'View all ↗' })).toBeInTheDocument();
