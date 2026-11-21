@@ -563,33 +563,74 @@ paths:
   /r/{link_token}:
     get:
       tags: [respondent]
-      summary: One-tap answer link from the email (public, no login)
+      summary: Answer link from the email, or the survey link page (public, no login)
       description: >-
-        Signed links carry the reader and its signature (s). Newsletter snippet links (#40) have no
-        signature: the reader is the contact id LianaMailer filled in, and an unreplaced placeholder
-        such as $id$ is refused. Only surveys with newsletter_links accept them. Records the answer to the survey's main question (thumbs 0-2, NPS 0-10, CSAT 1-5), puts it
-        on the survey.answers queue for the worker, and returns a plain HTML thank-you page with the
-        survey's thank-you message. Answers stay anonymous: only a key derived from the reader is
-        stored, so each reader counts once. A reader's later tap replaces their earlier answer
-        (#126), so a mail scanner opening every link before the reader does not decide the answer. Pages are sent with
-        Cache-Control no-store and Referrer-Policy no-referrer. Once the survey is found, its fixed texts
-        (headings, default and error messages) are in the survey's language.
+        With r and a, a one-tap answer link from the email. Signed links carry the reader and
+        its signature (s). Newsletter snippet links (#40) have no signature: the reader is the
+        contact id LianaMailer filled in, and an unreplaced placeholder such as $id$ is refused.
+        Only surveys with newsletter_links accept them. Records the answer to the survey's main
+        question (thumbs 0-2, NPS 0-10, CSAT 1-5), puts it on the survey.answers queue for the
+        worker, and returns a plain HTML thank-you page with the survey's thank-you message.
+        Answers stay anonymous: only a key derived from the reader is stored, so each reader counts
+        once. A reader's later tap replaces their earlier answer (#126), so a mail scanner opening
+        every link before the reader does not decide the answer.
+        Without r, s and a (the plain public link, copied or from the QR code), returns the survey
+        link page (#105): the reader title (custom surveys: the survey title), the description and
+        every question, as an HTML form that posts to the same address. Each visit gets a new
+        signed visit key. The visit counts toward the ch channel's views.
+        Pages are sent with Cache-Control no-store and Referrer-Policy no-referrer. Once the survey
+        is found, its fixed texts (headings, buttons, default and error messages) are in the
+        survey's language.
       parameters:
         - { name: link_token, in: path, required: true, schema: { type: string } }
-        - { name: r, in: query, required: true, description: Reader reference, schema: { type: string } }
+        - { name: r, in: query, required: false, description: Reader reference (answer links), schema: { type: string } }
         - { name: s, in: query, required: false, description: Signature of the token and reader; none on newsletter snippet links, schema: { type: string } }
         - { name: c, in: query, required: false, description: Campaign tag (newsletter snippet links), schema: { type: string } }
         - { name: seg, in: query, required: false, description: 'Segment tag (newsletter snippet links), default all. Lowercase letters, digits and hyphens; none and other are reserved. An invalid tag shows the incomplete-link page (400).', schema: { type: string, pattern: '^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$', default: all } }
+        - { name: a, in: query, required: false, description: The tapped answer (answer links), schema: { type: integer } }
         - { name: ch, in: query, required: false, description: 'Distribution channel for survey performance (email, link or qr). Without it, an answer link counts as email and a plain visit as link.', schema: { type: string, enum: [email, link, qr] } }
-        - { name: a, in: query, required: true, description: The tapped answer, schema: { type: integer } }
-        - { name: ch, in: query, required: false, description: Distribution channel; inferred as email for answer links and link for plain links, schema: { type: string, enum: [email, link, qr] } }
+      responses:
+        '200': { description: 'Thank-you page, or the survey link page for the plain public link (HTML)', content: { text/html: {} } }
+        '400': { description: 'Link not complete or not valid, or an answer that is not one of the choices (HTML)' }
+        '403': { description: The survey is not open yet, or has no questions (HTML) }
+        '404': { description: Unknown link (HTML) }
+        '410': { description: The survey is closed, or has reached its response limit (HTML) }
+        '503': { description: The answer could not be queued; the reader is asked to try again (HTML) }
+    post:
+      tags: [respondent]
+      summary: Answers from the survey link page (public, no login)
+      description: >-
+        The form on the survey link page (#105). Checks every answer against its question
+        (required questions, choices, scales, text length; thumbs surveys only take reasons after
+        "Not for me"), puts them on the survey.answers queue with the visit's channel, and returns
+        the thank-you page. Answers that do not fit show the form again with the reader's answers
+        and what to fix (400). The visit key counts the reader once: sending the form again from
+        the same visit replaces the earlier answers. Close date and response limit apply as for
+        answer links.
+      parameters:
+        - { name: link_token, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key: { type: string, description: The signed visit key from the page }
+                ch: { type: string, enum: [link, qr], default: link }
+              additionalProperties:
+                description: 'q-<question id>: the answer; repeated for each picked option'
+                type: array
+                items: { type: string }
       responses:
         '200': { description: Thank-you page (HTML), content: { text/html: {} } }
-        '400': { description: 'Link not complete or not valid, an answer that is not one of the choices, or the plain public link without an answer (asks to answer from the email until #105) (HTML)' }
+        '400': { description: 'Missing or invalid visit key, or answers that do not fit: the form again, with what to fix (HTML)' }
         '403': { description: The survey is not open yet (HTML) }
         '404': { description: Unknown link (HTML) }
-        '410': { description: The survey is closed (HTML) }
-        '503': { description: The answer could not be queued; the reader is asked to try again (HTML) }
+        '410': { description: The survey is closed, or has reached its response limit (HTML) }
+        '413': { description: The form is too large (HTML) }
+        '503': { description: The answers could not be queued; the reader is asked to try again (HTML) }
 components:
   schemas:
     CurrentUser:
@@ -628,7 +669,8 @@ components:
       additionalProperties: false
       properties:
         title: { type: string, minLength: 1, maxLength: 80 }
-        description: { type: string, maxLength: 1000, description: Trimmed; an empty string clears the description }
+        reader_title: { type: string, maxLength: 80, description: 'Template surveys: the title readers see on the survey link page (#105), as the name stays private. Trimmed; an empty string clears it' }
+        description: { type: string, maxLength: 1000, description: 'Trimmed; an empty string clears the description. Shown to readers on the survey link page (#105)' }
         thank_you: { type: string, maxLength: 500, description: Trimmed; an empty string clears the message }
         type: { $ref: '#/components/schemas/SurveyType' }
         language: { type: string, enum: [en, fi, sv], description: 'Language of the fixed texts readers see: thank-you and closed pages, thumbs button labels in the snippet' }
@@ -646,6 +688,7 @@ components:
       properties:
         id: { type: string, format: uuid }
         title: { type: string, example: Member NPS 2026 }
+        reader_title: { type: [string, 'null'], description: 'Template surveys: the title readers see on the survey link page; custom surveys show their title', example: 'How did you like this newsletter?' }
         description: { type: [string, 'null'], example: Members' view of 2026 }
         thank_you: { type: [string, 'null'], description: Shown to readers after answering, example: Thank you. This takes our member work forward. }
         type: { $ref: '#/components/schemas/SurveyType' }

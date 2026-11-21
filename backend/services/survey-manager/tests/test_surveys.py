@@ -337,6 +337,31 @@ def test_list_has_no_headline_before_answers(client):
     assert "distribution" not in found[0]
 
 
+def test_reader_title_is_limited_like_the_title(no_db):
+    r = no_db.patch(f"/api/v1/surveys/{uuid4()}", json={"reader_title": "x" * 81})
+    assert r.status_code == 422
+    assert r.json()["detail"][0]["loc"] == ["body", "reader_title"]
+
+
+@pytest.mark.db
+@needs_db
+def test_reader_title_can_be_set_cleared_and_is_copied(client):
+    # Template surveys keep their name private; readers see this title instead (#105).
+    created = client.post("/api/v1/surveys", json={"type": "nps"}).json()
+    url = f"/api/v1/surveys/{created['id']}"
+    assert created["reader_title"] is None
+
+    updated = client.patch(url, json={"reader_title": "  How did we do?  "})
+    assert updated.status_code == 200
+    assert updated.json()["reader_title"] == "How did we do?"
+    copy = client.post(f"{url}/duplicate").json()
+    assert copy["reader_title"] == "How did we do?"
+
+    cleared = client.patch(url, json={"reader_title": " "})
+    assert cleared.json()["reader_title"] is None
+    assert client.get(url).json()["reader_title"] is None
+
+
 @pytest.mark.db
 @needs_db
 def test_duplicate_copies_survey_and_questions_as_a_draft(client):

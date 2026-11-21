@@ -39,12 +39,14 @@ const readerOptionsOf = (s: Survey): ReaderOptions =>
 const NEW_EXTRA: QuestionInput = { kind: 'single_choice', prompt: '', options: ['Option 1', 'Option 2'], required: false };
 const DRAFT_SAVE_ERROR = 'We couldn’t save your draft. Please try again.';
 
-type FieldErrors = { title?: string; thank_you?: string };
+type FieldErrors = { title?: string; reader_title?: string; description?: string; thank_you?: string };
 
-function validationErrors(name: string, thanks: string): FieldErrors {
+function validationErrors(name: string, readerTitle: string, description: string, thanks: string): FieldErrors {
   if (!name.trim()) return { title: 'Give your survey a name' };
   return {
     ...(name.trim().length > 200 ? { title: 'Name must be 200 characters or fewer' } : {}),
+    ...(readerTitle.trim().length > 80 ? { reader_title: 'Title must be 80 characters or fewer' } : {}),
+    ...(description.trim().length > 1000 ? { description: 'Description must be 1000 characters or fewer' } : {}),
     ...(thanks.trim().length > 500 ? { thank_you: 'Thank-you message must be 500 characters or fewer' } : {}),
   };
 }
@@ -56,7 +58,9 @@ function apiErrors(error: unknown): FieldErrors {
   if (!Array.isArray(detail)) return fields;
   for (const item of detail as { loc?: unknown; msg?: unknown }[]) {
     const field: unknown = Array.isArray(item?.loc) ? item.loc.at(-1) : undefined;
-    if ((field === 'title' || field === 'thank_you') && typeof item.msg === 'string') fields[field] = item.msg;
+    if ((field === 'title' || field === 'reader_title' || field === 'description' || field === 'thank_you') && typeof item.msg === 'string') {
+      fields[field] = item.msg;
+    }
   }
   return fields;
 }
@@ -140,6 +144,8 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
   const type = survey.type as Exclude<SurveyType, 'custom'>;
   const { questions, setQuestions, loadError, retry, busy, save, update, updateOptions } = useSavedQuestions(survey.id);
   const [name, setName] = useState(survey.title);
+  const [readerTitle, setReaderTitle] = useState(survey.reader_title ?? '');
+  const [description, setDescription] = useState(survey.description ?? '');
   const [thanks, setThanks] = useState(survey.thank_you ?? '');
   const [options, setOptions] = useState<ReaderOptions>(() => readerOptionsOf(survey));
   const [accent, setAccent] = useState(survey.accent_color);
@@ -195,15 +201,24 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
   /** Saves the form. Returns false when it could not be saved (errors are shown). */
   async function saveChanges(quiet: boolean): Promise<boolean> {
     if (savingRef.current) return false;
-    const found = validationErrors(name, thanks);
+    const found = validationErrors(name, readerTitle, description, thanks);
     setErrors(found);
     setSaveError('');
     if (Object.keys(found).length) return false;
 
-    const changes: { title?: string; thank_you?: string; accent_color?: string; background_color?: string } & Partial<ReaderOptions> = {};
+    const changes: {
+      title?: string;
+      reader_title?: string;
+      description?: string;
+      thank_you?: string;
+      accent_color?: string;
+      background_color?: string;
+    } & Partial<ReaderOptions> = {};
     if (accent !== survey.accent_color) changes.accent_color = accent;
     if (background !== survey.background_color) changes.background_color = background;
     if (name.trim() !== survey.title) changes.title = name;
+    if (readerTitle.trim() !== (survey.reader_title ?? '')) changes.reader_title = readerTitle;
+    if (description.trim() !== (survey.description ?? '')) changes.description = description;
     if (thanks.trim() !== (survey.thank_you ?? '')) changes.thank_you = thanks;
     for (const { key } of READER_OPTIONS) {
       if (options[key] !== survey[key]) changes[key] = options[key];
@@ -218,6 +233,8 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
       const saved = await api.updateSurvey(survey.id, changes);
       if (!mounted.current) return false;
       setName(saved.title);
+      setReaderTitle(saved.reader_title ?? '');
+      setDescription(saved.description ?? '');
       setThanks(saved.thank_you ?? '');
       setOptions(readerOptionsOf(saved));
       setAccent(saved.accent_color);
@@ -264,6 +281,25 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
               error={errors.title}
               disabled={saving}
               onChange={(event) => { setName(event.target.value); setErrors((e) => ({ ...e, title: undefined })); }}
+            />
+            <TextField
+              label="Title readers see (optional)"
+              hint="Shown at the top of the survey link page. Without it, the page starts with the question."
+              maxLength={80}
+              value={readerTitle}
+              error={errors.reader_title}
+              disabled={saving}
+              onChange={(event) => { setReaderTitle(event.target.value); setErrors((e) => ({ ...e, reader_title: undefined })); }}
+            />
+            <TextArea
+              label="Description (optional)"
+              hint="A line or two under the title on the survey link page."
+              rows={2}
+              maxLength={1000}
+              value={description}
+              error={errors.description}
+              disabled={saving}
+              onChange={(event) => { setDescription(event.target.value); setErrors((e) => ({ ...e, description: undefined })); }}
             />
             {loadError ? (
               <div className="survey-error" role="alert">
@@ -388,8 +424,11 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
       </form>
       <TemplatePreview
         type={type}
+        readerTitle={readerTitle}
+        description={description}
         question={questionText}
         reasons={reasons?.options ?? []}
+        reasonsPrompt={reasons?.prompt ?? ''}
         extras={extras}
         thanks={thanks}
         options={options}

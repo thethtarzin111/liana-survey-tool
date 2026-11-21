@@ -6,6 +6,8 @@ import { TEXT_HINTS } from './answerTypes';
 // Texts follow the prototype's "Preview" panels on Edit and preview and Build your survey.
 const CSAT_WORDS = ['Very dissatisfied', 'Dissatisfied', 'Neutral', 'Satisfied', 'Very satisfied'];
 const NPS = Array.from({ length: 11 }, (_, n) => n);
+/** Shown for reasons saved without a heading, as on the survey link page. */
+const REASONS_HEADING = { thumbs: 'What went wrong?', nps: 'What is the main reason for your score?', csat: 'What could we improve?' };
 
 type Brand = { accent: string; background: string; logoUrl: string | null };
 
@@ -104,6 +106,11 @@ function Panel({ tabs, children }: { tabs?: ReactNode; children: ReactNode }) {
 
 type TemplateProps = Brand & {
   type: Exclude<SurveyType, 'custom'>;
+  /** Survey link page: the title readers see and the description. */
+  readerTitle?: string;
+  description?: string;
+  /** The reasons question's own heading; a default per survey type when blank. */
+  reasonsPrompt?: string;
   question: string;
   reasons: string[];
   extras: Question[];
@@ -112,10 +119,13 @@ type TemplateProps = Brand & {
 };
 
 /** The preview next to "Edit and preview" (thumbs, NPS and CSAT surveys). */
-export function TemplatePreview({ type, question, reasons, extras, thanks, options, ...brand }: TemplateProps) {
-  const screens = type === 'thumbs'
-    ? [{ value: 'email', label: 'Email block' }, { value: 'good', label: 'Thank-you: Good / Loved it' }, { value: 'bad', label: 'Thank-you: Not for me' }]
-    : [{ value: 'email', label: 'Email block' }, { value: 'survey', label: 'Survey page' }];
+export function TemplatePreview({ type, question, reasons, extras, thanks, options, readerTitle = '', description = '', reasonsPrompt = '', ...brand }: TemplateProps) {
+  const screens = [
+    ...(type === 'thumbs'
+      ? [{ value: 'email', label: 'Email block' }, { value: 'good', label: 'Thank-you: Good / Loved it' }, { value: 'bad', label: 'Thank-you: Not for me' }]
+      : [{ value: 'email', label: 'Email block' }, { value: 'survey', label: 'Survey page' }]),
+    { value: 'link', label: 'Link page' },
+  ];
   const [screen, setScreen] = useState('email');
   const current = screens.some((s) => s.value === screen) ? screen : 'email';
   const shown = question.trim() || 'Untitled question';
@@ -124,7 +134,39 @@ export function TemplatePreview({ type, question, reasons, extras, thanks, optio
     : null;
 
   let body: ReactNode;
-  if (current === 'email') {
+  if (current === 'link') {
+    // The page a copied link or QR code opens (#105): the whole survey, nothing answered.
+    body = (
+      <div className="preview-page" style={frameStyle(brand)}>
+        {readerTitle.trim() || description.trim() ? (
+          <div className="preview-title">
+            {readerTitle.trim() ? <strong>{readerTitle.trim()}</strong> : null}
+            {description.trim() ? <span>{description.trim()}</span> : null}
+          </div>
+        ) : null}
+        <div className="preview-question">
+          <strong>{shown}</strong>
+          {type === 'thumbs' ? <ThumbsButtons /> : null}
+          {type === 'nps' ? (
+            <>
+              <Scale numbers={NPS} />
+              <div className="preview-ends"><span>0 Not at all likely</span><span>10 Extremely likely</span></div>
+            </>
+          ) : null}
+          {type === 'csat' ? <Scale numbers={[1, 2, 3, 4, 5]} words={CSAT_WORDS} /> : null}
+        </div>
+        {reasons.length ? (
+          <div className="preview-question">
+            <strong>{reasonsPrompt.trim() || REASONS_HEADING[type]}</strong>
+            {type === 'thumbs' ? <span className="preview-hint">Only after “Not for me”</span> : null}
+            <ul className="preview-chips">{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+          </div>
+        ) : null}
+        {extraQuestions}
+        <span className="preview-submit">Submit</span>
+      </div>
+    );
+  } else if (current === 'email') {
     body = (
       <div className="preview-email">
         <span className="preview-hint">Bottom of the newsletter</span>

@@ -47,7 +47,7 @@ export const api = {
   updateSurvey: async (
     id: string,
     changes: Partial<
-      Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'> &
+      Pick<Survey, 'title' | 'reader_title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'> &
         SurveySettings
     >,
   ): Promise<Survey> => {
@@ -192,6 +192,8 @@ export type Snippet = { campaign: string; segment: string; html: string };
 export type Survey = {
   id: string;
   title: string;
+  /** Template surveys: the title readers see on the survey link page (the name stays private). */
+  reader_title?: string | null;
   description: string | null;
   /** Shown to readers after answering. */
   thank_you: string | null;
