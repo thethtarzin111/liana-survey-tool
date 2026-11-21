@@ -69,11 +69,21 @@ _STYLES = """
   textarea { min-height: 110px; resize: vertical; }
   input[type=text]:focus-visible, textarea:focus-visible, select:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 1px; }
-  .submit { align-self: flex-start; min-height: 44px; padding: 10px 24px; border: 0;
+  .submit { min-height: 44px; padding: 10px 24px; border: 0;
             border-radius: 120px; background: var(--accent); color: #FFFFFF;
             font: 600 16px/1.2 var(--font);
             box-shadow: 0 3px 3px rgba(0, 0, 0, 0.1); cursor: pointer; }
-  .submit:focus-visible { outline: 2px solid #353A40; outline-offset: 2px; }
+  .submit:focus-visible, .secondary:focus-visible {
+    outline: 2px solid #353A40; outline-offset: 2px; }
+  .secondary { min-height: 44px; padding: 10px 22px; border: 1px solid #CED3D9;
+               border-radius: 120px; background: #FFFFFF; color: #353A40;
+               font: 600 16px/1.2 var(--font); cursor: pointer; }
+  .actions { display: flex; gap: 12px; align-items: center; }
+  .stepped .actions .submit { margin-left: auto; }
+  .stepped .is-off { display: none; }
+  .step { margin: 0 0 -16px; color: #696F77; font-size: 13px; }
+  .step-error { margin: -12px 0 0; color: #DB2828; }
+  legend:focus { outline: none; }
   .progress { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px;
               margin: 16px -4px -8px; padding: 10px 4px; background: #FFFFFF; }
   .progress[hidden] { display: none; }
@@ -97,22 +107,57 @@ _STYLES = """
 """
 
 
-# Progressive enhancement for the survey link page. Shows the progress bar, which
-# counts the questions shown and answered, and hides thumbs reasons unless the
-# main answer is "Not for me" (0). Hidden questions are disabled, so not sent.
+# Progressive enhancement for the survey link page, run only with JavaScript:
+# - the progress bar (#8) counts the questions shown and answered;
+# - thumbs reasons are shown only after "Not for me" (0); hidden ones are
+#   disabled, so they are not sent;
+# - one question at a time with Previous / Next (#9). Next and Submit check
+#   required answers first; answers stay in the form when going back.
 _SCRIPT = """
 (function () {
   var form = document.querySelector('form.survey-form');
   var bar = document.querySelector('.progress');
   if (!form || !bar) return;
-  var main = form.querySelector('fieldset[data-kind]');
   var each = function (list, fn) { Array.prototype.forEach.call(list, fn); };
+  var all = form.querySelectorAll('fieldset[data-kind]');
+  var main = all[0];
+  var stepLabel = form.querySelector('.step');
+  var previous = form.querySelector('[data-previous]');
+  var next = form.querySelector('[data-next]');
+  var send = form.querySelector('button[type=submit]');
+  var missing = form.querySelector('.step-error');
+  var current = null;
   each(document.querySelectorAll('[data-no-script]'), function (el) { el.hidden = true; });
+
   function answered(fieldset) {
     var controls = fieldset.querySelectorAll('input, select, textarea');
     return Array.prototype.some.call(controls, function (el) {
       return el.type === 'radio' || el.type === 'checkbox' ? el.checked : el.value.trim() !== '';
     });
+  }
+  function isMissing(fieldset) {
+    return fieldset.hasAttribute('data-required') && !answered(fieldset);
+  }
+  function shown() {
+    return Array.prototype.filter.call(all, function (f) { return !f.hidden; });
+  }
+  function show(target, focus) {
+    var list = shown();
+    current = list.indexOf(target) < 0 ? list[0] : target;
+    var at = list.indexOf(current);
+    var last = at === list.length - 1;
+    each(all, function (f) { f.classList.toggle('is-off', f !== current); });
+    previous.hidden = at === 0;
+    next.hidden = last;
+    send.hidden = !last;
+    stepLabel.textContent = stepLabel.getAttribute('data-template')
+      .replace('{n}', at + 1).replace('{total}', list.length);
+    missing.hidden = true;
+    if (focus) {
+      var legend = current.querySelector('legend');
+      legend.tabIndex = -1;
+      legend.focus();
+    }
   }
   function update() {
     var picked = main && main.querySelector('input:checked');
@@ -121,21 +166,61 @@ _SCRIPT = """
       fieldset.hidden = !notForMe;
       fieldset.disabled = !notForMe;
     });
-    var questions = form.querySelectorAll('fieldset[data-kind]');
-    var shown = Array.prototype.filter.call(questions, function (f) { return !f.hidden; });
-    var done = shown.filter(answered).length;
-    var percent = shown.length ? Math.round((done * 100) / shown.length) : 0;
+    var list = shown();
+    var done = list.filter(answered).length;
+    var percent = list.length ? Math.round((done * 100) / list.length) : 0;
     var words = bar.getAttribute('data-template')
-      .replace('{answered}', done).replace('{total}', shown.length);
+      .replace('{answered}', done).replace('{total}', list.length);
     bar.querySelector('.progress-fill').style.width = percent + '%';
     bar.querySelector('.progress-text').textContent = words;
     bar.setAttribute('aria-valuenow', percent);
     bar.setAttribute('aria-valuetext', words);
+    if (current) {
+      var wasMissing = !missing.hidden;
+      show(current, false);
+      missing.hidden = !(wasMissing && isMissing(current));
+    }
   }
+  function forward() {
+    if (isMissing(current)) {
+      missing.hidden = false;
+      return;
+    }
+    var list = shown();
+    show(list[list.indexOf(current) + 1], true);
+  }
+
+  next.addEventListener('click', forward);
+  previous.addEventListener('click', function () {
+    var list = shown();
+    show(list[list.indexOf(current) - 1], true);
+  });
+  form.addEventListener('submit', function (event) {
+    var list = shown();
+    if (current !== list[list.length - 1]) {
+      event.preventDefault();  // Enter in a text field on an earlier question
+      forward();
+      return;
+    }
+    var first = list.filter(isMissing)[0];
+    if (first) {
+      event.preventDefault();
+      show(first, true);
+      missing.hidden = false;
+    }
+  });
   form.addEventListener('input', update);
   form.addEventListener('change', update);
+
+  // The page's own checks replace the browser's, which cannot reach hidden steps.
+  form.noValidate = true;
+  form.classList.add('stepped');
   bar.hidden = false;
+  stepLabel.hidden = false;
   update();
+  // Sent back with something to fix: start at the first question to answer.
+  var start = document.querySelector('.error') ? shown().filter(isMissing)[0] : null;
+  show(start || shown()[0], false);
 })();
 """
 
@@ -237,12 +322,25 @@ def survey_form(
     parts.append('<form method="post" class="survey-form">')
     parts.append(f'<input type="hidden" name="key" value="{html.escape(key)}">')
     parts.append(f'<input type="hidden" name="ch" value="{html.escape(channel)}">')
+    parts.append(
+        f'<p class="step" data-template="{html.escape(text("step", language))}" hidden></p>'
+    )
     for question in questions:
         parts.append(
             _question(survey["type"], question, sent.get(field_name(question), ()), language)
         )
     parts.append(
+        '<p class="step-error" role="alert" hidden>'
+        f"{html.escape(text('answer_this', language))}</p>"
+    )
+    parts.append(
+        '<div class="actions">'
+        f'<button type="button" class="secondary" data-previous hidden>'
+        f"{html.escape(text('previous', language))}</button>"
+        f'<button type="button" class="submit" data-next hidden>'
+        f"{html.escape(text('next', language))}</button>"
         f'<button type="submit" class="submit">{html.escape(text("submit", language))}</button>'
+        "</div>"
     )
     parts.append("</form>\n</main>")
     return _document(

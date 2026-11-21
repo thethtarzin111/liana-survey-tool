@@ -639,6 +639,17 @@ def test_the_link_page_has_a_progress_bar_for_browsers_with_javascript():
     assert "<script>" not in thank_you(None, None, None)
 
 
+def test_the_link_page_has_previous_and_next_for_browsers_with_javascript():
+    # Hidden in the HTML: the script shows one question at a time (#9). Without
+    # it, every question and Submit are shown.
+    page_html = survey_form(survey(language="fi"), THUMBS, key="k", channel="link")
+    assert "data-previous hidden>Edellinen</button>" in page_html
+    assert "data-next hidden>Seuraava</button>" in page_html
+    assert '<button type="submit" class="submit">Lähetä</button>' in page_html
+    assert 'data-template="Kysymys {n}/{total}" hidden>' in page_html
+    assert 'role="alert" hidden>Vastaa tähän kysymykseen.</p>' in page_html
+
+
 def add_questions(survey_id, *questions):
     with tenant_connection(DEMO_TENANT) as conn:
         for position, (kind, prompt, options, required) in enumerate(questions, start=2):
