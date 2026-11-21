@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Public Liana app addresses for `npm run dev` (no secrets).
+!frontend/.env.development
 
 # python
 __pycache__/

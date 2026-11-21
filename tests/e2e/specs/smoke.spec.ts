@@ -7,7 +7,8 @@ test('front page loads the dashboard and the demo user through the API', async (
   await page.goto('/');
   // Shown only after the surveys request succeeds.
   await expect(page.getByRole('heading', { name: 'Overall statistics' })).toBeVisible();
-  await expect(page.getByText('Anna Virtanen · Example Members Association')).toBeVisible();
+  const account = page.getByRole('button', { name: 'Account: Anna Virtanen' });
+  await expect(account).toContainText('Example Members Association');
 });
 
 test('sidebar links open their pages', async ({ page }) => {
