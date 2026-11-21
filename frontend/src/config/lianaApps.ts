@@ -42,7 +42,6 @@ export const lianaApps = (env: AppEnv = import.meta.env): LianaApp[] => [
     url: url(env.VITE_LIANA_AUTOMATION_URL),
     color: 'var(--color-brand-dark)',
     icon: 'M5 6h5v5H5zM14 13h5v5h-5zM10 8.5h3a2 2 0 0 1 2 2V13',
-    other: true,
   },
   {
     name: 'LianaAccount',

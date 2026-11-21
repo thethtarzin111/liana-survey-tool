@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useCurrentUser } from '../api/useCurrentUser';
 import { Icon } from '../components/Icon';
 import { LianaSurveyLogo } from '../components/LianaSurveyLogo';
@@ -43,7 +43,6 @@ function AppIcon({ color, icon }: { color: string; icon: string }) {
 export function Header({ navOpen, onToggleNav, menuButtonRef, apps: liana = lianaApps() }: Props) {
   const user = useCurrentUser();
   const toast = useToast();
-  const navigate = useNavigate();
   const notYet = (what: string) => () => toast(`${what} is not available yet.`);
   const org = user?.tenant_name;
   const withOrg = (name: string) => (org ? `${name} - ${org}` : name);
@@ -55,13 +54,8 @@ export function Header({ navOpen, onToggleNav, menuButtonRef, apps: liana = lian
     ...(app.url ? { href: app.url } : { onSelect: notYet(app.name) }),
   });
   const others = liana.filter((app) => app.other);
+  // LianaSurvey itself is left out: you are already in it.
   const apps: MenuAction[] = [
-    {
-      label: withOrg('LianaSurvey'),
-      media: <AppIcon color="var(--color-brand)" icon={ICONS.chat} />,
-      current: true,
-      onSelect: () => navigate('/'),
-    },
     ...liana.filter((app) => !app.other).map((app) => appItem(app)),
     ...others.map((app, i) => appItem(app, i === 0 ? 'Others' : undefined)),
   ];

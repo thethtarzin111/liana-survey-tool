@@ -61,21 +61,20 @@ test('the apps menu lists the Liana apps with links from the settings', async ()
   fireEvent.click(appsButton());
   const menu = screen.getByRole('menu', { name: 'Liana apps' });
   const items = within(menu).getAllByRole('menuitem');
+  // LianaSurvey is not listed: you are already in it. Only LianaAccount is under "Others".
   expect(items.map((item) => item.textContent)).toEqual([
-    'LianaSurvey - Example Members Association',
     'LianaMailer - Example Members Association',
     'LianaMonitor - Example Members Association',
-    'LianaAutomation',
+    'LianaAutomation - Example Members Association',
     'LianaAccount',
   ]);
-  expect(menu).toHaveTextContent('Others');
-  expect(items[0]).toHaveAttribute('aria-current', 'true');
+  expect(within(menu).getByText('Others').nextElementSibling).toBe(items[3]);
   expect(items[0]).toHaveFocus();
-  expect(items[1]).toHaveAttribute('href', 'https://testing.lianamailer.com/v/welcome');
-  expect(items[2]).toHaveAttribute('href', 'https://staging.lianamonitor.com/home');
+  expect(items[0]).toHaveAttribute('href', 'https://testing.lianamailer.com/v/welcome');
+  expect(items[1]).toHaveAttribute('href', 'https://staging.lianamonitor.com/home');
   // Apps without an address (blank or not set) are buttons that say so.
-  expect(items[3]).not.toHaveAttribute('href');
-  fireEvent.click(items[4]);
+  expect(items[2]).not.toHaveAttribute('href');
+  fireEvent.click(items[3]);
   expect(await screen.findByText('LianaAccount is not available yet.')).toBeInTheDocument();
 });
 

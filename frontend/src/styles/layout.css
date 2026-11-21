@@ -40,7 +40,11 @@
 .header-chevron { margin-left: auto; display: inline-flex; transition: transform 0.2s ease; }
 .header-user[aria-expanded='true'] .header-chevron { transform: rotate(180deg); }
 .header .menu { top: calc(100% + 6px); }
-.header-apps { width: 340px; max-width: calc(100vw - 16px); }
+/* Opens to the right from the apps icon, as wide as the space up to the account button's
+   right edge (icon 34 + gap 6 + account button 238 + 8 of the header padding). */
+.menu.header-apps { left: 0; right: auto; width: 286px; }
+/* Without the account button (no user yet), the icon is last: open to the left instead. */
+.header-actions > .menu-wrap:last-child .menu.header-apps { left: auto; right: 0; width: 340px; }
 .header-apps .menu-item { min-height: 48px; gap: 12px; }
 /* Same width as the avatar + name button above it. */
 .menu.header-account { left: 0; right: 0; min-width: 0; padding: 0; overflow: hidden; }
@@ -58,7 +62,7 @@
   .header-pill { width: 34px; height: 34px; padding: 0; justify-content: center; box-shadow: none; }
   .header-user { width: auto; padding: 2px; }
   .menu.header-account { left: auto; min-width: 200px; }
-  .menu.header-apps { position: fixed; top: calc(var(--header-height) + 4px); left: 8px; right: 8px; width: auto; max-width: none; }
+  .menu.header-apps, .header-actions > .menu-wrap:last-child .menu.header-apps { position: fixed; top: calc(var(--header-height) + 4px); left: 8px; right: 8px; width: auto; max-width: none; }
 }
 
 .body { position: relative; display: flex; flex: 1; min-height: 0; }
