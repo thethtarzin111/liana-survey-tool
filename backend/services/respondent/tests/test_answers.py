@@ -606,7 +606,7 @@ def test_reasons_without_a_heading_get_one_for_their_survey_type():
 
 
 def test_the_link_page_escapes_texts_and_keeps_sent_answers():
-    nasty = [question(Q_MAIN, "single_choice", ['<b>"Yes"</b>'], prompt="<script>")]
+    nasty = [question(Q_MAIN, "single_choice", ['<b>"Yes"</b>'], prompt="<iframe>")]
     page_html = survey_form(
         survey(reader_title="<img>", description="</p>"),
         nasty,
@@ -615,7 +615,8 @@ def test_the_link_page_escapes_texts_and_keeps_sent_answers():
         sent={f"q-{Q_MAIN}": ['<b>"Yes"</b>']},
         error="Fix it",
     )
-    assert "<script>" not in page_html and "<img>" not in page_html and "<b>" not in page_html
+    assert "<iframe>" not in page_html and "&lt;iframe&gt;" in page_html
+    assert "<img>" not in page_html and "<b>" not in page_html
     assert 'value="&lt;b&gt;&quot;Yes&quot;&lt;/b&gt;" checked' in page_html
     assert '<p class="error" role="alert">Fix it</p>' in page_html
 
@@ -626,6 +627,16 @@ def test_the_link_page_uses_the_survey_language():
     assert '<html lang="fi">' in page_html
     assert "Ei minulle" in page_html and "Erittäin tyytyväinen" in page_html
     assert "Lähetä" in page_html
+
+
+def test_the_link_page_has_a_progress_bar_for_browsers_with_javascript():
+    # Hidden in the HTML: the script shows and fills it (#8).
+    page_html = survey_form(survey(language="sv"), THUMBS, key="k", channel="link")
+    assert 'role="progressbar"' in page_html and 'aria-label="Framsteg"' in page_html
+    assert 'data-template="{answered} av {total} besvarade" hidden>' in page_html
+    assert "<script>" in page_html and "querySelector('.progress')" in page_html
+    # Other pages have no script.
+    assert "<script>" not in thank_you(None, None, None)
 
 
 def add_questions(survey_id, *questions):
