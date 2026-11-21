@@ -178,6 +178,17 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.fi: "Vain jos valitsit ”Ei minulle”.",
         Language.sv: "Endast om du valde ”Inte för mig”.",
     },
+    # Progress bar on the survey link page (#8); {answered} and {total} are numbers
+    "progress_label": {
+        Language.en: "Progress",
+        Language.fi: "Edistyminen",
+        Language.sv: "Framsteg",
+    },
+    "progress": {
+        Language.en: "{answered} of {total} answered",
+        Language.fi: "{answered}/{total} vastattu",
+        Language.sv: "{answered} av {total} besvarade",
+    },
     "answer_required": {
         Language.en: "Please answer every question that is not marked optional.",
         Language.fi: "Vastaa jokaiseen kysymykseen, jota ei ole merkitty valinnaiseksi.",

@@ -1,5 +1,7 @@
 """The server-rendered pages readers see: the thank-you and problem pages (#42) and
-the survey link page (#105), which works as a plain HTML form.
+the survey link page (#105), which works as a plain HTML form. A small script adds
+the progress bar (#8) and asks thumbs reasons only after "Not for me"; without
+JavaScript the form still works.
 
 Survey texts and colours are escaped; colours are only used when they are
 6-digit hex codes, as stored by survey-manager. The styles use the values in
@@ -72,6 +74,17 @@ _STYLES = """
             font: 600 16px/1.2 var(--font);
             box-shadow: 0 3px 3px rgba(0, 0, 0, 0.1); cursor: pointer; }
   .submit:focus-visible { outline: 2px solid #353A40; outline-offset: 2px; }
+  .progress { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px;
+              margin: 16px -4px -8px; padding: 10px 4px; background: #FFFFFF; }
+  .progress[hidden] { display: none; }
+  .survey > .progress:first-child { margin-top: -12px; }
+  .progress-track { flex: 1; height: 8px; border-radius: 120px; background: #DFE3E7;
+                    overflow: hidden; }
+  .progress-fill { display: block; width: 0; height: 100%; border-radius: 120px;
+                   background: var(--accent); transition: width .2s ease; }
+  .progress-text { color: #696F77; font-size: 13px; white-space: nowrap; }
+  fieldset[hidden] { display: none; }
+  @media (prefers-reduced-motion: reduce) { .progress-fill { transition: none; } }
   @media (max-width: 520px) {
     body { align-items: flex-start; }
     main { margin: 12px; padding: 24px 18px; }
@@ -81,6 +94,49 @@ _STYLES = """
     .scale:not(.scale-nps) label { flex-direction: row; gap: 12px; padding: 10px 14px; }
     .scale small { font-size: 14px; }
   }
+"""
+
+
+# Progressive enhancement for the survey link page. Shows the progress bar, which
+# counts the questions shown and answered, and hides thumbs reasons unless the
+# main answer is "Not for me" (0). Hidden questions are disabled, so not sent.
+_SCRIPT = """
+(function () {
+  var form = document.querySelector('form.survey-form');
+  var bar = document.querySelector('.progress');
+  if (!form || !bar) return;
+  var main = form.querySelector('fieldset[data-kind]');
+  var each = function (list, fn) { Array.prototype.forEach.call(list, fn); };
+  each(document.querySelectorAll('[data-no-script]'), function (el) { el.hidden = true; });
+  function answered(fieldset) {
+    var controls = fieldset.querySelectorAll('input, select, textarea');
+    return Array.prototype.some.call(controls, function (el) {
+      return el.type === 'radio' || el.type === 'checkbox' ? el.checked : el.value.trim() !== '';
+    });
+  }
+  function update() {
+    var picked = main && main.querySelector('input:checked');
+    var notForMe = !!picked && picked.value === '0';
+    each(form.querySelectorAll('fieldset[data-reasons]'), function (fieldset) {
+      fieldset.hidden = !notForMe;
+      fieldset.disabled = !notForMe;
+    });
+    var questions = form.querySelectorAll('fieldset[data-kind]');
+    var shown = Array.prototype.filter.call(questions, function (f) { return !f.hidden; });
+    var done = shown.filter(answered).length;
+    var percent = shown.length ? Math.round((done * 100) / shown.length) : 0;
+    var words = bar.getAttribute('data-template')
+      .replace('{answered}', done).replace('{total}', shown.length);
+    bar.querySelector('.progress-fill').style.width = percent + '%';
+    bar.querySelector('.progress-text').textContent = words;
+    bar.setAttribute('aria-valuenow', percent);
+    bar.setAttribute('aria-valuetext', words);
+  }
+  form.addEventListener('input', update);
+  form.addEventListener('change', update);
+  bar.hidden = false;
+  update();
+})();
 """
 
 
@@ -94,6 +150,7 @@ def _document(
     accent: str | None,
     background: str | None,
     language: str | None,
+    script: str = "",
 ) -> str:
     accent_hex = _colour(accent, DEFAULT_ACCENT)
     background_hex = _colour(background, DEFAULT_BACKGROUND)
@@ -110,7 +167,7 @@ def _document(
 {_STYLES}</style>
 </head>
 <body>
-{main}
+{main}{f"{chr(10)}<script>{script}</script>" if script else ""}
 </body>
 </html>
 """
@@ -170,7 +227,14 @@ def survey_form(
         parts.append(f'<p class="description">{html.escape(description)}</p>')
     if error:
         parts.append(f'<p class="error" role="alert">{html.escape(error)}</p>')
-    parts.append('<form method="post">')
+    parts.append(
+        '<div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"'
+        f' aria-valuenow="0" aria-label="{html.escape(text("progress_label", language))}"'
+        f' data-template="{html.escape(text("progress", language))}" hidden>'
+        '<span class="progress-track"><span class="progress-fill"></span></span>'
+        '<span class="progress-text"></span></div>'
+    )
+    parts.append('<form method="post" class="survey-form">')
     parts.append(f'<input type="hidden" name="key" value="{html.escape(key)}">')
     parts.append(f'<input type="hidden" name="ch" value="{html.escape(channel)}">')
     for question in questions:
@@ -187,6 +251,7 @@ def survey_form(
         survey["accent_color"],
         survey["background_color"],
         language,
+        _SCRIPT,
     )
 
 
