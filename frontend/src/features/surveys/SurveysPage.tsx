@@ -11,6 +11,7 @@ import {
   EmptyState,
   SurveyStatusBadge,
   Table,
+  SearchInput,
   TextButton,
   ToggleChip,
   icons,
@@ -74,6 +75,10 @@ export function SurveysPage() {
   const q = (params.get('q') ?? '').trim();
   const statusParam = params.get('status') ?? '';
   const status = STATUSES.has(statusParam) ? (statusParam as SurveyStatus) : undefined;
+
+  const [searchText, setSearchText] = useState(q);
+  // Follow the address: "Clear search" and the back button update the box too.
+  useEffect(() => setSearchText(q), [q]);
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -258,12 +263,24 @@ export function SurveysPage() {
         description={organisation ? `All surveys for ${organisation}.` : undefined}
       />
       <div className="survey-toolbar">
-        <div className="survey-filters" role="group" aria-label="Filter by status">
-          {FILTERS.map((f) => (
-            <ToggleChip key={f.label} selected={status === f.status} onChange={() => setFilter({ status: f.status })}>
-              {f.label}
-            </ToggleChip>
-          ))}
+        <div className="survey-filter-bar">
+          <div className="survey-filters" role="group" aria-label="Filter by status">
+            {FILTERS.map((f) => (
+              <ToggleChip key={f.label} selected={status === f.status} onChange={() => setFilter({ status: f.status })}>
+                {f.label}
+              </ToggleChip>
+            ))}
+          </div>
+          {/* Searches survey titles, together with the status filter. */}
+          <div className="survey-search">
+            <SearchInput
+              label="Search surveys"
+              placeholder="Search by title..."
+              value={searchText}
+              onChange={setSearchText}
+              onSearch={(value) => setFilter({ q: value.trim() || undefined })}
+            />
+          </div>
         </div>
         <ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>
       </div>
