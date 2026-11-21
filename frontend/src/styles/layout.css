@@ -43,7 +43,9 @@
 .header-apps { width: 340px; max-width: calc(100vw - 16px); }
 .header-apps .menu-item { min-height: 48px; gap: 12px; }
 /* Same width as the avatar + name button above it. */
-.menu.header-account { left: 0; right: 0; min-width: 0; }
+.menu.header-account { left: 0; right: 0; min-width: 0; padding: 0; overflow: hidden; }
+/* Full-width 48px rows, as in the other Liana apps. */
+.header-account .menu-item { min-height: 48px; padding: 0 16px; border-radius: 0; }
 .app-icon {
   width: 32px; height: 32px; flex: none; display: inline-flex; align-items: center; justify-content: center;
   border-radius: 8px; color: var(--color-surface);
