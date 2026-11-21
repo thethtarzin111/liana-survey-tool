@@ -1,0 +1,96 @@
+name: Deploy demo
+
+# Deploys main to the demo server after CI passes on it, or on demand from the
+# Actions tab. Server setup and the three secrets: backend/infra/deploy/README.md.
+# Until the DEMO_HOST secret exists, this skips without failing.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEMO_HOST: ${{ secrets.DEMO_HOST }}
+    steps:
+      - name: Check the demo server is set up
+        id: ready
+        run: |
+          if [ -z "$DEMO_HOST" ]; then
+            echo "::notice::No DEMO_HOST secret yet, so nothing to deploy. See backend/infra/deploy/README.md."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          # The commit CI passed on (workflow_run), or the latest main.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build the admin app
+        if: steps.ready.outputs.ok == 'true'
+        run: |
+          cd frontend
+          npm ci
+          # The Liana app links in the header menu: the same testing/staging
+          # addresses as npm run dev.
+          set -a
+          . ./.env.development
+          set +a
+          npm run build
+
+      - name: Package the release
+        if: steps.ready.outputs.ok == 'true'
+        run: |
+          tar czf release.tgz \
+            --exclude='__pycache__' --exclude='tests' --exclude='*.egg-info' \
+            backend frontend/dist
+
+      - name: Copy and install on the server
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          DEMO_SSH_KEY: ${{ secrets.DEMO_SSH_KEY }}
+          DEMO_KNOWN_HOSTS: ${{ secrets.DEMO_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEMO_SSH_KEY" > ~/.ssh/demo
+          chmod 600 ~/.ssh/demo
+          printf '%s\n' "$DEMO_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh_opts="-i $HOME/.ssh/demo -o StrictHostKeyChecking=yes"
+          release="$(date -u +%Y%m%d%H%M%S)-$(git rev-parse --short HEAD)"
+          scp $ssh_opts release.tgz "liana@$DEMO_HOST:/opt/lianasurvey/incoming/$release.tgz"
+          ssh $ssh_opts "liana@$DEMO_HOST" bash -s -- "$release" <<'EOF'
+          set -euo pipefail
+          release="$1"
+          dir="/opt/lianasurvey/releases/$release"
+          mkdir -p "$dir"
+          tar xzf "/opt/lianasurvey/incoming/$release.tgz" -C "$dir"
+          rm "/opt/lianasurvey/incoming/$release.tgz"
+          cd "$dir"
+          bash backend/infra/deploy/deploy.sh
+          EOF
+
+      - name: Check the public site
+        if: steps.ready.outputs.ok == 'true'
+        run: curl -fsS "https://$DEMO_HOST/health"
