@@ -240,6 +240,23 @@ select.input { width: auto; max-width: 100%; padding-right: 6px; }
 }
 .menu-item:hover, .menu-item:focus-visible { background: var(--color-bg); outline: none; }
 .menu-item-danger { color: var(--color-error); }
+a.menu-item { text-decoration: none; }
+.menu-item-current { background: var(--color-mint-light); }
+.menu-heading {
+  padding: 10px 10px 4px; margin-top: 4px; border-top: 1px solid var(--color-row-line);
+  font: 600 var(--text-section) var(--font-heading); color: var(--color-text);
+}
+.menu-trigger {
+  display: inline-flex; align-items: center; gap: 10px; border: 0; background: transparent;
+  font: inherit; color: var(--color-text); cursor: pointer;
+}
+
+/* --- Avatar ------------------------------------------------------------- */
+.avatar {
+  width: 36px; height: 36px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-pill); background: var(--color-surface-muted); color: var(--color-text);
+  font-size: var(--text-hint); font-weight: 600;
+}
 
 /* --- Switch ------------------------------------------------------------- */
 .switch-row { display: flex; align-items: center; gap: 16px; }
