@@ -189,6 +189,27 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.fi: "{answered}/{total} vastattu",
         Language.sv: "{answered} av {total} besvarade",
     },
+    # One question at a time on the survey link page (#9); {n} and {total} are numbers
+    "next": {
+        Language.en: "Next",
+        Language.fi: "Seuraava",
+        Language.sv: "Nästa",
+    },
+    "previous": {
+        Language.en: "Previous",
+        Language.fi: "Edellinen",
+        Language.sv: "Föregående",
+    },
+    "step": {
+        Language.en: "Question {n} of {total}",
+        Language.fi: "Kysymys {n}/{total}",
+        Language.sv: "Fråga {n} av {total}",
+    },
+    "answer_this": {
+        Language.en: "Please answer this question.",
+        Language.fi: "Vastaa tähän kysymykseen.",
+        Language.sv: "Svara på den här frågan.",
+    },
     "answer_required": {
         Language.en: "Please answer every question that is not marked optional.",
         Language.fi: "Vastaa jokaiseen kysymykseen, jota ei ole merkitty valinnaiseksi.",
