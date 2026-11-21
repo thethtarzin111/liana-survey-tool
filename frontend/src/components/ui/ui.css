@@ -127,7 +127,8 @@ select.input { width: auto; max-width: 100%; padding-right: 6px; }
 
 .search { display: flex; align-self: start; height: var(--control-height); min-width: 0; }
 .search .input { border-radius: var(--radius-nav) 0 0 var(--radius-nav); min-width: 0; }
-.search .input:hover, .search .input:focus { border-color: var(--color-text-muted); box-shadow: var(--focus-ring-neutral); }
+/* Dark grey border on hover and focus, no glow. */
+.search .input:hover, .search .input:focus { border-color: var(--color-text-muted); box-shadow: none; }
 .search .icon-button {
   height: var(--control-height); border: 1px solid var(--color-border-strong); border-left: 0;
   border-radius: 0 var(--radius-nav) var(--radius-nav) 0; background: var(--color-surface);
