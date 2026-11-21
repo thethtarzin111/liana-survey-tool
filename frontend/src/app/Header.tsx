@@ -122,6 +122,7 @@ export function Header({ navOpen, onToggleNav, menuButtonRef, apps: liana = lian
               </>
             }
             triggerClassName="header-user"
+            menuClassName="header-account"
           />
         ) : null}
       </div>

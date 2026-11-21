@@ -42,6 +42,8 @@
 .header .menu { top: calc(100% + 6px); }
 .header-apps { width: 340px; max-width: calc(100vw - 16px); }
 .header-apps .menu-item { min-height: 48px; gap: 12px; }
+/* Same width as the avatar + name button above it. */
+.menu.header-account { left: 0; right: 0; min-width: 0; }
 .app-icon {
   width: 32px; height: 32px; flex: none; display: inline-flex; align-items: center; justify-content: center;
   border-radius: 8px; color: var(--color-surface);
@@ -53,6 +55,7 @@
   .header-wide { display: none; }
   .header-pill { width: 34px; height: 34px; padding: 0; justify-content: center; box-shadow: none; }
   .header-user { width: auto; padding: 2px; }
+  .menu.header-account { left: auto; min-width: 200px; }
   .menu.header-apps { position: fixed; top: calc(var(--header-height) + 4px); left: 8px; right: 8px; width: auto; max-width: none; }
 }
 
