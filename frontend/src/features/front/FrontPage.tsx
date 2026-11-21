@@ -14,6 +14,7 @@ import {
   type Column,
 } from '../../components/ui';
 import { dayDate } from '../results/format';
+import { useFeatureFlag } from '../settings/featureFlags';
 import { LatestSplit } from './LatestSplit';
 import { PerformancePanel } from './PerformancePanel';
 import './front.css';
@@ -158,6 +159,7 @@ function ArticleCard({ id, title, items }: { id: string; title: string; items: A
 }
 
 export function FrontPage() {
+  const [showNews] = useFeatureFlag('newsAndInspiration');
   const [surveys, setSurveys] = useState<SurveyListItem[] | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -333,11 +335,16 @@ export function FrontPage() {
       <h2 className="section-header">Reports</h2>
       <PerformancePanel />
 
-      <h2 className="section-header">News and inspiration</h2>
-      <div className="front-news-grid">
-        <ArticleCard id="recent-news-title" title="Recent news" items={NEWS} />
-        <ArticleCard id="inspiration-title" title="Get inspired" items={INSPIRATION} />
-      </div>
+      {/* Optional, off by default: Settings > Feature flags (#153). */}
+      {showNews ? (
+        <>
+          <h2 className="section-header">News and inspiration</h2>
+          <div className="front-news-grid">
+            <ArticleCard id="recent-news-title" title="Recent news" items={NEWS} />
+            <ArticleCard id="inspiration-title" title="Get inspired" items={INSPIRATION} />
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }
