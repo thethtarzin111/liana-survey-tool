@@ -27,6 +27,8 @@ TITLE_MAX = 80
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=TITLE_MAX)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
+#: The title readers see on the survey link page (#105); blank means none.
+ReaderTitle = Annotated[str, StringConstraints(strip_whitespace=True, max_length=TITLE_MAX)]
 ThankYou = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
 
 
@@ -87,6 +89,8 @@ class SurveyUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: Title | None = None
+    # Template surveys: the title readers see, as the name stays private (#105).
+    reader_title: ReaderTitle | None = None
     description: Description | None = None
     thank_you: ThankYou | None = None
     type: SurveyType | None = None
@@ -104,7 +108,7 @@ class SurveyUpdate(BaseModel):
     # Language of the fixed texts readers see: en, fi or sv.
     language: Language | None = None
 
-    @field_validator("description", "thank_you", mode="before")
+    @field_validator("reader_title", "description", "thank_you", mode="before")
     @classmethod
     def empty_description_is_none(cls, value: Any) -> Any:
         if isinstance(value, str) and not value.strip():
@@ -128,6 +132,8 @@ CLEARABLE = frozenset({"closes_at", "response_limit"})
 class Survey(BaseModel):
     id: UUID
     title: str
+    #: Shown to readers instead of the private name of a template survey (#105).
+    reader_title: str | None = None
     description: str | None
     thank_you: str | None  # shown to readers after answering
     type: SurveyType

@@ -25,7 +25,7 @@ test('the preview has the prototype heading and the thumbs screens', () => {
   expect(within(preview()).getByRole('heading', { name: 'Preview' })).toBeInTheDocument();
   expect(preview()).toHaveTextContent('This is how respondents will see your survey');
   const screens = within(within(preview()).getByRole('group', { name: 'Preview screen' })).getAllByRole('button');
-  expect(screens.map((s) => s.textContent)).toEqual(['Email block', 'Thank-you: Good / Loved it', 'Thank-you: Not for me']);
+  expect(screens.map((s) => s.textContent)).toEqual(['Email block', 'Thank-you: Good / Loved it', 'Thank-you: Not for me', 'Link page']);
 });
 
 test('the email block shows the question and the one-tap answers', () => {
@@ -82,12 +82,36 @@ test('survey pages use the survey colours', () => {
 test('NPS and CSAT have an email block and a survey page', () => {
   render(<TemplatePreview type="nps" question="Recommend us?" reasons={['Price']} extras={[]} thanks="" options={ON} {...BRAND} />);
   const screens = within(within(preview()).getByRole('group', { name: 'Preview screen' })).getAllByRole('button');
-  expect(screens.map((s) => s.textContent)).toEqual(['Email block', 'Survey page']);
+  expect(screens.map((s) => s.textContent)).toEqual(['Email block', 'Survey page', 'Link page']);
   expect(preview()).toHaveTextContent('0 Not at all likely');
   pick('Survey page');
   expect(preview()).toHaveTextContent('2 of 3');
   expect(preview()).toHaveTextContent('What is the main reason for your score?');
   expect(within(preview()).getByText('Price')).toBeInTheDocument();
+});
+
+test('the Link page shows the reader title, description, whole survey and Submit (#105)', () => {
+  renderThumbs({ readerTitle: 'Tell us about the newsletter', description: 'Two quick questions.', extras: [q('text', 'Anything else?')] });
+  pick('Link page');
+  expect(preview()).toHaveTextContent('Tell us about the newsletter');
+  expect(preview()).toHaveTextContent('Two quick questions.');
+  expect(within(preview()).getByText('How was this newsletter?')).toBeInTheDocument();
+  // Thumbs reasons come only after "Not for me", as in the email flow.
+  expect(preview()).toHaveTextContent('What went wrong?');
+  expect(preview()).toHaveTextContent('Only after “Not for me”');
+  expect(within(preview()).getByText('Too long')).toBeInTheDocument();
+  expect(within(preview()).getByText('Anything else?')).toBeInTheDocument();
+  expect(within(preview()).getByText('Submit')).toBeInTheDocument();
+  // Nothing is answered yet, and the private name is never shown.
+  expect(preview().querySelector('.is-picked')).toBeNull();
+});
+
+test('the Link page uses the reasons heading when there is one', () => {
+  render(<TemplatePreview type="nps" question="Recommend us?" reasons={['Price']} reasonsPrompt="What shaped your score?" extras={[]} thanks="" options={ON} {...BRAND} />);
+  pick('Link page');
+  expect(preview()).toHaveTextContent('What shaped your score?');
+  expect(preview()).not.toHaveTextContent('Only after');
+  expect(preview()).toHaveTextContent('0 Not at all likely');
 });
 
 test('CSAT shows its five words', () => {

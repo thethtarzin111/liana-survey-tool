@@ -101,6 +101,93 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.fi: "Yksi napautus. Nimetön, ellet pyydä yhteydenottoa.",
         Language.sv: "Ett tryck. Anonymt om du inte ber om att bli kontaktad.",
     },
+    # Survey link page (#105): the whole survey, from a plain link or QR code
+    "survey_heading": {
+        Language.en: "Survey",
+        Language.fi: "Kysely",
+        Language.sv: "Enkät",
+    },
+    "submit": {
+        Language.en: "Submit",
+        Language.fi: "Lähetä",
+        Language.sv: "Skicka",
+    },
+    "optional": {
+        Language.en: "(optional)",
+        Language.fi: "(valinnainen)",
+        Language.sv: "(valfritt)",
+    },
+    "choose": {
+        Language.en: "Choose…",
+        Language.fi: "Valitse…",
+        Language.sv: "Välj…",
+    },
+    "nps_low": {
+        Language.en: "Not at all likely",
+        Language.fi: "Ei lainkaan todennäköistä",
+        Language.sv: "Inte alls sannolikt",
+    },
+    "nps_high": {
+        Language.en: "Extremely likely",
+        Language.fi: "Erittäin todennäköistä",
+        Language.sv: "Mycket sannolikt",
+    },
+    "csat_1": {
+        Language.en: "Very dissatisfied",
+        Language.fi: "Erittäin tyytymätön",
+        Language.sv: "Mycket missnöjd",
+    },
+    "csat_2": {
+        Language.en: "Dissatisfied",
+        Language.fi: "Tyytymätön",
+        Language.sv: "Missnöjd",
+    },
+    "csat_3": {
+        Language.en: "Neutral",
+        Language.fi: "Neutraali",
+        Language.sv: "Neutral",
+    },
+    "csat_4": {
+        Language.en: "Satisfied",
+        Language.fi: "Tyytyväinen",
+        Language.sv: "Nöjd",
+    },
+    "csat_5": {
+        Language.en: "Very satisfied",
+        Language.fi: "Erittäin tyytyväinen",
+        Language.sv: "Mycket nöjd",
+    },
+    # Reasons questions saved without a heading, per survey type
+    "reasons_thumbs": {
+        Language.en: "What went wrong?",
+        Language.fi: "Mikä meni pieleen?",
+        Language.sv: "Vad blev fel?",
+    },
+    "reasons_nps": {
+        Language.en: "What is the main reason for your score?",
+        Language.fi: "Mikä on tärkein syy arvosanaasi?",
+        Language.sv: "Vad är främsta skälet till ditt betyg?",
+    },
+    "reasons_csat": {
+        Language.en: "What could we improve?",
+        Language.fi: "Mitä voisimme parantaa?",
+        Language.sv: "Vad kan vi förbättra?",
+    },
+    "reasons_if_not_for_me": {
+        Language.en: "Only if you chose “Not for me”.",
+        Language.fi: "Vain jos valitsit ”Ei minulle”.",
+        Language.sv: "Endast om du valde ”Inte för mig”.",
+    },
+    "answer_required": {
+        Language.en: "Please answer every question that is not marked optional.",
+        Language.fi: "Vastaa jokaiseen kysymykseen, jota ei ole merkitty valinnaiseksi.",
+        Language.sv: "Svara på alla frågor som inte är märkta som valfria.",
+    },
+    "answer_not_valid": {
+        Language.en: "Some answers could not be read. Please check them and send again.",
+        Language.fi: "Joitakin vastauksia ei voitu lukea. Tarkista ne ja lähetä uudelleen.",
+        Language.sv: "Några svar kunde inte läsas. Kontrollera dem och skicka igen.",
+    },
 }
 
 

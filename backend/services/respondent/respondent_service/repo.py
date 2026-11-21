@@ -16,13 +16,15 @@ def tenant_for_token(link_token: str) -> UUID | None:
 
 
 def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
-    """What the answer page needs: status, language, thank-you message, colours, the main
-    question, whether unsigned newsletter links are accepted, and the close date,
-    response limit and response count (#47)."""
+    """What the answer pages need: status, type, language, the texts readers see
+    (title, description, thank-you message), colours, the main question, whether
+    unsigned newsletter links are accepted, and the close date, response limit and
+    response count (#47)."""
     with tenant_connection(tenant_id) as conn:
         conn.row_factory = dict_row
         survey = conn.execute(
-            """select s.id, s.status, s.title, s.language, s.thank_you,
+            """select s.id, s.status, s.type::text as type, s.title, s.reader_title, s.description,
+                      s.language, s.thank_you,
                       s.accent_color, s.background_color,
                       s.newsletter_links, s.closes_at, s.response_limit,
                       coalesce(a.response_count, 0) as response_count
@@ -41,6 +43,17 @@ def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
         "main_id": main["id"] if main else None,
         "main_kind": main["kind"] if main else None,
     }
+
+
+def questions(tenant_id: UUID, survey_id: UUID) -> list[dict[str, Any]]:
+    """The survey's questions in order, for the survey link page (#105)."""
+    with tenant_connection(tenant_id) as conn:
+        conn.row_factory = dict_row
+        return conn.execute(
+            """select id, kind::text as kind, prompt, options, required from questions
+               where survey_id = %s order by position""",
+            (survey_id,),
+        ).fetchall()
 
 
 def record_view(tenant_id: UUID, survey_id: UUID, channel: str) -> None:

@@ -52,8 +52,8 @@ Read `README.md` and `docs/architecture.md` first.
 ## Out of scope (for now)
 - Login screens and real authentication: use the dev-auth stub.
 - The design system page and the respondent screens from the prototype.
-  The respondent side is only a minimal endpoint that records an answer and
-  returns a plain thank-you page.
+  The respondent side is server-rendered HTML in `backend/services/respondent`:
+  the one-tap answer link, the survey link page (#105) and plain thank-you pages.
 
 ## Reference
 - Prototype snapshot: `design/prototype/` (open the Claude Design artifact for

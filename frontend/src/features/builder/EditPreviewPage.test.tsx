@@ -180,6 +180,27 @@ test('Save as draft saves the name and thank-you message', async () => {
   expect(survey).toMatchObject({ title: 'Member NPS 2026', thank_you: 'Thanks!' });
 });
 
+test('the title readers see and the description are saved and shown on the Link page (#105)', async () => {
+  renderPage();
+  fireEvent.change(await screen.findByLabelText('Title readers see (optional)'), { target: { value: 'How are we doing?' } });
+  fireEvent.change(screen.getByLabelText('Description (optional)'), { target: { value: 'One minute.' } });
+  const previewPanel = screen.getByRole('region', { name: 'Preview' });
+  fireEvent.click(within(previewPanel).getByRole('button', { name: 'Link page' }));
+  expect(previewPanel).toHaveTextContent('How are we doing?');
+  expect(previewPanel).toHaveTextContent('One minute.');
+  fireEvent.click(screen.getByRole('button', { name: 'Save as draft' }));
+  expect(await screen.findByText('Saved as draft')).toBeInTheDocument();
+  expect(JSON.parse(String(patches(SURVEY_URL)[0][1]?.body))).toEqual({ reader_title: 'How are we doing?', description: 'One minute.' });
+});
+
+test('a too long reader title blocks saving', async () => {
+  renderPage();
+  fireEvent.change(await screen.findByLabelText('Title readers see (optional)'), { target: { value: 'x'.repeat(81) } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save as draft' }));
+  expect(await screen.findByText('Title must be 80 characters or fewer')).toBeInTheDocument();
+  expect(patches(SURVEY_URL)).toHaveLength(0);
+});
+
 test('an empty name blocks saving', async () => {
   renderPage();
   fireEvent.change(await screen.findByLabelText('Name (only you see this)'), { target: { value: '  ' } });
