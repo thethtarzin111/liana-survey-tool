@@ -41,6 +41,7 @@
   --color-tooltip: #353a40;
   --color-dialog-scrim: rgba(53, 58, 64, 0.45);
   --focus-ring: 0 0 0 3px rgba(76, 167, 78, 0.2);  /* focused inputs */
+  --focus-ring-neutral: 0 0 0 3px rgba(105, 111, 119, 0.25);  /* focused search boxes, dark grey */
   --color-ai: #7662db;
 
   --color-app-mailer: #e76155;
