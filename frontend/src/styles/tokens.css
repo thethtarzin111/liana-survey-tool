@@ -40,8 +40,7 @@
   --color-dark-hover: #214237;     /* hover for dark green buttons */
   --color-tooltip: #353a40;
   --color-dialog-scrim: rgba(53, 58, 64, 0.45);
-  --focus-ring: 0 0 0 3px rgba(76, 167, 78, 0.2);  /* focused inputs */
-  --color-ai: #7662db;
+  --focus-ring: 0 0 0 3px rgba(76, 167, 78, 0.2);  /* focused inputs */  --color-ai: #7662db;
 
   --color-app-mailer: #e76155;
   --color-app-monitor: #27b99f;

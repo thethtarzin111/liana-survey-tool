@@ -113,8 +113,9 @@ test('status chips filter through the API and keep the choice in the URL', async
   expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys?status=draft');
 });
 
-test('sidebar search opens the list filtered by the text and Clear search resets it', async () => {
-  renderPage('/surveys/new');
+test('the search next to the status filters finds surveys by title, and Clear search resets it', async () => {
+  renderPage('/surveys?status=draft');
+  await rowFor('Course feedback');
   const box = screen.getByRole('searchbox', { name: 'Search surveys' });
   fireEvent.change(box, { target: { value: '  course  ' } });
   fireEvent.keyDown(box, { key: 'Enter' });
@@ -123,11 +124,41 @@ test('sidebar search opens the list filtered by the text and Clear search resets
   expect(screen.queryByRole('link', { name: 'Member NPS 2026' })).not.toBeInTheDocument();
   expect(screen.getByText(/Showing surveys matching “course”\./)).toBeInTheDocument();
   expect(listCalls().at(-1)?.searchParams.get('q')).toBe('course');
+  // It works together with the status filter.
+  expect(listCalls().at(-1)?.searchParams.get('status')).toBe('draft');
 
   fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
-  expect(await screen.findByRole('link', { name: 'Member NPS 2026' })).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByText(/Showing surveys matching/)).not.toBeInTheDocument());
+  expect(listCalls().at(-1)?.searchParams.get('q')).toBeNull();
   expect(box).toHaveValue('');
+  expect(screen.getByLabelText('Current location')).toHaveTextContent(/^\/surveys\?status=draft$/);
+});
+
+test('the list filters while typing, and emptying the box shows every survey again, without Enter', async () => {
+  renderPage();
+  await rowFor('Member NPS 2026');
+  const box = screen.getByRole('searchbox', { name: 'Search surveys' });
+
+  fireEvent.change(box, { target: { value: 'course' } });
+  await waitFor(() => expect(screen.queryByRole('link', { name: 'Member NPS 2026' })).not.toBeInTheDocument());
+  expect(screen.getByRole('link', { name: 'Course feedback' })).toBeInTheDocument();
+  expect(listCalls().at(-1)?.searchParams.get('q')).toBe('course');
+  expect(screen.getByLabelText('Current location')).toHaveTextContent(/^\/surveys\?q=course$/);
+
+  // A space being typed stays in the box.
+  fireEvent.change(box, { target: { value: 'course ' } });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(box).toHaveValue('course ');
+
+  fireEvent.change(box, { target: { value: '' } });
+  expect(await screen.findByRole('link', { name: 'Member NPS 2026' })).toBeInTheDocument();
+  expect(listCalls().at(-1)?.searchParams.get('q')).toBeNull();
   expect(screen.getByLabelText('Current location')).toHaveTextContent(/^\/surveys$/);
+});
+
+test('the sidebar has no search box any more', () => {
+  renderPage('/surveys/new');
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
 });
 
 test('shows the no-match message when filters find nothing', async () => {

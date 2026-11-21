@@ -11,6 +11,7 @@ import {
   EmptyState,
   SurveyStatusBadge,
   Table,
+  SearchInput,
   TextButton,
   ToggleChip,
   icons,
@@ -40,6 +41,8 @@ const TYPE_LABEL: Record<SurveyType, string> = {
 const UNPUBLISH_ICON = 'M4 12h10M10 6l-6 6 6 6M20 4v16';
 const CLOSE_ICON = 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4';
 const PUBLISH_ICON = 'M12 19V5M5 12l7-7 7 7';
+/** Pause after the last key before the list is filtered. */
+const SEARCH_DELAY_MS = 250;
 
 
 /** "Mon 01/12/2026" */
@@ -74,6 +77,31 @@ export function SurveysPage() {
   const q = (params.get('q') ?? '').trim();
   const statusParam = params.get('status') ?? '';
   const status = STATUSES.has(statusParam) ? (statusParam as SurveyStatus) : undefined;
+
+  const [searchText, setSearchText] = useState(q);
+  // Follow the address: "Clear search" and the back button update the box too.
+  // Keep what is typed if it only differs by spaces, so a space being typed is not removed.
+  useEffect(() => setSearchText((text) => (text.trim() === q ? text : q)), [q]);
+  // Filter while typing: a short pause after the last key, at once when the box is emptied.
+  // Replaces the address instead of adding to the history on every key.
+  useEffect(() => {
+    const next = searchText.trim();
+    if (next === q) return;
+    const timer = setTimeout(
+      () =>
+        setParams(
+          (prev) => {
+            const updated = new URLSearchParams(prev);
+            if (next) updated.set('q', next);
+            else updated.delete('q');
+            return updated;
+          },
+          { replace: true },
+        ),
+      next ? SEARCH_DELAY_MS : 0,
+    );
+    return () => clearTimeout(timer);
+  }, [searchText, q, setParams]);
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -258,12 +286,24 @@ export function SurveysPage() {
         description={organisation ? `All surveys for ${organisation}.` : undefined}
       />
       <div className="survey-toolbar">
-        <div className="survey-filters" role="group" aria-label="Filter by status">
-          {FILTERS.map((f) => (
-            <ToggleChip key={f.label} selected={status === f.status} onChange={() => setFilter({ status: f.status })}>
-              {f.label}
-            </ToggleChip>
-          ))}
+        <div className="survey-filter-bar">
+          <div className="survey-filters" role="group" aria-label="Filter by status">
+            {FILTERS.map((f) => (
+              <ToggleChip key={f.label} selected={status === f.status} onChange={() => setFilter({ status: f.status })}>
+                {f.label}
+              </ToggleChip>
+            ))}
+          </div>
+          {/* Searches survey titles, together with the status filter. */}
+          <div className="survey-search">
+            <SearchInput
+              label="Search surveys"
+              placeholder="Search by title..."
+              value={searchText}
+              onChange={setSearchText}
+              onSearch={(value) => setFilter({ q: value.trim() || undefined })}
+            />
+          </div>
         </div>
         <ButtonLink to="/surveys/new" variant="primary" icon={icons.plus}>Create survey</ButtonLink>
       </div>

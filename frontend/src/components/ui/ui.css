@@ -127,10 +127,16 @@ select.input { width: auto; max-width: 100%; padding-right: 6px; }
 
 .search { display: flex; align-self: start; height: var(--control-height); min-width: 0; }
 .search .input { border-radius: var(--radius-nav) 0 0 var(--radius-nav); min-width: 0; }
+.search .input { position: relative; }
 .search .icon-button {
-  height: var(--control-height); border: 1px solid var(--color-border-strong); border-left: 0;
+  position: relative; margin-left: -1px; /* shares the border line with the box */
+  height: var(--control-height); border: 1px solid var(--color-border-strong);
   border-radius: 0 var(--radius-nav) var(--radius-nav) 0; background: var(--color-surface);
 }
+/* Each part on its own: a dark grey border on hover (and focus for the box), drawn on top
+   of the shared line. No glow, no background or icon colour. */
+.search .input:hover, .search .input:focus { border-color: var(--color-text-muted); box-shadow: none; z-index: 1; }
+.search .icon-button:hover { border-color: var(--color-text-muted); background: var(--color-surface); z-index: 1; }
 
 /* --- Tabs, segmented control, stepper ----------------------------------- */
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--color-border); }
