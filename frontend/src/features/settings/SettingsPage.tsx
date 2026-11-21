@@ -27,10 +27,7 @@ export function SettingsPage() {
       <Card aria-labelledby="feature-flags-title">
         <CardHeader id="feature-flags-title" title="Feature flags" />
         <CardBody className="settings-flags">
-          <p className="settings-hint">
-            Turn optional parts of LianaSurvey on or off. Your choices are saved in this browser only, so other
-            people and your other devices are not affected.
-          </p>
+          <p className="settings-hint">Turn optional parts of LianaSurvey on or off.</p>
           {(Object.keys(FEATURE_FLAGS) as FeatureFlag[]).map((flag) => (
             <FlagSwitch key={flag} flag={flag} />
           ))}
