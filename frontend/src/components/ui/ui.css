@@ -258,6 +258,27 @@ a.menu-item { text-decoration: none; }
   font-size: var(--text-hint); font-weight: 600;
 }
 
+/* --- Switch ------------------------------------------------------------- */
+.switch-row { display: flex; align-items: center; gap: 16px; }
+.switch-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.switch-label { font: 600 var(--text-section) var(--font-heading); color: var(--color-text); }
+.switch-description { color: var(--color-text-muted); }
+.switch {
+  position: relative; width: 40px; height: 24px; flex: none; padding: 0; cursor: pointer;
+  border: 0; border-radius: var(--radius-pill); background: var(--color-border-strong);
+  transition: background 0.15s ease;
+}
+.switch-knob {
+  position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: var(--radius-pill);
+  background: var(--color-surface); box-shadow: var(--shadow-step); transition: transform 0.15s ease;
+}
+/* Dark brand green: white on the light brand green is below WCAG AA (tokens.json). */
+.switch[aria-checked='true'] { background: var(--color-brand-dark); }
+.switch[aria-checked='true'] .switch-knob { transform: translateX(16px); }
+.switch:focus-visible { outline: 2px solid var(--color-brand-dark); outline-offset: 2px; }
+.switch:disabled { opacity: 0.5; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .switch, .switch-knob { transition: none; } }
+
 /* --- Dialog ------------------------------------------------------------- */
 .dialog-scrim {
   position: fixed; inset: 0; z-index: 90; padding: 16px;
