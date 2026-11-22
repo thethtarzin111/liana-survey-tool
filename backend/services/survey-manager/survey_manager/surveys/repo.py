@@ -12,6 +12,7 @@ from .schemas import SurveyCreate, SurveyStatus, SurveyUpdate
 COLUMN_NAMES = (
     "id",
     "title",
+    "reader_title",
     "description",
     "thank_you",
     "comment_field",
@@ -76,7 +77,9 @@ def list_all(
     clause = f"where {' and '.join(where)}" if where else ""
     return conn.execute(
         f"""select {S_COLUMNS}, coalesce(a.response_count, 0) as answers,
-                   coalesce(a.distribution, '{{}}'::jsonb) as distribution
+                   coalesce(a.distribution, '{{}}'::jsonb) as distribution,
+                   (select max(r.submitted_at) from responses r
+                     where r.survey_id = s.id) as last_answer_at
             from surveys s left join survey_aggregates a on a.survey_id = s.id
             {clause}
             order by s.updated_at desc, s.id""",
@@ -160,12 +163,12 @@ def duplicate(
     Responses, contact requests and totals belong to the original and are not copied."""
     row = conn.execute(
         f"""insert into surveys
-              (tenant_id, title, description, thank_you, type, status, anonymous, language,
-               response_limit, notify_on_response, comment_field, show_results, contact_opt_in,
-               accent_color, background_color, logo_updated_at, created_by)
-            select %s, %s, description, thank_you, type, %s, anonymous, language,
-                   response_limit, notify_on_response, comment_field, show_results, contact_opt_in,
-                   accent_color, background_color, logo_updated_at, %s
+              (tenant_id, title, reader_title, description, thank_you, type, status, anonymous,
+               language, response_limit, notify_on_response, comment_field, show_results,
+               contact_opt_in, accent_color, background_color, logo_updated_at, created_by)
+            select %s, %s, reader_title, description, thank_you, type, %s, anonymous,
+                   language, response_limit, notify_on_response, comment_field, show_results,
+                   contact_opt_in, accent_color, background_color, logo_updated_at, %s
             from surveys where id = %s
             returning {COLUMNS}""",
         (tenant_id, title, SurveyStatus.draft.value, user_id, survey_id),

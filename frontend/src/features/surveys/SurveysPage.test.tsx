@@ -6,7 +6,7 @@ import { ToastProvider } from '../../components/ui';
 import { SurveysPage } from './SurveysPage';
 import { DEFAULT_ACCENT, DEFAULT_BACKGROUND } from '../builder/branding';
 
-const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, answers: 0, headline: null } as const;
+const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, closes_at: null, answers: 0, last_answer_at: null, headline: null } as const;
 const live: SurveyListItem = {
   ...base, id: 'live-1', title: 'Member NPS 2026', type: 'nps', status: 'live', answers: 132,
   headline: { score: 'NPS +42', note: 'scale −100 to +100' },
@@ -116,8 +116,9 @@ test('status chips filter through the API and keep the choice in the URL', async
   expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys?status=draft');
 });
 
-test('sidebar search opens the list filtered by the text and Clear search resets it', async () => {
-  renderPage('/surveys/new');
+test('the search next to the status filters finds surveys by title, and Clear search resets it', async () => {
+  renderPage('/surveys?status=draft');
+  await rowFor('Course feedback');
   const box = screen.getByRole('searchbox', { name: 'Search surveys' });
   fireEvent.change(box, { target: { value: '  course  ' } });
   fireEvent.keyDown(box, { key: 'Enter' });
@@ -126,11 +127,41 @@ test('sidebar search opens the list filtered by the text and Clear search resets
   expect(screen.queryByRole('link', { name: 'Member NPS 2026' })).not.toBeInTheDocument();
   expect(screen.getByText(/Showing surveys matching “course”\./)).toBeInTheDocument();
   expect(listCalls().at(-1)?.searchParams.get('q')).toBe('course');
+  // It works together with the status filter.
+  expect(listCalls().at(-1)?.searchParams.get('status')).toBe('draft');
 
   fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
-  expect(await screen.findByRole('link', { name: 'Member NPS 2026' })).toBeInTheDocument();
+  await waitFor(() => expect(screen.queryByText(/Showing surveys matching/)).not.toBeInTheDocument());
+  expect(listCalls().at(-1)?.searchParams.get('q')).toBeNull();
   expect(box).toHaveValue('');
+  expect(screen.getByLabelText('Current location')).toHaveTextContent(/^\/surveys\?status=draft$/);
+});
+
+test('the list filters while typing, and emptying the box shows every survey again, without Enter', async () => {
+  renderPage();
+  await rowFor('Member NPS 2026');
+  const box = screen.getByRole('searchbox', { name: 'Search surveys' });
+
+  fireEvent.change(box, { target: { value: 'course' } });
+  await waitFor(() => expect(screen.queryByRole('link', { name: 'Member NPS 2026' })).not.toBeInTheDocument());
+  expect(screen.getByRole('link', { name: 'Course feedback' })).toBeInTheDocument();
+  expect(listCalls().at(-1)?.searchParams.get('q')).toBe('course');
+  expect(screen.getByLabelText('Current location')).toHaveTextContent(/^\/surveys\?q=course$/);
+
+  // A space being typed stays in the box.
+  fireEvent.change(box, { target: { value: 'course ' } });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  expect(box).toHaveValue('course ');
+
+  fireEvent.change(box, { target: { value: '' } });
+  expect(await screen.findByRole('link', { name: 'Member NPS 2026' })).toBeInTheDocument();
+  expect(listCalls().at(-1)?.searchParams.get('q')).toBeNull();
   expect(screen.getByLabelText('Current location')).toHaveTextContent(/^\/surveys$/);
+});
+
+test('the sidebar has no search box any more', () => {
+  renderPage('/surveys/new');
+  expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
 });
 
 test('shows the no-match message when filters find nothing', async () => {
@@ -152,7 +183,7 @@ test('menus offer only the actions the status allows', async () => {
     await openMenu(title);
     return within(await rowFor(title)).getAllByRole('menuitem').map((item) => item.textContent);
   };
-  expect(await items('Member NPS 2026')).toEqual(['Edit', 'Unpublish', 'Close survey', 'Save as template', 'Delete']);
+  expect(await items('Member NPS 2026')).toEqual(['Edit', 'See results', 'Unpublish', 'Close survey', 'Save as template', 'Delete']);
   expect(await items('Newsletter thumbs')).toEqual(['Edit', 'Unpublish', 'Save as template', 'Delete']);
   expect(await items('Course feedback')).toEqual(['Edit', 'Publish', 'Save as template', 'Delete']);
 });
@@ -283,4 +314,11 @@ test('Edit in the menu opens the editor, also for live surveys', async () => {
   fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
   expect(await screen.findByRole('heading', { name: 'Builder' })).toBeInTheDocument();
   expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/live-1');
+});
+
+test('See results opens /results?survey=<id>', async () => {
+  renderPage();
+  await openMenu('Member NPS 2026');
+  fireEvent.click(screen.getByRole('menuitem', { name: 'See results' }));
+  expect(screen.getByLabelText('Current location')).toHaveTextContent('/results?survey=live-1');
 });

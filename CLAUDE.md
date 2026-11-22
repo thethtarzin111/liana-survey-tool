@@ -28,8 +28,10 @@ Read `README.md` and `docs/architecture.md` first.
     `with db() as conn:` inside the handler, so the commit happens before the
     response is sent (never yield a connection from a dependency).
   - Every database call goes through `liana_survey_shared.db.tenant_connection()`.
-    The only exception is `liana_survey_shared.db.tenant_for_link()`, which finds
+    There are two exceptions. `liana_survey_shared.db.tenant_for_link()` finds
     a public link's organisation before a reader's answer is read (no login).
+    `liana_survey_shared.db.due_response_digests()` finds the surveys of every
+    organisation whose "new responses" email is due (ids only).
     Every new table gets `tenant_id` plus a row-level security policy, and
     `backend/db/tests/rls_check.sql` gets a check for it.
   - Migrations are plain `.sql` files in `backend/db/migrations` (dbmate format:
@@ -50,8 +52,8 @@ Read `README.md` and `docs/architecture.md` first.
 ## Out of scope (for now)
 - Login screens and real authentication: use the dev-auth stub.
 - The design system page and the respondent screens from the prototype.
-  The respondent side is only a minimal endpoint that records an answer and
-  returns a plain thank-you page.
+  The respondent side is server-rendered HTML in `backend/services/respondent`:
+  the one-tap answer link, the survey link page (#105) and plain thank-you pages.
 
 ## Reference
 - Prototype snapshot: `design/prototype/` (open the Claude Design artifact for

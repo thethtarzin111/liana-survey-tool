@@ -42,6 +42,8 @@ export {
 export { Disclosure, VisuallyHidden } from './Disclosure';
 export { InfoTip } from './InfoTip';
 export { ActionMenu, type MenuAction } from './Menu';
+export { Avatar, initials } from './Avatar';
+export { Switch } from './Switch';
 export { ConfirmDialog } from './Dialog';
 export { ToastProvider, useToast, TOAST_MS } from './Toast';
 export { Table, type Column } from './Table';

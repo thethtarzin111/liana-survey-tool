@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Survey } from '../../api/client';
 import { ToastProvider } from '../../components/ui';
@@ -45,13 +45,13 @@ function renderPage() {
 test('shows the survey is live with its public link', async () => {
   renderPage();
   expect(await screen.findByRole('heading', { name: 'Member NPS is live' })).toBeInTheDocument();
-  expect(screen.getByLabelText('Public link')).toHaveValue(PUBLIC);
+  expect(screen.getByLabelText('Public link')).toHaveValue(`${PUBLIC}?ch=link`);
   expect(screen.getByLabelText('Public link')).toHaveAttribute('readonly');
   expect(screen.getByRole('link', { name: 'Back to surveys' })).toHaveAttribute('href', '/surveys');
   expect(screen.getByRole('link', { name: 'Edit survey' })).toHaveAttribute('href', '/surveys/nps-1');
   expect(screen.getByRole('heading', { name: 'Newsletter snippet' })).toBeInTheDocument();
   expect(screen.getByRole('heading', { name: 'Survey settings' })).toBeInTheDocument();
-  expect(await screen.findByLabelText('Campaign tag')).toHaveValue('member-nps');
+  await waitFor(() => expect(screen.getByLabelText('Campaign tag')).toHaveValue('member-nps'));
 });
 
 test('in local development, each test reader has one link per answer', async () => {
@@ -93,7 +93,7 @@ test('the link is copied with one click and the page says so (#6)', async () => 
   renderPage();
   fireEvent.click(await screen.findByRole('button', { name: 'Copy link' }));
   expect(await screen.findByText('Link copied')).toBeInTheDocument();
-  expect(writeText).toHaveBeenCalledWith(PUBLIC);
+  expect(writeText).toHaveBeenCalledWith(`${PUBLIC}?ch=link`);
   expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument();
 });
 
@@ -113,4 +113,9 @@ test('the QR code of the public link is shown and can be downloaded (#6)', async
   expect(download).toHaveAttribute('href', data);
   expect(download).toHaveAttribute('download', 'member-nps-qr.png');
   await act(async () => {});
+});
+
+test('See results opens /results?survey=<id>', async () => {
+  renderPage();
+  expect(await screen.findByRole('link', { name: 'See results' })).toHaveAttribute('href', '/results?survey=nps-1');
 });

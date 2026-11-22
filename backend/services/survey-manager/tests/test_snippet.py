@@ -45,6 +45,22 @@ def test_one_link_per_answer(survey_type, answers, labels):
     assert "<script" not in html and "<style" not in html and "class=" not in html
 
 
+@pytest.mark.parametrize(
+    ("language", "labels", "footer"),
+    [
+        ("fi", ["Ei minulle", "Hyvä", "Tykkäsin"], "Yksi napautus."),
+        ("sv", ["Inte för mig", "Bra", "Älskade det"], "Ett tryck."),
+    ],
+)
+def test_fixed_texts_are_in_the_survey_language(language, labels, footer):
+    html = snippet_html("thumbs", S.live, "Hyödyllinen?", LINK, language)
+    assert [unescape(label) for label in re.findall(r">([^<>]+)</a>", html)] == labels
+    assert footer in unescape(html)
+    # Numbers stay numbers in every language.
+    nps = snippet_html("nps", S.live, "Kuinka todennäköisesti?", LINK, "fi")
+    assert re.findall(r">([^<>]+)</a>", nps) == [str(n) for n in range(11)]
+
+
 def test_the_question_is_escaped():
     html = snippet_html("nps", S.live, 'Is "A & B" <good>?', LINK)
     assert "Is &quot;A &amp; B&quot; &lt;good&gt;?" in html
@@ -109,6 +125,13 @@ def test_tags_default_to_the_survey_name_and_all(client):
     assert (body["campaign"], body["segment"]) == (campaign_tag(survey["title"]), "all")
 
 
+@pytest.mark.parametrize("segment", ["none", "other"])
+def test_reserved_segment_names_are_refused_before_any_lookup(client, segment):
+    r = client.post(f"/api/v1/surveys/{uuid4()}/snippet", params={"segment": segment})
+    assert r.status_code == 422
+    assert r.json()["detail"] == "none and other are reserved segment names"
+
+
 @pytest.mark.db
 @needs_db
 def test_drafts_bad_tags_and_unknown_surveys_get_no_snippet(client):
@@ -136,3 +159,12 @@ def test_making_a_snippet_lets_only_that_survey_take_unsigned_links(client):
     draft = client.post(f"/api/v1/templates/{MEMBER_NPS}/surveys").json()
     client.post(f"/api/v1/surveys/{draft['id']}/snippet")
     assert client.get(f"/api/v1/surveys/{draft['id']}").json()["newsletter_links"] is False
+
+
+@pytest.mark.db
+@needs_db
+def test_the_snippet_follows_the_survey_language(client):
+    survey = published(client)
+    client.patch(f"/api/v1/surveys/{survey['id']}", json={"language": "sv"})
+    html = client.post(f"/api/v1/surveys/{survey['id']}/snippet").json()["html"]
+    assert "Ett tryck." in unescape(html)

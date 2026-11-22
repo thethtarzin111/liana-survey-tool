@@ -19,12 +19,16 @@ from pydantic import (
     model_validator,
 )
 
+from liana_survey_shared.texts import Language
+
 DEFAULT_TITLE = "Untitled survey"
 #: Long enough for a clear name, short enough for the Surveys list (#115).
 TITLE_MAX = 80
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=TITLE_MAX)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=1000)]
+#: The title readers see on the survey link page (#105); blank means none.
+ReaderTitle = Annotated[str, StringConstraints(strip_whitespace=True, max_length=TITLE_MAX)]
 ThankYou = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
 
 
@@ -85,6 +89,8 @@ class SurveyUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: Title | None = None
+    # Template surveys: the title readers see, as the name stays private (#105).
+    reader_title: ReaderTitle | None = None
     description: Description | None = None
     thank_you: ThankYou | None = None
     type: SurveyType | None = None
@@ -99,8 +105,10 @@ class SurveyUpdate(BaseModel):
     closes_at: AwareDatetime | None = None
     response_limit: ResponseLimit | None = None
     notify_on_response: StrictBool | None = None
+    # Language of the fixed texts readers see: en, fi or sv.
+    language: Language | None = None
 
-    @field_validator("description", "thank_you", mode="before")
+    @field_validator("reader_title", "description", "thank_you", mode="before")
     @classmethod
     def empty_description_is_none(cls, value: Any) -> Any:
         if isinstance(value, str) and not value.strip():
@@ -124,6 +132,8 @@ CLEARABLE = frozenset({"closes_at", "response_limit"})
 class Survey(BaseModel):
     id: UUID
     title: str
+    #: Shown to readers instead of the private name of a template survey (#105).
+    reader_title: str | None = None
     description: str | None
     thank_you: str | None  # shown to readers after answering
     type: SurveyType
@@ -142,7 +152,7 @@ class Survey(BaseModel):
     published_at: datetime | None = None
     #: A newsletter snippet was made, so unsigned snippet links are accepted (#40).
     newsletter_links: bool = False
-    language: str
+    language: Language
     opens_at: datetime | None
     closes_at: datetime | None
     response_limit: int | None
@@ -185,8 +195,15 @@ class SurveyListItem(Survey):
     """A survey as shown on the Surveys list."""
 
     answers: int  # submitted responses, from the worker's totals
+    last_answer_at: datetime | None = None  # when the newest response arrived
     # Answers per value of the main question, from the worker's totals.
     distribution: dict[str, int] = Field(default_factory=dict, exclude=True)
+
+    @computed_field
+    @property
+    def answer_counts(self) -> dict[str, int]:
+        """Anonymous main-question counts for dashboard distribution charts."""
+        return self.distribution
 
     @computed_field
     @property

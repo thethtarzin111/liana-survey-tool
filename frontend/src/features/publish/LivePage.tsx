@@ -53,6 +53,7 @@ export function LivePage() {
         description="Share the link to start collecting answers."
         actions={
           <div className="live-actions">
+            <ButtonLink to={`/results?survey=${encodeURIComponent(survey.id)}`} variant="secondary">See results</ButtonLink>
             <ButtonLink to={`/surveys/${encodeURIComponent(survey.id)}`} variant="ghost">Edit survey</ButtonLink>
             <ButtonLink to="/surveys" variant="secondary">Back to surveys</ButtonLink>
           </div>

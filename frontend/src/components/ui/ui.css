@@ -127,10 +127,16 @@ select.input { width: auto; max-width: 100%; padding-right: 6px; }
 
 .search { display: flex; align-self: start; height: var(--control-height); min-width: 0; }
 .search .input { border-radius: var(--radius-nav) 0 0 var(--radius-nav); min-width: 0; }
+.search .input { position: relative; }
 .search .icon-button {
-  height: var(--control-height); border: 1px solid var(--color-border-strong); border-left: 0;
+  position: relative; margin-left: -1px; /* shares the border line with the box */
+  height: var(--control-height); border: 1px solid var(--color-border-strong);
   border-radius: 0 var(--radius-nav) var(--radius-nav) 0; background: var(--color-surface);
 }
+/* Each part on its own: a dark grey border on hover (and focus for the box), drawn on top
+   of the shared line. No glow, no background or icon colour. */
+.search .input:hover, .search .input:focus { border-color: var(--color-text-muted); box-shadow: none; z-index: 1; }
+.search .icon-button:hover { border-color: var(--color-text-muted); background: var(--color-surface); z-index: 1; }
 
 /* --- Tabs, segmented control, stepper ----------------------------------- */
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--color-border); }
@@ -141,6 +147,8 @@ select.input { width: auto; max-width: 100%; padding-right: 6px; }
 }
 .tab[aria-selected='true'] { color: var(--color-brand-dark); border-bottom-color: var(--color-brand); font-weight: 600; }
 .tab:hover { color: var(--color-text); }
+.tabs-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--color-border); }
+.tabs-row .tabs { border-bottom: 0; }
 
 .segmented { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 3px; background: var(--color-surface-muted); border-radius: var(--radius-pill); }
 .segment {
@@ -238,6 +246,44 @@ select.input { width: auto; max-width: 100%; padding-right: 6px; }
 }
 .menu-item:hover, .menu-item:focus-visible { background: var(--color-bg); outline: none; }
 .menu-item-danger { color: var(--color-error); }
+a.menu-item { text-decoration: none; }
+.menu-item-current { background: var(--color-mint-light); }
+.menu-heading {
+  padding: 10px 10px 4px; margin-top: 4px; border-top: 1px solid var(--color-row-line);
+  font: 600 var(--text-section) var(--font-heading); color: var(--color-text);
+}
+.menu-trigger {
+  display: inline-flex; align-items: center; gap: 10px; border: 0; background: transparent;
+  font: inherit; color: var(--color-text); cursor: pointer;
+}
+
+/* --- Avatar ------------------------------------------------------------- */
+.avatar {
+  width: 36px; height: 36px; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-pill); background: var(--color-surface-muted); color: var(--color-text);
+  font-size: var(--text-hint); font-weight: 600;
+}
+
+/* --- Switch ------------------------------------------------------------- */
+.switch-row { display: flex; align-items: center; gap: 16px; }
+.switch-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.switch-label { font: 600 var(--text-section) var(--font-heading); color: var(--color-text); }
+.switch-description { color: var(--color-text-muted); }
+.switch {
+  position: relative; width: 40px; height: 24px; flex: none; padding: 0; cursor: pointer;
+  border: 0; border-radius: var(--radius-pill); background: var(--color-border-strong);
+  transition: background 0.15s ease;
+}
+.switch-knob {
+  position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: var(--radius-pill);
+  background: var(--color-surface); box-shadow: var(--shadow-step); transition: transform 0.15s ease;
+}
+/* Dark brand green: white on the light brand green is below WCAG AA (tokens.json). */
+.switch[aria-checked='true'] { background: var(--color-brand-dark); }
+.switch[aria-checked='true'] .switch-knob { transform: translateX(16px); }
+.switch:focus-visible { outline: 2px solid var(--color-brand-dark); outline-offset: 2px; }
+.switch:disabled { opacity: 0.5; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .switch, .switch-knob { transition: none; } }
 
 /* --- Dialog ------------------------------------------------------------- */
 .dialog-scrim {

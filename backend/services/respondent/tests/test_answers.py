@@ -2,6 +2,7 @@
 the app role; they delete the surveys they create. The queue is a fake."""
 
 import os
+import re
 import secrets
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlsplit
@@ -9,18 +10,21 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.types.json import Jsonb
 
 from liana_survey_shared import links
 from liana_survey_shared.config import get_settings
 from liana_survey_shared.db import ping, tenant_connection
+from liana_survey_shared.texts import text
 from respondent_service.domain import (
     AnswerProblem,
     check_open,
+    form_answers,
     limit_reached,
     one_tap_answer,
 )
 from respondent_service.main import app
-from respondent_service.pages import page, thank_you
+from respondent_service.pages import page, problem, survey_form, thank_you
 from respondent_service.routes import get_answer_queue
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
@@ -99,6 +103,22 @@ def test_pages_escape_survey_texts_and_ignore_odd_colours():
     assert "<title>Hi &amp; bye</title>" in page("Hi & bye", "x")
 
 
+def test_pages_use_the_survey_language():
+    finnish = thank_you(None, None, None, "fi")
+    assert '<html lang="fi">' in finnish
+    assert "Kiitos!" in finnish and "Vastauksesi on tallennettu." in finnish
+    # The creator's own message is shown as written.
+    assert "Tack för svaret!" in thank_you("Tack för svaret!", None, None, "sv")
+    with pytest.raises(AnswerProblem) as closed:
+        check_open("closed")
+    swedish = problem(closed.value.message("sv"), "sv")
+    assert '<html lang="sv">' in swedish
+    assert "Vi kunde inte ta emot ditt svar" in swedish
+    assert "Den här enkäten är stängd" in swedish
+    # Unknown languages fall back to English.
+    assert '<html lang="en">' in thank_you(None, None, None, "de")
+
+
 # --- The link, with a database ----------------------------------------------------
 
 
@@ -140,14 +160,15 @@ def make_survey():
         newsletter_links=False,
         closes_at=None,
         response_limit=None,
+        language="en",
     ):
         token = secrets.token_urlsafe(16)
         with tenant_connection(DEMO_TENANT) as conn:
             survey_id = conn.execute(
                 """insert into surveys
                      (tenant_id, title, type, status, thank_you, link_token, newsletter_links,
-                      closes_at, response_limit)
-                   values (%s, 'Answer test', %s, %s, %s, %s, %s, %s, %s) returning id""",
+                      closes_at, response_limit, language)
+                   values (%s, 'Answer test', %s, %s, %s, %s, %s, %s, %s, %s) returning id""",
                 (
                     DEMO_TENANT,
                     survey_type,
@@ -157,6 +178,7 @@ def make_survey():
                     newsletter_links,
                     closes_at,
                     response_limit,
+                    language,
                 ),
             ).fetchone()[0]
             main_id = conn.execute(
@@ -202,6 +224,29 @@ def test_a_tap_queues_the_answer_and_shows_the_thank_you_page(client, queue, mak
     assert message.link_token_hash == links.response_key(secret, token, "contact-42")
     assert "contact-42" not in message.model_dump_json()
     assert message.contact_ref is None
+
+
+@pytest.mark.db
+@needs_db
+def test_the_segment_from_the_link_is_queued(client, queue, make_survey):
+    _, _, token = make_survey()
+    assert client.get(link(token, reader="anna", answer=9) + "&seg=members").status_code == 200
+    assert client.get(link(token, reader="ben", answer=9)).status_code == 200
+    assert [m.segment for m in queue.messages] == ["members", "all"]
+
+
+@pytest.mark.db
+@needs_db
+@pytest.mark.parametrize("seg", ["Bad!", "none", "other", "-x"])
+def test_an_invalid_or_reserved_segment_shows_the_incomplete_link_page(
+    client, queue, make_survey, seg
+):
+    _, _, token = make_survey(language="en")
+    r = client.get(link(token, answer=9) + f"&seg={seg}")
+    assert r.status_code == 400
+    assert r.headers["content-type"].startswith("text/html")
+    assert text("link_not_complete", "en") in r.text
+    assert queue.messages == []
 
 
 @pytest.mark.db
@@ -353,17 +398,6 @@ def test_pages_tell_the_browser_there_is_no_icon():
 
 @pytest.mark.db
 @needs_db
-def test_the_plain_public_link_says_to_answer_from_the_email(client, queue, make_survey):
-    _, _, token = make_survey()
-    r = client.get(f"/r/{token}")
-    assert r.status_code == 400
-    assert "Answer from your email" in r.text
-    assert "tap an answer there" in r.text
-    assert queue.messages == []
-
-
-@pytest.mark.db
-@needs_db
 def test_unsigned_links_are_refused_for_surveys_without_a_snippet(client, queue, make_survey):
     # From review: removing &s= from a signed link must not let anyone answer as anyone.
     _, _, token = make_survey()
@@ -412,3 +446,325 @@ def test_a_full_survey_takes_no_new_readers_but_lets_readers_change_their_answer
 
     assert client.get(link(token, reader="anna", answer=7)).status_code == 200
     assert len(queue.messages) == 1
+
+
+@pytest.mark.db
+@needs_db
+def test_readers_get_pages_in_the_survey_language(client, queue, make_survey):
+    _, _, token = make_survey(thank_you_text=None, language="fi")
+    r = client.get(link(token, answer=9))
+    assert r.status_code == 200
+    assert '<html lang="fi">' in r.text
+    assert "Kiitos!" in r.text and "Vastauksesi on tallennettu." in r.text
+
+    _, _, closed = make_survey(status="closed", language="sv")
+    r = client.get(link(closed, answer=9))
+    assert r.status_code == 410
+    assert "Den här enkäten är stängd" in r.text
+
+
+def views(survey_id):
+    with tenant_connection(DEMO_TENANT) as conn:
+        rows = conn.execute(
+            "select channel::text, view_count from survey_channel_views where survey_id = %s",
+            (survey_id,),
+        ).fetchall()
+    return dict(rows)
+
+
+@pytest.mark.db
+@needs_db
+def test_a_reader_counts_as_one_view_however_often_they_tap(client, queue, make_survey):
+    survey_id, _, token = make_survey()
+    secret = get_settings().link_signing_secret
+    # Anna's first tap (a mail scanner, say) was saved already.
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            """insert into responses (tenant_id, survey_id, link_token_hash, channel)
+               values (%s, %s, %s, 'email')""",
+            (DEMO_TENANT, survey_id, links.response_key(secret, token, "anna")),
+        )
+
+    assert client.get(link(token, reader="anna", answer=7)).status_code == 200
+    assert views(survey_id) == {}
+
+    assert client.get(link(token, reader="ben", answer=9) + "&ch=qr").status_code == 200
+    assert views(survey_id) == {"qr": 1}
+    assert [m.channel for m in queue.messages] == ["email", "qr"]
+
+
+# --- The survey link page (#105) --------------------------------------------------
+
+Q_MAIN = UUID("00000000-0000-4000-8000-0000000000a1")
+Q_REASONS = UUID("00000000-0000-4000-8000-0000000000a2")
+Q_TEXT = UUID("00000000-0000-4000-8000-0000000000a3")
+
+
+def question(id, kind, options=(), required=True, prompt="?"):
+    return {
+        "id": id,
+        "kind": kind,
+        "prompt": prompt,
+        "options": list(options),
+        "required": required,
+    }
+
+
+THUMBS = [
+    question(Q_MAIN, "thumbs", prompt="How was this newsletter?"),
+    question(Q_REASONS, "reasons", ["Too long", "Not relevant"], prompt="What went wrong?"),
+    question(Q_TEXT, "long_text", required=False, prompt="Anything else?"),
+]
+
+
+def form(**answers):
+    """form(main=["0"]) as the page's fields: q-<question id> per question."""
+    ids = {"main": Q_MAIN, "reasons": Q_REASONS, "text": Q_TEXT}
+    return {f"q-{ids[name]}": values for name, values in answers.items()}
+
+
+def test_link_page_answers_are_checked_against_their_questions():
+    answers = form_answers("thumbs", THUMBS, form(main=["0"], reasons=["Too long"], text=[" Hi "]))
+    assert [(a.number, a.choices, a.text) for a in answers] == [
+        (0, None, None),
+        (None, ["Too long"], None),
+        (None, None, "Hi"),
+    ]
+    # Optional questions can be left blank.
+    blank_text = form(main=["0"], reasons=["Too long"], text=[""])
+    assert len(form_answers("thumbs", THUMBS, blank_text)) == 2
+
+
+def test_thumbs_reasons_count_only_after_not_for_me():
+    # As in the email flow: reasons are asked only after "Not for me".
+    answers = form_answers("thumbs", THUMBS, form(main=["2"], reasons=["Too long"]))
+    assert [a.question_id for a in answers] == [Q_MAIN]
+    # NPS and CSAT surveys always ask their reasons.
+    nps = [question(Q_MAIN, "nps"), question(Q_REASONS, "reasons", ["Price"])]
+    with pytest.raises(AnswerProblem, match="not marked optional"):
+        form_answers("nps", nps, form(main=["9"]))
+
+
+@pytest.mark.parametrize(
+    "sent",
+    [
+        form(main=["3"]),  # not on the thumbs scale
+        form(main=["0", "1"]),  # two answers to a one-answer question
+        form(main=["0"], reasons=["Something else"]),  # not one of the choices
+        form(main=["0"], reasons=["Too long"], text=["x" * 5001]),  # too long
+    ],
+)
+def test_link_page_answers_that_do_not_fit_are_refused(sent):
+    with pytest.raises(AnswerProblem, match="could not be read") as refused:
+        form_answers("thumbs", THUMBS, sent)
+    assert refused.value.status_code == 400
+
+
+def test_link_page_needs_the_required_answers():
+    with pytest.raises(AnswerProblem, match="not marked optional"):
+        form_answers("thumbs", THUMBS, form(main=[" "]))
+    everything_optional = [question(Q_TEXT, "text", required=False)]
+    with pytest.raises(AnswerProblem, match="not marked optional"):
+        form_answers("custom", everything_optional, form(text=[""]))
+
+
+def survey(**changes):
+    return {
+        "type": "thumbs",
+        "title": "Internal name",
+        "reader_title": "How was it?",
+        "description": "Two minutes.",
+        "language": "en",
+        "accent_color": "#123456",
+        "background_color": "#FFFFFF",
+        **changes,
+    }
+
+
+def test_the_link_page_shows_the_reader_title_never_a_template_name():
+    page_html = survey_form(survey(), THUMBS, key="k", channel="qr")
+    assert "<h1>How was it?</h1>" in page_html and "Two minutes." in page_html
+    assert "Internal name" not in page_html
+    assert '<input type="hidden" name="ch" value="qr">' in page_html
+    assert "Only if you chose “Not for me”." in page_html
+    assert 'Anything else? <span class="optional">(optional)</span>' in page_html
+    # Without a reader title there is no heading at all, and still no private name.
+    untitled = survey_form(survey(reader_title=None), THUMBS, key="k", channel="link")
+    assert "<h1>" not in untitled and "Internal name" not in untitled
+    assert "<title>Survey</title>" in untitled
+    # Custom surveys show their own title.
+    custom = survey_form(survey(type="custom"), [], key="k", channel="link")
+    assert "<h1>Internal name</h1>" in custom
+
+
+def test_reasons_without_a_heading_get_one_for_their_survey_type():
+    # "+ Add reason" in Edit and preview saves the reasons without a heading.
+    unnamed = [THUMBS[0], {**THUMBS[1], "prompt": ""}]
+    assert "What went wrong?" in survey_form(survey(), unnamed, key="k", channel="link")
+    swedish = survey_form(survey(type="nps", language="sv"), unnamed, key="k", channel="link")
+    assert "Vad är främsta skälet till ditt betyg?" in swedish
+
+
+def test_the_link_page_escapes_texts_and_keeps_sent_answers():
+    nasty = [question(Q_MAIN, "single_choice", ['<b>"Yes"</b>'], prompt="<iframe>")]
+    page_html = survey_form(
+        survey(reader_title="<img>", description="</p>"),
+        nasty,
+        key="k",
+        channel="link",
+        sent={f"q-{Q_MAIN}": ['<b>"Yes"</b>']},
+        error="Fix it",
+    )
+    assert "<iframe>" not in page_html and "&lt;iframe&gt;" in page_html
+    assert "<img>" not in page_html and "<b>" not in page_html
+    assert 'value="&lt;b&gt;&quot;Yes&quot;&lt;/b&gt;" checked' in page_html
+    assert '<p class="error" role="alert">Fix it</p>' in page_html
+
+
+def test_the_link_page_uses_the_survey_language():
+    rating = question(Q_TEXT, "rating")
+    page_html = survey_form(survey(language="fi"), [*THUMBS, rating], key="k", channel="link")
+    assert '<html lang="fi">' in page_html
+    assert "Ei minulle" in page_html and "Erittäin tyytyväinen" in page_html
+    assert "Lähetä" in page_html
+
+
+def test_the_link_page_has_a_progress_bar_for_browsers_with_javascript():
+    # Hidden in the HTML: the script shows and fills it (#8).
+    page_html = survey_form(survey(language="sv"), THUMBS, key="k", channel="link")
+    assert 'role="progressbar"' in page_html and 'aria-label="Framsteg"' in page_html
+    assert 'data-template="{answered} av {total} besvarade" hidden>' in page_html
+    assert "<script>" in page_html and "querySelector('.progress')" in page_html
+    # Other pages have no script.
+    assert "<script>" not in thank_you(None, None, None)
+
+
+def test_the_link_page_has_previous_and_next_for_browsers_with_javascript():
+    # Hidden in the HTML: the script shows one question at a time (#9). Without
+    # it, every question and Submit are shown.
+    page_html = survey_form(survey(language="fi"), THUMBS, key="k", channel="link")
+    assert "data-previous hidden>Edellinen</button>" in page_html
+    assert "data-next hidden>Seuraava</button>" in page_html
+    assert '<button type="submit" class="submit">Lähetä</button>' in page_html
+    assert 'data-template="Kysymys {n}/{total}" hidden>' in page_html
+    assert 'role="alert" hidden>Vastaa tähän kysymykseen.</p>' in page_html
+
+
+def add_questions(survey_id, *questions):
+    with tenant_connection(DEMO_TENANT) as conn:
+        for position, (kind, prompt, options, required) in enumerate(questions, start=2):
+            conn.execute(
+                """insert into questions
+                     (tenant_id, survey_id, position, kind, prompt, options, required)
+                   values (%s, %s, %s, %s, %s, %s, %s)""",
+                (DEMO_TENANT, survey_id, position, kind, prompt, Jsonb(options), required),
+            )
+
+
+def visit_key(page_html):
+    return re.search(r'name="key" value="([^"]+)"', page_html).group(1)
+
+
+def question_id(survey_id, position):
+    with tenant_connection(DEMO_TENANT) as conn:
+        return conn.execute(
+            "select id from questions where survey_id = %s and position = %s",
+            (survey_id, position),
+        ).fetchone()[0]
+
+
+@pytest.mark.db
+@needs_db
+def test_the_plain_link_shows_the_whole_survey_and_counts_the_visit(client, queue, make_survey):
+    survey_id, _, token = make_survey()
+    add_questions(survey_id, ("reasons", "Main reason?", ["Price", "Service"], True))
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            "update surveys set reader_title = 'Your view', description = 'Short' where id = %s",
+            (survey_id,),
+        )
+    r = client.get(f"/r/{token}?ch=qr")
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == "no-store"
+    assert "<h1>Your view</h1>" in r.text and "Answer test" not in r.text
+    assert "Main?" in r.text and "Main reason?" in r.text and "Service" in r.text
+    assert views(survey_id) == {"qr": 1}
+    assert queue.messages == []
+    # Each visit gets its own key.
+    assert visit_key(r.text) != visit_key(client.get(f"/r/{token}").text)
+
+
+@pytest.mark.db
+@needs_db
+def test_link_page_answers_are_queued_with_their_channel(client, queue, make_survey):
+    survey_id, main_id, token = make_survey()
+    add_questions(survey_id, ("text", "Why?", [], False))
+    why_id = question_id(survey_id, 2)
+    key = visit_key(client.get(f"/r/{token}?ch=qr").text)
+    sent = {"key": key, "ch": "qr", f"q-{main_id}": "9", f"q-{why_id}": "Great"}
+    r = client.post(f"/r/{token}", data=sent)
+    assert r.status_code == 200
+    assert "Thanks a lot!" in r.text
+    [message] = queue.messages
+    assert message.channel == "qr"
+    assert [(a.question_id, a.number, a.text) for a in message.answers] == [
+        (main_id, 9, None),
+        (why_id, None, "Great"),
+    ]
+    # Sending again from the same visit is the same reader, so it replaces the answer.
+    client.post(f"/r/{token}", data={"key": key, f"q-{main_id}": "10"})
+    assert queue.messages[1].link_token_hash == message.link_token_hash
+    assert queue.messages[1].channel == "link"
+
+
+@pytest.mark.db
+@needs_db
+def test_link_page_answers_that_do_not_fit_show_the_form_again(client, queue, make_survey):
+    _, main_id, token = make_survey()
+    key = visit_key(client.get(f"/r/{token}").text)
+    r = client.post(f"/r/{token}", data={"key": key, f"q-{main_id}": "11"})
+    assert r.status_code == 400
+    assert "could not be read" in r.text
+    assert visit_key(r.text) == key
+    r = client.post(f"/r/{token}", data={"key": key})
+    assert r.status_code == 400 and "not marked optional" in r.text
+    assert queue.messages == []
+
+
+@pytest.mark.db
+@needs_db
+def test_link_page_answers_need_a_visit_key_from_this_survey(client, queue, make_survey):
+    _, main_id, token = make_survey()
+    _, _, other = make_survey()
+    secret = get_settings().link_signing_secret
+    # An email reader's signed id must not let the page replace their answer.
+    email_reader = f"contact-42.{links.signature(secret, token, 'contact-42')}"
+    other_visit = visit_key(client.get(f"/r/{other}").text)
+    for key in ("", "web-made-up.sig", other_visit, email_reader):
+        r = client.post(f"/r/{token}", data={"key": key, f"q-{main_id}": "9"})
+        assert r.status_code == 400, key
+        assert "not complete or not valid" in r.text
+    assert queue.messages == []
+
+
+@pytest.mark.db
+@needs_db
+def test_closed_and_full_surveys_show_why_instead_of_the_form(client, queue, make_survey):
+    survey_id, main_id, token = make_survey()
+    key = visit_key(client.get(f"/r/{token}").text)
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute("update surveys set status = 'closed' where id = %s", (survey_id,))
+    r = client.post(f"/r/{token}", data={"key": key, f"q-{main_id}": "9"})
+    assert r.status_code == 410 and "closed" in r.text
+    assert client.get(f"/r/{token}").status_code == 410
+
+    _, _, full = make_survey(response_limit=1, language="sv")
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            """insert into survey_aggregates (survey_id, tenant_id, response_count)
+               select id, tenant_id, 1 from surveys where link_token = %s""",
+            (full,),
+        )
+    r = client.get(f"/r/{full}")
+    assert r.status_code == 410 and "Enkäten har fått alla svar" in r.text
+    assert queue.messages == []

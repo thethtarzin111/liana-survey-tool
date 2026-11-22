@@ -1,6 +1,13 @@
 /* Liana design tokens, measured from the Liana test account.
    Source: design/prototype/DesignSystem.dc.html and design/tokens.json. */
 :root {
+  --text-dashboard-stat: 22px;
+  /* Results KPI numbers */
+  --text-kpi-value: 28px;
+  --text-dashboard-contact: 30px;
+  --color-chart-negative: #7d4a00;
+  --color-chart-negative-stripe: #9a5b00;
+  --color-chart-positive: #2b6450;
   --font-body: 'Inter', Helvetica, Arial, sans-serif;
   --font-heading: 'Poppins', Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
@@ -33,8 +40,7 @@
   --color-dark-hover: #214237;     /* hover for dark green buttons */
   --color-tooltip: #353a40;
   --color-dialog-scrim: rgba(53, 58, 64, 0.45);
-  --focus-ring: 0 0 0 3px rgba(76, 167, 78, 0.2);  /* focused inputs */
-  --color-ai: #7662db;
+  --focus-ring: 0 0 0 3px rgba(76, 167, 78, 0.2);  /* focused inputs */  --color-ai: #7662db;
 
   --color-app-mailer: #e76155;
   --color-app-monitor: #27b99f;

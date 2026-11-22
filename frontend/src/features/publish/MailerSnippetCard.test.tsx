@@ -65,6 +65,18 @@ test('a tag that is not a slug shows an error and makes no request', async () =>
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
+test('the reserved segment names show an error and make no request', async () => {
+  render(<MailerSnippetCard surveyId="nps-1" />);
+  await screen.findByText(/seg=all/);
+  for (const name of ['none', 'other']) {
+    fireEvent.change(screen.getByLabelText('Segment tag'), { target: { value: name } });
+    expect(screen.getByText('This name is reserved. Pick another segment name.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Segment tag')).toHaveAttribute('aria-invalid', 'true');
+  }
+  await act(() => new Promise((resolve) => setTimeout(resolve, 500)));
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+});
+
 test('Copy puts the snippet HTML on the clipboard and confirms it', async () => {
   render(<MailerSnippetCard surveyId="nps-1" />);
   await screen.findByText(/seg=all/);

@@ -47,7 +47,7 @@ export const api = {
   updateSurvey: async (
     id: string,
     changes: Partial<
-      Pick<Survey, 'title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'> &
+      Pick<Survey, 'title' | 'reader_title' | 'description' | 'thank_you' | keyof ReaderOptions | 'accent_color' | 'background_color'> &
         SurveySettings
     >,
   ): Promise<Survey> => {
@@ -68,6 +68,19 @@ export const api = {
     const query = params.toString();
     return getJson<SurveyListItem[]>(`/api/v1/surveys${query ? `?${query}` : ''}`);
   },
+  /** Everything the Results overview shows for one survey. 400 for an unknown segment, 404 for an unknown survey. */
+  overview: (surveyId: string, segment = 'all') =>
+    getJson<SurveyOverview>(
+      `/api/v1/results/${encodeURIComponent(surveyId)}/overview?segment=${encodeURIComponent(segment)}`,
+    ),
+  /** One page of a survey's responses, newest first. Comments are masked by the server. */
+  responses: (surveyId: string, filters: ResponseFilters & { limit?: number; offset?: number }) =>
+    getJson<ResponsesPage>(
+      `${resultsPath(surveyId)}/responses?${responseQuery(filters, { limit: filters.limit ?? 50, offset: filters.offset ?? 0 })}`,
+    ),
+  /** Every answer of one response. */
+  responseDetail: (surveyId: string, responseId: string) =>
+    getJson<ResponseDetail>(`${resultsPath(surveyId)}/responses/${encodeURIComponent(responseId)}`),
   /** Close (live → closed) or unpublish (live/scheduled → draft) a survey. */
   changeSurveyStatus: (id: string, action: 'close' | 'unpublish') =>
     send<Survey>('POST', `/api/v1/surveys/${encodeURIComponent(id)}/${action}`),
@@ -127,6 +140,14 @@ export const api = {
     send<Template>('PATCH', `/api/v1/templates/${encodeURIComponent(templateId)}`, details),
   deleteTemplate: (templateId: string) =>
     send<void>('DELETE', `/api/v1/templates/${encodeURIComponent(templateId)}`),
+  /** Survey performance by channel, latest activity first. `limit` and `offset` count surveys, not rows. */
+  performance: (page: { limit?: number; offset?: number } = {}) => {
+    const params = new URLSearchParams();
+    if (page.limit !== undefined) params.set('limit', String(page.limit));
+    if (page.offset) params.set('offset', String(page.offset));
+    const query = params.toString();
+    return getJson<PerformanceRow[]>(`/api/v1/results/performance${query ? `?${query}` : ''}`);
+  },
 };
 
 function questionsPath(surveyId: string, questionId?: string) {
@@ -179,6 +200,8 @@ export type Snippet = { campaign: string; segment: string; html: string };
 export type Survey = {
   id: string;
   title: string;
+  /** Template surveys: the title readers see on the survey link page (the name stays private). */
+  reader_title?: string | null;
   description: string | null;
   /** Shown to readers after answering. */
   thank_you: string | null;
@@ -189,7 +212,10 @@ export type Survey = {
   published_at?: string | null;
 } & ReaderOptions & Branding & Partial<SurveySettings>;
 
-/** Survey settings (#47). null removes the close date or the limit. */
+/** Language of the fixed texts readers see: thank-you and closed pages, snippet buttons. */
+export type SurveyLanguage = 'en' | 'fi' | 'sv';
+
+/** Survey settings. null removes the close date or the limit. */
 export type SurveySettings = {
   /** No answers tapped from this moment on (ISO date-time). */
   closes_at: string | null;
@@ -197,6 +223,7 @@ export type SurveySettings = {
   response_limit: number | null;
   /** "Notify me of new responses by email". */
   notify_on_response: boolean;
+  language: SurveyLanguage;
 };
 
 /** Branding: colours as "#RRGGBB", and where to load the logo (null when there is none). */
@@ -217,12 +244,127 @@ export type ReaderOptions = {
 };
 
 export type SurveyListItem = Survey & {
+  /** Answers per value of the main question, e.g. { '9': 12, '10': 30 }. */
+  answer_counts?: Record<string, number>;
   opens_at: string | null;
+  closes_at: string | null;
   /** Submitted responses so far. */
   answers: number;
+  /** When the newest response arrived; null before the first. */
+  last_answer_at: string | null;
   /** "Headline score", e.g. { score: 'NPS +42', note: 'scale −100 to +100' }; null before answers. */
   headline: { score: string; note: string } | null;
 };
+
+export type PerformanceRow = {
+  survey_id: string;
+  survey: string;
+  channel: 'email' | 'link' | 'qr';
+  views: number;
+  responses: number;
+  response_rate: number | null;
+  main_result: string | null;
+};
+
+export type OverviewSegment = { value: string; label: string; answers: number };
+
+/** The first nps, thumbs or rating question of a survey and how it scored. */
+export type OverviewMain = {
+  question_id: string;
+  kind: 'nps' | 'thumbs' | 'rating';
+  /** NPS, thumbs positive % or rating satisfied %; null before any answer. */
+  score: number | null;
+  /** Score now minus the score at the end of the previous month; null when there is none. */
+  change: number | null;
+  /** Answers per scale value. */
+  counts: Record<string, number>;
+};
+
+export type OverviewQuestion = {
+  id: string;
+  kind: QuestionKind;
+  prompt: string;
+  required: boolean;
+  answers: number;
+  options: { label: string; count: number }[];
+  /** Scale questions only, one decimal. */
+  average: number | null;
+};
+
+export type SurveyOverview = {
+  survey_id: string;
+  title: string;
+  type: SurveyType;
+  status: SurveyStatus;
+  closes_at: string | null;
+  last_answer_at: string | null;
+  /** Channels with views or answers. */
+  channels: ('email' | 'link' | 'qr')[];
+  /** The segment filter that was applied. */
+  segment: string;
+  /** Segments that can be chosen; empty when there are fewer than 2. */
+  segments: OverviewSegment[];
+  responses: number;
+  views: number;
+  /** Whole percent; null with a segment or without views. */
+  response_rate: number | null;
+  /** Percent of responses that answered every question; custom surveys only. */
+  completed_all: number | null;
+  main: OverviewMain | null;
+  questions: OverviewQuestion[];
+  reasons: { label: string; count: number; percent: number | null }[];
+  trend: { month: string; score: number | null; answers: number }[];
+  by_segment: { value: string; label: string; answers: number; score: number | null; counts: Record<string, number> }[];
+};
+
+export type ResponseFilters = { segment?: string; q?: string; group?: string };
+
+export type ResponseRow = {
+  id: string;
+  display_id: string;
+  submitted_at: string;
+  answer: number | null;
+  reason: string | null;
+  comment: string | null;
+  masked: boolean;
+  /** Null when the survey has no segments to show. */
+  segment_label: string | null;
+};
+
+export type ResponsesPage = { total: number; rows: ResponseRow[] };
+
+export type ResponseDetail = {
+  display_id: string;
+  submitted_at: string;
+  segment_label: string | null;
+  answers: {
+    question_id: string;
+    prompt: string;
+    kind: string;
+    value: number | string | string[] | null;
+    masked: boolean;
+  }[];
+};
+
+const resultsPath = (surveyId: string) => `/api/v1/results/${encodeURIComponent(surveyId)}`;
+
+function responseQuery(filters: ResponseFilters, paging?: { limit: number; offset: number }): string {
+  const params = new URLSearchParams();
+  if (paging) {
+    params.set('limit', String(paging.limit));
+    params.set('offset', String(paging.offset));
+  }
+  if (filters.segment && filters.segment !== 'all') params.set('segment', filters.segment);
+  if (filters.q) params.set('q', filters.q);
+  if (filters.group) params.set('group', filters.group);
+  return params.toString();
+}
+
+/** Where the CSV of all matching responses is served; it carries the same filters. */
+export function responsesCsvUrl(surveyId: string, filters: ResponseFilters = {}): string {
+  const query = responseQuery(filters);
+  return `${resultsPath(surveyId)}/responses.csv${query ? `?${query}` : ''}`;
+}
 
 export type Template = {
   id: string;

@@ -10,6 +10,7 @@ so CI can never pass by silently skipping them.
 """
 
 import os
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
@@ -307,11 +308,58 @@ def test_list_shows_answer_counts_from_totals(client):
 
 @pytest.mark.db
 @needs_db
+def test_list_shows_the_last_answer_time(client):
+    from liana_survey_shared.db import tenant_connection
+
+    answered = make_survey(client, unique("Last answer"), status="live")
+    silent = make_survey(client, unique("No answer"), status="live")
+    with tenant_connection(DEMO_TENANT) as conn:
+        for token, at in (("a", "2026-11-01T09:00:00Z"), ("b", "2026-11-05T17:30:00Z")):
+            conn.execute(
+                """insert into responses (tenant_id, survey_id, submitted_at, link_token_hash)
+                   values (%s, %s, %s, %s)""",
+                (DEMO_TENANT, answered["id"], at, token),
+            )
+    found = client.get("/api/v1/surveys", params={"q": answered["title"]}).json()
+    assert datetime.fromisoformat(found[0]["last_answer_at"]) == datetime(
+        2026, 11, 5, 17, 30, tzinfo=UTC
+    )
+    found = client.get("/api/v1/surveys", params={"q": silent["title"]}).json()
+    assert found[0]["last_answer_at"] is None
+
+
+@pytest.mark.db
+@needs_db
 def test_list_has_no_headline_before_answers(client):
     survey = make_survey(client, unique("No answers yet"))
     found = client.get("/api/v1/surveys", params={"q": survey["title"]}).json()
     assert found[0]["headline"] is None
     assert "distribution" not in found[0]
+
+
+def test_reader_title_is_limited_like_the_title(no_db):
+    r = no_db.patch(f"/api/v1/surveys/{uuid4()}", json={"reader_title": "x" * 81})
+    assert r.status_code == 422
+    assert r.json()["detail"][0]["loc"] == ["body", "reader_title"]
+
+
+@pytest.mark.db
+@needs_db
+def test_reader_title_can_be_set_cleared_and_is_copied(client):
+    # Template surveys keep their name private; readers see this title instead (#105).
+    created = client.post("/api/v1/surveys", json={"type": "nps"}).json()
+    url = f"/api/v1/surveys/{created['id']}"
+    assert created["reader_title"] is None
+
+    updated = client.patch(url, json={"reader_title": "  How did we do?  "})
+    assert updated.status_code == 200
+    assert updated.json()["reader_title"] == "How did we do?"
+    copy = client.post(f"{url}/duplicate").json()
+    assert copy["reader_title"] == "How did we do?"
+
+    cleared = client.patch(url, json={"reader_title": " "})
+    assert cleared.json()["reader_title"] is None
+    assert client.get(url).json()["reader_title"] is None
 
 
 @pytest.mark.db
