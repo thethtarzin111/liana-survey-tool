@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, type SurveyType, type Template } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
-import { Button, Card, SegmentedControl } from '../../components/ui';
-import { TYPE_LABEL, templateParts, useStartFromTemplate } from '../templates/templates';
+import { Badge, Button, Card, SegmentedControl } from '../../components/ui';
+import { TYPE_LABEL, YOURS, templateParts, useStartFromTemplate } from '../templates/templates';
 import './builder.css';
 
 const TEMPLATE_TYPES: SurveyType[] = ['thumbs', 'nps', 'csat'];
@@ -64,7 +64,10 @@ export function TemplatePickerPage() {
                 disabled={starting}
                 onClick={() => setPickedId(template.id)}
               >
-                <strong>{template.name}</strong>
+                <span className="template-option-name">
+                  <strong>{template.name}</strong>
+                  {template.own ? <Badge tone="positive">{YOURS}</Badge> : null}
+                </span>
                 <span className="template-hint">{template.description}</span>
               </button>
             ))}

@@ -1,26 +1,66 @@
-import { useEffect, useState } from 'react';
-import { api, type Template } from '../../api/client';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { api, ApiError, type Template } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
-import { Badge, Button, Card } from '../../components/ui';
-import { TYPE_LABEL, sentence, templateParts, useStartFromTemplate } from './templates';
+import { ActionMenu, Badge, Button, Card, ConfirmDialog, icons, useToast } from '../../components/ui';
+import { TemplateDetailsDialog } from './TemplateDetailsDialog';
+import { TYPE_LABEL, YOURS, sentence, templateParts, useStartFromTemplate } from './templates';
 import './templates.css';
 
-/** The Templates page from the sidebar: one card per featured template. */
+/** The Templates page from the sidebar: a card per featured template, then the organisation's own. */
 export function TemplatesPage() {
+  const toast = useToast();
   const [templates, setTemplates] = useState<Template[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [renaming, setRenaming] = useState<Template | null>(null);
+  const renameDetails = useMemo(
+    () => renaming && { name: renaming.name, description: renaming.description },
+    [renaming],
+  );
+  const [deleting, setDeleting] = useState<Template | null>(null);
+  const [deletingBusy, setDeletingBusy] = useState(false);
+  const mounted = useRef(true);
   const { start, starting, error } = useStartFromTemplate();
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
     setLoadError(false);
     api.templates().then(
-      (list) => { if (active) setTemplates(list.filter((t) => t.featured)); },
+      (list) => { if (active) setTemplates(list.filter((t) => t.featured || t.own)); },
       () => { if (active) setLoadError(true); },
     );
     return () => { active = false; };
   }, [attempt]);
+
+  async function rename(template: Template, details: { name: string; description: string }) {
+    const saved = await api.updateTemplate(template.id, details);
+    if (!mounted.current) return;
+    setTemplates((list) => list?.map((t) => (t.id === saved.id ? saved : t)) ?? null);
+    toast(`Template renamed to “${saved.name}”.`);
+  }
+
+  async function confirmDelete() {
+    if (!deleting || deletingBusy) return;
+    const template = deleting;
+    setDeletingBusy(true);
+    try {
+      await api.deleteTemplate(template.id);
+      if (!mounted.current) return;
+      toast(`“${template.name}” was deleted.`);
+    } catch (e) {
+      if (!mounted.current) return;
+      // 404: it was already deleted elsewhere; the reload shows that.
+      if (!(e instanceof ApiError && e.status === 404)) toast(`We couldn’t delete “${template.name}”. Please try again.`);
+    }
+    setDeletingBusy(false);
+    setDeleting(null);
+    setAttempt((n) => n + 1);
+  }
 
   return (
     <>
@@ -38,9 +78,21 @@ export function TemplatesPage() {
           {templates.map((template) => (
             <li key={template.id}>
               <Card padded className="template-card">
-                <Badge tone="outline">{TYPE_LABEL[template.type]}</Badge>
+                <div className="template-card-badges">
+                  <Badge tone="outline">{TYPE_LABEL[template.type]}</Badge>
+                  {template.own ? <Badge tone="positive">{YOURS}</Badge> : null}
+                  {template.own ? (
+                    <ActionMenu
+                      label={`Actions for template ${template.name}`}
+                      items={[
+                        { label: 'Rename', icon: icons.edit, onSelect: () => setRenaming(template) },
+                        { label: 'Delete', icon: icons.trash, danger: true, onSelect: () => setDeleting(template) },
+                      ]}
+                    />
+                  ) : null}
+                </div>
                 <h2>{template.name}</h2>
-                <p>{sentence(template.description)}</p>
+                {template.description ? <p>{sentence(template.description)}</p> : null}
                 <p><strong>Question:</strong> {templateParts(template).question}</p>
                 <Button
                   variant="primary"
@@ -56,6 +108,25 @@ export function TemplatesPage() {
           ))}
         </ul>
       )}
+      <TemplateDetailsDialog
+        initial={renameDetails}
+        title="Rename template"
+        confirmLabel="Save"
+        failure="We couldn’t rename the template. Please try again."
+        onSave={(details) => (renaming ? rename(renaming, details) : Promise.resolve())}
+        onClose={() => setRenaming(null)}
+      />
+      <ConfirmDialog
+        open={deleting !== null}
+        title={deleting ? `Delete “${deleting.name}”?` : ''}
+        confirmLabel="Delete template"
+        danger
+        busy={deletingBusy}
+        onConfirm={() => void confirmDelete()}
+        onCancel={() => setDeleting(null)}
+      >
+        Nobody in your organisation can start from it any more. Surveys made from it stay as they are.
+      </ConfirmDialog>
     </>
   );
 }

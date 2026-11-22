@@ -388,7 +388,8 @@ paths:
       tags: [templates]
       summary: Built-in templates and the organisation's own, in display order
       description: >-
-        "{organisation}" in template text is replaced with the organisation's name.
+        Built-in templates come first in their set order, then the organisation's own by
+        name. "{organisation}" in template text is replaced with the organisation's name.
       parameters:
         - name: type
           in: query
@@ -402,6 +403,55 @@ paths:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/Template' } }
         '422': { description: Unknown survey type }
+    post:
+      tags: [templates]
+      summary: Save a survey as the organisation's own template
+      description: >-
+        The template gets the survey's type, thank-you message and questions, with the name
+        and description sent here. Only the organisation sees it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateCreate' }
+      responses:
+        '201':
+          description: The new template
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+        '404': { description: No such survey in this organisation }
+        '409': { description: The survey has no questions yet }
+        '422': { description: Invalid body }
+  /api/v1/templates/{template_id}:
+    parameters:
+      - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [templates]
+      summary: Rename one of the organisation's own templates or change its description
+      description: Leave out fields that should not change. Sending a field as null is a 422.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateUpdate' }
+      responses:
+        '200':
+          description: Updated template
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Template' }
+        '403': { description: Built-in templates cannot be changed }
+        '404': { description: No such template for this organisation }
+        '422': { description: Invalid body }
+    delete:
+      tags: [templates]
+      summary: Delete one of the organisation's own templates
+      description: Surveys made from the template stay.
+      responses:
+        '204': { description: Deleted }
+        '403': { description: Built-in templates cannot be deleted }
+        '404': { description: No such template for this organisation }
   /api/v1/templates/{template_id}/surveys:
     parameters:
       - { name: template_id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -958,7 +1008,7 @@ components:
         required: { type: boolean }
     Template:
       type: object
-      required: [id, name, type, description, thank_you, featured, questions]
+      required: [id, name, type, description, thank_you, featured, own, questions]
       properties:
         id: { type: string, format: uuid }
         name: { type: string, example: Member NPS }
@@ -966,9 +1016,24 @@ components:
         description: { type: string, example: Yearly loyalty check for members }
         thank_you: { type: string, description: Empty when the template has none }
         featured: { type: boolean, description: Shown as a card on the Templates page }
+        own: { type: boolean, description: Saved by the organisation; false for built-in templates, which are read-only }
         questions:
           type: array
           description: >-
             The first is the main question. Thumbs, NPS and CSAT templates follow it with
             optional reason bubbles.
           items: { $ref: '#/components/schemas/TemplateQuestion' }
+    TemplateCreate:
+      type: object
+      additionalProperties: false
+      required: [survey_id, name]
+      properties:
+        survey_id: { type: string, format: uuid, description: The survey to save as a template }
+        name: { type: string, minLength: 1, maxLength: 80, description: Trimmed }
+        description: { type: string, maxLength: 1000, default: '', description: Trimmed }
+    TemplateUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80, description: Trimmed }
+        description: { type: string, maxLength: 1000, description: Trimmed; an empty string clears it }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError, type SurveyListItem, type SurveyStatus, type SurveyType } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
@@ -20,6 +20,7 @@ import {
   type MenuAction,
 } from '../../components/ui';
 import { PublishDialog } from '../publish/PublishDialog';
+import { NAME_MAX, TemplateDetailsDialog } from '../templates/TemplateDetailsDialog';
 import { slug } from '../../utils/slug';
 import './surveys.css';
 
@@ -41,6 +42,8 @@ const TYPE_LABEL: Record<SurveyType, string> = {
 const UNPUBLISH_ICON = 'M4 12h10M10 6l-6 6 6 6M20 4v16';
 const CLOSE_ICON = 'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4';
 const PUBLISH_ICON = 'M12 19V5M5 12l7-7 7 7';
+// The sidebar's Templates icon.
+const TEMPLATE_ICON = 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z';
 /** Pause after the last key before the list is filtered. */
 const SEARCH_DELAY_MS = 250;
 
@@ -111,6 +114,11 @@ export function SurveysPage() {
   const [reload, setReload] = useState(0);
   const [deleting, setDeleting] = useState<SurveyListItem | null>(null);
   const [publishing, setPublishing] = useState<SurveyListItem | null>(null);
+  const [savingTemplate, setSavingTemplate] = useState<SurveyListItem | null>(null);
+  const templateDetails = useMemo(
+    () => savingTemplate && { name: savingTemplate.title.slice(0, NAME_MAX), description: '' },
+    [savingTemplate],
+  );
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   const mounted = useRef(true);
@@ -201,6 +209,7 @@ export function SurveysPage() {
         ),
       });
     }
+    items.push({ label: 'Save as template', icon: TEMPLATE_ICON, onSelect: () => setSavingTemplate(survey) });
     items.push({ label: 'Delete', icon: icons.trash, danger: true, onSelect: () => setDeleting(survey) });
     return items;
   }
@@ -326,6 +335,19 @@ export function SurveysPage() {
         {deleting ? deleteText(deleting) : ''}
       </ConfirmDialog>
       <PublishDialog survey={publishing} onClose={() => setPublishing(null)} />
+      <TemplateDetailsDialog
+        initial={templateDetails}
+        title={savingTemplate ? `Save “${savingTemplate.title}” as a template` : ''}
+        intro="Your organisation can start new surveys from it. It keeps the questions and the thank-you message."
+        confirmLabel="Save template"
+        failure="We couldn’t save the template. Please try again."
+        onSave={async (details) => {
+          if (!savingTemplate) return;
+          const saved = await api.saveAsTemplate(savingTemplate.id, details);
+          toast(`“${saved.name}” is saved in Templates.`);
+        }}
+        onClose={() => setSavingTemplate(null)}
+      />
     </div>
   );
 }

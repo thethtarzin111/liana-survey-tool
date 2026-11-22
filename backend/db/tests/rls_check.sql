@@ -93,6 +93,40 @@ begin
   perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
   delete from survey_channel_views
   where survey_id = '00000000-0000-4000-8000-000000000201' and channel = 'qr';
+
+  -- 3f. An organisation's own template is hidden from other organisations,
+  --     and nobody can change it but its owner.
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
+  insert into templates (id, tenant_id, name, type)
+  values ('00000000-0000-4000-8000-0000000003ff', '00000000-0000-4000-8000-000000000001',
+          'Demo org template', 'custom');
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
+  select count(*) into n from templates where tenant_id is not null;
+  if n <> 0 then raise exception 'RLS: other tenant sees % own templates', n; end if;
+  update templates set name = 'sneaky' where id = '00000000-0000-4000-8000-0000000003ff';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'RLS: other tenant renamed a template'; end if;
+  delete from templates where id = '00000000-0000-4000-8000-0000000003ff';
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'RLS: other tenant deleted a template'; end if;
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
+  delete from templates where id = '00000000-0000-4000-8000-0000000003ff';
+  get diagnostics n = row_count;
+  if n <> 1 then raise exception 'RLS: demo tenant cannot delete its own template'; end if;
+
+  -- 3g. Built-in templates are read-only.
+  update templates set name = 'sneaky' where tenant_id is null;
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'RLS: % built-in templates renamed', n; end if;
+  delete from templates where tenant_id is null;
+  get diagnostics n = row_count;
+  if n <> 0 then raise exception 'RLS: % built-in templates deleted', n; end if;
+  begin
+    insert into templates (tenant_id, name, type) values (null, 'sneaky', 'custom');
+    raise exception 'RLS: a built-in template was added';
+  exception when insufficient_privilege then
+    null; -- expected
+  end;
   perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
 
   -- 4. Writing a row for a different tenant is refused.

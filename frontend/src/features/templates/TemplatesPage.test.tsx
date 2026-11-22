@@ -8,7 +8,7 @@ import { sentence } from './templates';
 
 function template(id: string, type: Template['type'], name: string, featured = true, extra: Partial<Template> = {}): Template {
   return {
-    id, type, name, featured,
+    id, type, name, featured, own: false,
     description: `${name} description`,
     thank_you: `Thanks from ${name}`,
     questions: [
@@ -26,6 +26,7 @@ const ALL = [
   template('t5', 'custom', 'Quick poll', true, { thank_you: '' }),
   template('t6', 'thumbs', 'Course feedback', false),
   template('t7', 'nps', 'Employee NPS (eNPS)', false),
+  template('own1', 'nps', 'Our board NPS', false, { own: true, description: '' }),
 ];
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -33,6 +34,11 @@ beforeEach(() => {
   fetchMock.mockReset().mockImplementation(async (input, init) => {
     const url = new URL(String(input), 'http://localhost');
     if (init?.method === 'POST') return Response.json({ id: 'new-survey' }, { status: 201 });
+    if (init?.method === 'DELETE') return new Response(null, { status: 204 });
+    if (init?.method === 'PATCH') {
+      const id = url.pathname.split('/').at(-1);
+      return Response.json({ ...ALL.find((t) => t.id === id), ...JSON.parse(String(init.body)) });
+    }
     const type = url.searchParams.get('type');
     return Response.json(ALL.filter((t) => !type || t.type === type));
   });
@@ -66,17 +72,71 @@ const posts = () => fetchMock.mock.calls.filter(([, init]) => init?.method === '
 
 // --- Templates page -------------------------------------------------------------
 
-test('the Templates page shows a card for each featured template', async () => {
+test('the Templates page shows a card for each featured template and the organisation’s own', async () => {
   renderAt('/templates');
   const cards = within(await screen.findByRole('list', { name: 'Templates' })).getAllByRole('listitem');
   expect(cards.map((card) => within(card).getByRole('heading').textContent)).toEqual([
-    'Newsletter feedback', 'Member NPS', 'Event feedback', 'Quick poll',
+    'Newsletter feedback', 'Member NPS', 'Event feedback', 'Quick poll', 'Our board NPS',
   ]);
   const nps = cards[1];
   expect(within(nps).getByText('NPS survey')).toBeInTheDocument();
   expect(within(nps).getByText('Member NPS description.')).toBeInTheDocument();
   expect(nps).toHaveTextContent('Question: Member NPS question?');
   expect(within(cards[3]).getByText('Quick poll', { selector: '.badge' })).toBeInTheDocument();
+
+  // Only the organisation's own template is marked as theirs and has actions.
+  expect(within(cards[4]).getByText('Yours')).toBeInTheDocument();
+  expect(within(cards[4]).getByRole('button', { name: 'Actions for template Our board NPS' })).toBeInTheDocument();
+  expect(within(nps).queryByText('Yours')).not.toBeInTheDocument();
+  expect(within(nps).queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
+});
+
+test('your own template can be renamed', async () => {
+  renderAt('/templates');
+  fireEvent.click(await screen.findByRole('button', { name: 'Actions for template Our board NPS' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Rename template' });
+  const name = within(dialog).getByRole('textbox', { name: /Template name/ });
+  expect(name).toHaveValue('Our board NPS');
+
+  fireEvent.change(name, { target: { value: '   ' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(within(dialog).getByText('Give the template a name')).toBeInTheDocument();
+
+  fireEvent.change(name, { target: { value: ' Board NPS 2027 ' } });
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Description/ }), { target: { value: 'Every spring' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(await screen.findByRole('heading', { name: 'Board NPS 2027' })).toBeInTheDocument();
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  expect(screen.getByText('Template renamed to “Board NPS 2027”.')).toBeInTheDocument();
+
+  const patch = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH');
+  expect(String(patch?.[0])).toBe('/api/v1/templates/own1');
+  expect(JSON.parse(String(patch?.[1]?.body))).toEqual({ name: 'Board NPS 2027', description: 'Every spring' });
+});
+
+test('a failed rename keeps the dialog open with the reason', async () => {
+  renderAt('/templates');
+  fireEvent.click(await screen.findByRole('button', { name: 'Actions for template Our board NPS' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Rename' }));
+  fetchMock.mockResolvedValueOnce(Response.json({ detail: 'Built-in templates cannot be changed.' }, { status: 403 }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Rename template' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Built-in templates cannot be changed.');
+});
+
+test('your own template can be deleted after confirming', async () => {
+  renderAt('/templates');
+  fireEvent.click(await screen.findByRole('button', { name: 'Actions for template Our board NPS' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Delete “Our board NPS”?' });
+  expect(dialog).toHaveTextContent('Surveys made from it stay as they are.');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Delete template' }));
+  expect(await screen.findByText('“Our board NPS” was deleted.')).toBeInTheDocument();
+  const deletes = fetchMock.mock.calls.filter(([, init]) => init?.method === 'DELETE').map(([input]) => String(input));
+  expect(deletes).toEqual(['/api/v1/templates/own1']);
+  // The list is loaded again.
+  await waitFor(() => expect(fetchMock.mock.calls.filter(([, init]) => !init?.method)).toHaveLength(2));
 });
 
 test('Use template creates a draft and opens it', async () => {
@@ -105,8 +165,9 @@ test('Pick a template lists the chosen type and shows what the first one contain
   renderAt('/surveys/new/template?type=nps');
   expect(screen.getByRole('heading', { name: 'Pick a template' })).toBeInTheDocument();
   const options = within(await screen.findByRole('group', { name: 'Templates' })).getAllByRole('button');
-  expect(options.map((o) => o.querySelector('strong')?.textContent)).toEqual(['Member NPS', 'Employee NPS (eNPS)']);
+  expect(options.map((o) => o.querySelector('strong')?.textContent)).toEqual(['Member NPS', 'Employee NPS (eNPS)', 'Our board NPS']);
   expect(options[0]).toHaveAttribute('aria-pressed', 'true');
+  expect(options.map((o) => within(o).queryByText('Yours') !== null)).toEqual([false, false, true]);
   expect(new URL(String(fetchMock.mock.calls[0][0]), 'http://x').searchParams.get('type')).toBe('nps');
 
   const contents = screen.getByRole('region', { name: 'What the template contains' });
