@@ -1,4 +1,8 @@
-"""Loopback-only development gateway for the native Python service apps."""
+"""Loopback-only development gateway for the native Python service apps.
+
+Also runs the shared demo server (backend/infra/deploy/README.md), bound to
+127.0.0.1 behind Caddy, which adds HTTPS and a shared password. It gives every
+admin request the demo user, so it is not a production entry point."""
 
 import asyncio
 import logging

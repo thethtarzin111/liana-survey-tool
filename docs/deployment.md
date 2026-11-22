@@ -11,9 +11,18 @@ and `npm run dev` at the repository root. The launcher prepares the database,
 applies migrations, seeds demo data and starts Vite and the Python API gateway.
 See the root README for independent frontend/backend commands.
 
+## Demo server
+
+A shared demo for the Liana team and other students runs on one small EU VM
+(Azure for Students), deployed by the "Deploy demo" workflow after CI passes on
+`main`. It runs the local gateway with demo data behind HTTPS and one shared
+password; survey links stay public. Setup and day-to-day use:
+`backend/infra/deploy/README.md`. It is a demo, not production: there is no real
+login yet.
+
 ## Hosted deployment
 
-Hosting configuration is not implemented yet. The source layout is:
+For a production setup (e.g. on Liana's own infrastructure), the source layout is:
 
 | Component | Source / build | Runtime |
 |---|---|---|
@@ -46,6 +55,10 @@ The optional worker and connector require native or hosted RabbitMQ and
 hosting platform's secret store. Do not deploy the generated `.local` database,
 its passwords, or the Vite development server as the production setup.
 
+Migrations and the demo data can be applied with
+`python -m backend.scripts.prepare_db` (needs `OWNER_DATABASE_URL` and
+`APP_DB_PASSWORD`), as the demo server does.
+
 A future Cloud Run deployment can use Google's source builds without local
 Docker tooling; cloud-specific routing, IAM and database configuration still
-need to be implemented. Confirm the hosting choice with Liana before deployment.
+need to be implemented. Confirm the production hosting with Liana.
