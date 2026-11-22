@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { SurveyOverview } from '../../api/client';
 import { OverviewTab } from './OverviewTab';
@@ -20,10 +20,10 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-const renderTab = (o: SurveyOverview) =>
+const renderTab = (o: SurveyOverview, onOpenInsights: (() => void) | null = () => {}) =>
   render(
     <MemoryRouter>
-      <OverviewTab overview={o} onReadAll={() => {}} />
+      <OverviewTab overview={o} onReadAll={() => {}} onOpenInsights={onOpenInsights ?? undefined} />
     </MemoryRouter>,
   );
 
@@ -37,11 +37,15 @@ describe('OverviewTab extras', () => {
     expect(screen.queryByRole('heading', { name: 'Close the loop' })).toBeNull();
   });
 
-  it('AI banner text is exact, is not an alert and sends nothing', () => {
-    renderTab(overview());
-    expect(
-      screen.getByText('AI summary of comments is coming soon. It will group comments into themes.'),
-    ).toBeInTheDocument();
+  it('links to Comment insights only when the survey asks for comments, and sends nothing', () => {
+    const { unmount } = renderTab(overview(), null);
+    expect(screen.queryByRole('heading', { name: 'Comment insights' })).toBeNull();
+    unmount();
+    const onOpen = vi.fn();
+    renderTab(overview(), onOpen);
+    expect(screen.getByRole('heading', { name: 'Comment insights' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Comment insights' }));
+    expect(onOpen).toHaveBeenCalledOnce();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -94,7 +98,7 @@ describe('OverviewTab order', () => {
   }
   const heading = (name: string | RegExp) => screen.getByRole('heading', { name });
 
-  it('standard survey: KPIs, split and distribution, reasons and trend, AI, segments, close the loop', () => {
+  it('standard survey: KPIs, split and distribution, reasons and trend, comment insights, segments, close the loop', () => {
     const { container } = renderTab(overview({ reasons: [{ label: 'Price', count: 3, percent: 25 }], trend, by_segment }));
     expectOrder([
       container.querySelector('.results-kpis'),
@@ -102,7 +106,7 @@ describe('OverviewTab order', () => {
       screen.getByText('Distribution'),
       heading('Top reasons'),
       heading(/trend/i),
-      heading('AI summary of comments'),
+      heading('Comment insights'),
       heading('By segment'),
       heading('Close the loop'),
     ]);
@@ -112,8 +116,8 @@ describe('OverviewTab order', () => {
     expect(rows[1].textContent).toContain('Top reasons');
     expect(rows[1].querySelector('h2, h3')).not.toBeNull();
     expect(rows[1].contains(heading(/trend/i))).toBe(true);
-    // The AI card is a section of its own, not part of a row.
-    expect(heading('AI summary of comments').closest('.results-row')).toBeNull();
+    // The Comment insights card is a section of its own, not part of a row.
+    expect(heading('Comment insights').closest('.results-row')).toBeNull();
   });
 
   it('standard survey without reasons: the trend has the row to itself', () => {
@@ -128,7 +132,7 @@ describe('OverviewTab order', () => {
   it('standard survey without reasons or trend: no empty row, AI still shown', () => {
     const { container } = renderTab(overview({ reasons: [], trend: [] }));
     expect(container.querySelectorAll('.results-row')).toHaveLength(1);
-    expect(heading('AI summary of comments').closest('.results-row')).toBeNull();
+    expect(heading('Comment insights').closest('.results-row')).toBeNull();
   });
 
   it('custom survey: KPIs, questions, In short, AI', () => {
@@ -143,9 +147,9 @@ describe('OverviewTab order', () => {
       container.querySelector('.results-kpis'),
       screen.getByRole('heading', { name: 'the information' }),
       heading('In short'),
-      heading('AI summary of comments'),
+      heading('Comment insights'),
     ]);
-    expect(heading('AI summary of comments').closest('.results-row')).toBeNull();
+    expect(heading('Comment insights').closest('.results-row')).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Close the loop' })).toBeNull();
   });
 

@@ -1,7 +1,8 @@
 import { useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-export type ResultsTab = 'overview' | 'responses';
+export type ResultsTab = 'overview' | 'responses' | 'insights';
+const TABS: ResultsTab[] = ['overview', 'responses', 'insights'];
 export type ResultsChanges = Partial<{ survey: string; tab: ResultsTab; segment: string; q: string; group: string }>;
 
 /**
@@ -11,7 +12,7 @@ export type ResultsChanges = Partial<{ survey: string; tab: ResultsTab; segment:
 export function useResultsParams() {
   const [params, setParams] = useSearchParams();
   const survey = params.get('survey') || null;
-  const tab: ResultsTab = params.get('tab') === 'responses' ? 'responses' : 'overview';
+  const tab: ResultsTab = TABS.find((t) => t === params.get('tab')) ?? 'overview';
   const segment = params.get('segment') || 'all';
   const q = params.get('q') || '';
   const group = params.get('group') || '';

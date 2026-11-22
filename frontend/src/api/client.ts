@@ -73,6 +73,11 @@ export const api = {
     getJson<SurveyOverview>(
       `/api/v1/results/${encodeURIComponent(surveyId)}/overview?segment=${encodeURIComponent(segment)}`,
     ),
+  /** Themes in a survey's comments. 400 for an unknown segment, 404 for an unknown survey. */
+  commentInsights: (surveyId: string, segment = 'all') =>
+    getJson<CommentInsights>(
+      `${resultsPath(surveyId)}/comment-insights?segment=${encodeURIComponent(segment)}`,
+    ),
   /** One page of a survey's responses, newest first. Comments are masked by the server. */
   responses: (surveyId: string, filters: ResponseFilters & { limit?: number; offset?: number }) =>
     getJson<ResponsesPage>(
@@ -315,6 +320,48 @@ export type SurveyOverview = {
   reasons: { label: string; count: number; percent: number | null }[];
   trend: { month: string; score: number | null; answers: number }[];
   by_segment: { value: string; label: string; answers: number; score: number | null; counts: Record<string, number> }[];
+};
+
+export type InsightSentiment = { negative: number; neutral: number; positive: number };
+
+export type InsightTheme = {
+  key: string;
+  /** Named by the LLM (or the mock), so it may be edited. */
+  label: string;
+  /** "Other": comments that fit no theme. */
+  outlier: boolean;
+  comments: number;
+  percent: number | null;
+  sentiment: InsightSentiment;
+  /** Main score of these commenters; null with fewer than 5 scored answers. */
+  score: number | null;
+  /** `score` minus the score of all commenters. */
+  score_vs_all: number | null;
+  /** Each one found word-for-word in its comment. */
+  quotes: { comment_id: string; text: string; summary: string }[];
+  /** Quotes the LLM suggested that are not in the comment word-for-word. */
+  hidden_quotes: number;
+  /** A few of the theme's comments, redacted. */
+  samples: string[];
+};
+
+export type CommentInsights = {
+  survey_id: string;
+  /** too_few: fewer than `min_comments` comments, no themes. */
+  status: 'ready' | 'too_few';
+  /** direct: one LLM batch; clustered: grouped first (from `direct_limit` comments). */
+  mode: 'direct' | 'clustered' | null;
+  kind: 'nps' | 'thumbs' | 'rating' | null;
+  comments: number;
+  /** Comments with an email or phone number hidden. */
+  redacted: number;
+  min_comments: number;
+  direct_limit: number;
+  /** Main score of everyone who commented. */
+  score: number | null;
+  themes: InsightTheme[];
+  negative_themes: { key: string; label: string; count: number; percent: number | null }[];
+  run: { grouper: string | null; writer: string; llm_calls: number };
 };
 
 export type ResponseFilters = { segment?: string; q?: string; group?: string };

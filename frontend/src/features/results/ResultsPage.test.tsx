@@ -390,3 +390,33 @@ test('"Read all answers →" opens the Responses tab', async () => {
   await waitFor(() => expect(location()).toContain('tab=responses'));
   expect(screen.getByRole('tab', { selected: true, name: /^Responses/ })).toBeInTheDocument();
 });
+
+const textQuestion = {
+  id: 'q3', kind: 'text' as const, prompt: 'Anything else?', required: false, answers: 8, options: [], average: null,
+};
+
+test('Comment insights tab shows only for surveys that ask for comments', async () => {
+  overviews['nps-1'] = overview({ questions: [textQuestion] });
+  const { unmount } = renderPage('/results?survey=nps-1');
+  fireEvent.click(await screen.findByRole('tab', { name: 'Comment insights' }));
+  expect(location()).toBe('/results?survey=nps-1&tab=insights');
+  unmount();
+
+  // The comment field is off, or the survey has no text question: no tab.
+  surveyList = [listItem('nps-1', 'Member NPS 2026', { comment_field: false })];
+  const second = renderPage('/results?survey=nps-1');
+  await screen.findByRole('tab', { name: /Overview/ });
+  expect(screen.queryByRole('tab', { name: 'Comment insights' })).toBeNull();
+  second.unmount();
+
+  surveyList = lists;
+  overviews['nps-1'] = overview();
+  renderPage('/results?survey=nps-1');
+  await screen.findByRole('tab', { name: /Overview/ });
+  expect(screen.queryByRole('tab', { name: 'Comment insights' })).toBeNull();
+});
+
+test('a Comment insights link for a survey without comments opens the overview', async () => {
+  renderPage('/results?survey=nps-1&tab=insights');
+  expect(await screen.findByRole('tab', { name: /Overview/ })).toHaveAttribute('aria-selected', 'true');
+});
