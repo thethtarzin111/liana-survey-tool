@@ -20,20 +20,25 @@ IDENTITY = {b"x-tenant-id", b"x-user-id", b"x-tenant-name", b"x-user-name", b"x-
 
 
 class DirectLianaEvents:
-    """Local development without RabbitMQ: hands each "new responses" email
-    straight to the connector's code with its mock adapters, instead of putting
-    it on survey.liana-events. The mock mail shows up in this terminal."""
+    """Local development without RabbitMQ: hands each contact request and "new
+    responses" email straight to the connector's code with its mock adapters,
+    instead of putting it on survey.liana-events. The mock mail shows up in this
+    terminal, and the contact request's status is stored as with the real
+    connector. There is no retry: a temporary error leaves the request pending."""
 
     def __init__(self) -> None:
+        from liana_connector.delivery_status import record_contact_request_status
         from liana_connector.factory import build_contact_events, build_notification_mail
 
         self.contacts = build_contact_events(get_settings())
         self.mail = build_notification_mail(get_settings())
+        self.record = record_contact_request_status
 
     async def publish(self, message) -> None:
-        from liana_connector.handlers import handle_event
+        from liana_connector.handlers import deliver
 
-        handle_event(message.model_dump_json().encode(), self.contacts, self.mail)
+        body = message.model_dump_json().encode()
+        await asyncio.to_thread(deliver, body, 1, self.contacts, self.mail, self.record)
 
 
 class DirectAnswerQueue:
@@ -50,8 +55,11 @@ class DirectAnswerQueue:
         from survey_worker.handlers import record_answer
 
         recorded = await asyncio.to_thread(record_answer, message.model_dump_json().encode())
-        if recorded.digest is not None and self.events is not None:
-            await self.events.publish(recorded.digest)
+        if self.events is None:
+            return
+        for event in (recorded.contact_request, recorded.digest):
+            if event is not None:
+                await self.events.publish(event)
 
     async def close(self) -> None:
         pass

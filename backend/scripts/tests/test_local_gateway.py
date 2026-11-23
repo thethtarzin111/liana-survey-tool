@@ -95,3 +95,35 @@ def test_without_rabbitmq_a_due_email_goes_straight_to_the_mock_mail(monkeypatch
     )
     asyncio.run(local_gateway.DirectAnswerQueue(events).publish(message))
     assert [email.subject for email in events.mail.sent] == ["Poll: 1 new response"]
+
+
+def test_without_rabbitmq_a_contact_request_goes_straight_to_the_mock_adapter(monkeypatch):
+    import asyncio
+    from uuid import uuid4
+
+    import survey_worker.handlers as handlers
+    from liana_survey_shared.messages import AnswerSubmitted, ContactRequested
+
+    settings = get_settings()
+    request = ContactRequested(
+        tenant_id=settings.dev_tenant_id,
+        survey_id=settings.dev_tenant_id,
+        contact_request_id=uuid4(),
+        contact_ref="member-1042",
+    )
+    monkeypatch.setattr(
+        handlers, "record_answer", lambda body: handlers.Recorded(True, None, request)
+    )
+    events = local_gateway.DirectLianaEvents()
+    stored = []
+    events.record = lambda event, status, attempts: stored.append((status, attempts))
+    message = AnswerSubmitted(
+        tenant_id=settings.dev_tenant_id,
+        survey_id=settings.dev_tenant_id,
+        link_token_hash="key",
+        answers=[],
+        contact_ref="member-1042",
+    )
+    asyncio.run(local_gateway.DirectAnswerQueue(events).publish(message))
+    assert events.contacts.sent == [request]
+    assert stored == [("sent", 1)]
