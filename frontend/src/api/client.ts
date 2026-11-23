@@ -148,6 +148,16 @@ export const api = {
     const query = params.toString();
     return getJson<PerformanceRow[]>(`/api/v1/results/performance${query ? `?${query}` : ''}`);
   },
+  /** Readers who ticked "Contact me", newest first, with the number per status. */
+  contactRequests: (filters: { status?: ContactRequestStatus; surveyId?: string } = {}) => {
+    const params = new URLSearchParams();
+    if (filters.status) params.set('status', filters.status);
+    if (filters.surveyId) params.set('survey_id', filters.surveyId);
+    const query = params.toString();
+    return getJson<ContactRequestList>(`/api/v1/contact-requests${query ? `?${query}` : ''}`);
+  },
+  setContactRequestStatus: (requestId: string, status: ContactRequestStatus) =>
+    send<ContactRequest>('PATCH', `/api/v1/contact-requests/${encodeURIComponent(requestId)}`, { status }),
 };
 
 function questionsPath(surveyId: string, questionId?: string) {
@@ -389,3 +399,28 @@ export function errorDetail(error: unknown): string | null {
   const body = error.body as { detail?: unknown } | null;
   return typeof body?.detail === 'string' ? body.detail : null;
 }
+
+export type ContactRequestStatus = 'new' | 'contacted' | 'done';
+
+export type ContactRequest = {
+  id: string;
+  survey_id: string;
+  survey_title: string;
+  survey_type: SurveyType;
+  /** The reader's LianaMailer contact reference. Never an e-mail address. */
+  contact_ref: string;
+  /** The main question's value, read by survey_type; null when there is none. */
+  answer: number | null;
+  /** The reasons the reader picked, joined with "; ". */
+  reason: string | null;
+  segment: string;
+  status: ContactRequestStatus;
+  /** Whether the request reached LianaAutomation. */
+  liana_status: 'pending' | 'sent' | 'failed';
+  created_at: string;
+};
+
+export type ContactRequestList = {
+  items: ContactRequest[];
+  counts: Record<ContactRequestStatus | 'all', number>;
+};
