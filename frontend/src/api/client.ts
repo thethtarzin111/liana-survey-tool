@@ -158,6 +158,9 @@ export const api = {
   },
   setContactRequestStatus: (requestId: string, status: ContactRequestStatus) =>
     send<ContactRequest>('PATCH', `/api/v1/contact-requests/${encodeURIComponent(requestId)}`, { status }),
+  /** Marks the request done and sends the reader the team's "You said, we did" message. */
+  resolveContactRequest: (requestId: string, message: string) =>
+    send<ContactRequest>('POST', `/api/v1/contact-requests/${encodeURIComponent(requestId)}/resolve`, { message }),
 };
 
 function questionsPath(surveyId: string, questionId?: string) {
@@ -418,6 +421,10 @@ export type ContactRequest = {
   /** Whether the request reached LianaAutomation. */
   liana_status: 'pending' | 'sent' | 'failed';
   created_at: string;
+  /** Whether the "You said, we did" message reached LianaAutomation; null until resolved. */
+  reply_status: 'pending' | 'sent' | 'failed' | null;
+  reply_text: string | null;
+  resolved_at: string | null;
 };
 
 export type ContactRequestList = {

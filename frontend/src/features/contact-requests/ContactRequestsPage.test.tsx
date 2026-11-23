@@ -17,6 +17,9 @@ function request(id: string, extra: Partial<ContactRequest> = {}): ContactReques
     status: 'new',
     liana_status: 'sent',
     created_at: new Date().toISOString(),
+    reply_status: null,
+    reply_text: null,
+    resolved_at: null,
     ...extra,
   };
 }

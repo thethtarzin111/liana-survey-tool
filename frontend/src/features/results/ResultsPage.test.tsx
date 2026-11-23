@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import type { SurveyListItem, SurveyOverview } from '../../api/client';
+import { ToastProvider } from '../../components/ui';
 import { ResultsPage } from './ResultsPage';
 
 function listItem(id: string, title: string, overrides: Partial<SurveyListItem> = {}): SurveyListItem {
@@ -52,6 +53,9 @@ beforeEach(() => {
       return Response.json({ ...base, segment: url.searchParams.get('segment') ?? 'all' });
     }
     if (/\/responses$/.test(url.pathname)) return Response.json({ total: 0, rows: [] });
+    if (url.pathname === '/api/v1/contact-requests') {
+      return Response.json({ items: [], counts: { all: 0, new: 0, contacted: 0, done: 0 } });
+    }
     return new Response(null, { status: 404 });
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -66,8 +70,10 @@ function Location() {
 function renderPage(path = '/results') {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <Location />
-      <ResultsPage />
+      <ToastProvider>
+        <Location />
+        <ResultsPage />
+      </ToastProvider>
     </MemoryRouter>,
   );
 }
@@ -389,4 +395,13 @@ test('"Read all answers →" opens the Responses tab', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Read all answers →' }));
   await waitFor(() => expect(location()).toContain('tab=responses'));
   expect(screen.getByRole('tab', { selected: true, name: /^Responses/ })).toBeInTheDocument();
+});
+
+test('the Close the loop tab lists the survey’s contact requests', async () => {
+  renderPage('/results?survey=nps-1');
+  fireEvent.click(await screen.findByRole('tab', { name: 'Close the loop' }));
+  expect(location()).toBe('/results?survey=nps-1&tab=close-the-loop');
+  await screen.findByText('Nobody has asked to be contacted yet');
+  const call = fetchMock.mock.calls.map(([input]) => String(input)).find((u) => u.startsWith('/api/v1/contact-requests'));
+  expect(call).toBe('/api/v1/contact-requests?survey_id=nps-1');
 });

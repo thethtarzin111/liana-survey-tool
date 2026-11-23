@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type SurveyListItem, type SurveyOverview } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, EmptyState, Select, Tabs, icons } from '../../components/ui';
+import { CloseTheLoopTab } from './CloseTheLoopTab';
 import { OverviewTab } from './OverviewTab';
 import { ResponsesTab, type Scale } from './ResponsesTab';
 import { SurveyPicker } from './SurveyPicker';
-import { useResultsParams } from './useResultsParams';
+import { useResultsParams, type ResultsTab } from './useResultsParams';
 import './results.css';
 
 /** The survey in the URL, else the one with the latest answer, else the newest. */
@@ -158,7 +159,7 @@ export function ResultsPage() {
             ) : null}
           </div>
         }
-        onChange={(id) => set({ tab: id === 'responses' ? 'responses' : 'overview' })}
+        onChange={(id) => set({ tab: id as ResultsTab })}
         tabs={[
           { id: 'overview', label: 'Overview' },
           {
@@ -169,12 +170,19 @@ export function ResultsPage() {
               </>
             ),
           },
+          { id: 'close-the-loop', label: 'Close the loop' },
         ]}
       >
         {tab === 'responses' ? (
           <ResponsesTab surveyId={chosen.id} segment={segment} scale={scaleOf(overview)} />
+        ) : tab === 'close-the-loop' ? (
+          <CloseTheLoopTab surveyId={chosen.id} segment={segment} />
         ) : (
-          <OverviewTab overview={overview} onReadAll={() => set({ tab: 'responses' })} />
+          <OverviewTab
+            overview={overview}
+            onReadAll={() => set({ tab: 'responses' })}
+            onCloseTheLoop={() => set({ tab: 'close-the-loop' })}
+          />
         )}
       </Tabs>
     );

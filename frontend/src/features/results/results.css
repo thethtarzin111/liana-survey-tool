@@ -160,3 +160,12 @@
 .response-answer dt { color: var(--color-text-muted); font-size: var(--text-hint); }
 .response-answer dd { margin: 2px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: var(--text-body); }
 .question-empty { margin: 0; color: var(--color-text-muted); font-size: var(--text-body); }
+
+/* Close the loop tab */
+.loop-tab { display: flex; flex-direction: column; gap: 12px; }
+.loop-title { margin: 0; font-size: var(--text-body); font-weight: 600; }
+.loop-note { margin: 4px 0 0; max-width: 760px; color: var(--color-text-muted); font-size: var(--text-hint); }
+.loop-action { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.loop-done { color: var(--color-text-muted); font-size: var(--text-hint); font-weight: 600; white-space: nowrap; }
+.loop-none { color: var(--color-text-muted); }
+.loop-dialog-text { margin: 0 0 12px; }

@@ -10,7 +10,15 @@ import { takeaway } from './takeaway';
 import { TrendCard } from './TrendCard';
 
 /** KPI cards, then the visual of each question kind. */
-export function OverviewTab({ overview, onReadAll }: { overview: SurveyOverview; onReadAll: () => void }) {
+export function OverviewTab({
+  overview,
+  onReadAll,
+  onCloseTheLoop,
+}: {
+  overview: SurveyOverview;
+  onReadAll: () => void;
+  onCloseTheLoop?: () => void;
+}) {
   if (overview.responses === 0) {
     return (
       <EmptyState
@@ -55,7 +63,7 @@ export function OverviewTab({ overview, onReadAll }: { overview: SurveyOverview;
       {pair.length > 0 ? <div className="results-row">{pair}</div> : null}
       <AiComingSoon />
       {kind ? <SegmentCard kind={kind} rows={overview.by_segment} /> : null}
-      <CloseTheLoop type={overview.type} />
+      <CloseTheLoop type={overview.type} onOpen={onCloseTheLoop} />
     </div>
   );
 }
