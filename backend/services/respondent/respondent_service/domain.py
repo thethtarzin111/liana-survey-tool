@@ -93,9 +93,10 @@ def form_answers(
     """The answers sent from the survey link page, checked against each question.
 
     `form` holds the values sent per field (see field_name). Blank values count
-    as not answered. Raises AnswerProblem "answer_required" when a required
-    question, or every question, is left blank, and "answer_not_valid" for
-    answers that are not one of the question's choices or too long."""
+    as not answered, so the list is empty when every question is optional and
+    left blank. Raises AnswerProblem "answer_required" when a required question
+    is left blank, and "answer_not_valid" for answers that are not one of the
+    question's choices or too long."""
     main_answer = None
     if questions:
         sent = [v.strip() for v in form.get(field_name(questions[0]), ())]
@@ -110,8 +111,6 @@ def form_answers(
                 raise AnswerProblem("answer_required", 400)
             continue
         answers.append(_answer(question, values))
-    if not answers:
-        raise AnswerProblem("answer_required", 400)
     return answers
 
 

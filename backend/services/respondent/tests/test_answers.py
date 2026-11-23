@@ -24,7 +24,14 @@ from respondent_service.domain import (
     one_tap_answer,
 )
 from respondent_service.main import app
-from respondent_service.pages import page, problem, survey_form, thank_you
+from respondent_service.pages import (
+    QUESTIONS_PER_PAGE,
+    description_html,
+    page,
+    problem,
+    survey_form,
+    thank_you,
+)
 from respondent_service.routes import get_answer_queue
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
@@ -563,9 +570,14 @@ def test_link_page_answers_that_do_not_fit_are_refused(sent):
 def test_link_page_needs_the_required_answers():
     with pytest.raises(AnswerProblem, match="not marked optional"):
         form_answers("thumbs", THUMBS, form(main=[" "]))
-    everything_optional = [question(Q_TEXT, "text", required=False)]
-    with pytest.raises(AnswerProblem, match="not marked optional"):
-        form_answers("custom", everything_optional, form(text=[""]))
+
+
+def test_a_survey_of_only_optional_questions_can_be_sent_blank():
+    everything_optional = [
+        question(Q_MAIN, "single_choice", ["A", "B"], required=False),
+        question(Q_TEXT, "text", required=False),
+    ]
+    assert form_answers("custom", everything_optional, form(main=[], text=[" "])) == []
 
 
 def survey(**changes):
@@ -640,14 +652,45 @@ def test_the_link_page_has_a_progress_bar_for_browsers_with_javascript():
 
 
 def test_the_link_page_has_previous_and_next_for_browsers_with_javascript():
-    # Hidden in the HTML: the script shows one question at a time (#9). Without
+    # Hidden in the HTML: the script shows a few questions per page (#9). Without
     # it, every question and Submit are shown.
     page_html = survey_form(survey(language="fi"), THUMBS, key="k", channel="link")
     assert "data-previous hidden>Edellinen</button>" in page_html
     assert "data-next hidden>Seuraava</button>" in page_html
     assert '<button type="submit" class="submit">Lähetä</button>' in page_html
-    assert 'data-template="Kysymys {n}/{total}" hidden>' in page_html
-    assert 'role="alert" hidden>Vastaa tähän kysymykseen.</p>' in page_html
+    assert f'class="survey-form" data-per-page="{QUESTIONS_PER_PAGE}"' in page_html
+    assert 'data-template="Sivu {n}/{total}" hidden>' in page_html
+    assert 'role="alert" hidden>Vastaa jokaiseen kysymykseen' in page_html
+
+
+def test_the_link_page_card_uses_the_survey_background_on_a_white_page():
+    page_html = survey_form(survey(background_color="#FAF6EE"), THUMBS, key="k", channel="link")
+    assert "--background: #FAF6EE" in page_html
+    assert "background: #FFFFFF; color: #353A40;" in page_html
+    assert "background: var(--background); border-top: 6px solid var(--accent);" in page_html
+
+
+@pytest.mark.parametrize(
+    ("description", "shown"),
+    [
+        ("Two\nlines", "Two\nlines"),
+        ("**Bold**, *italic*, _also_", "<strong>Bold</strong>, <em>italic</em>, <em>also</em>"),
+        (
+            "See [our *site*](https://example.org/?a=1&b=2)",
+            'See <a href="https://example.org/?a=1&amp;b=2" rel="noopener noreferrer"'
+            ' target="_blank">our <em>site</em></a>',
+        ),
+        ("**[Bold link](mailto:info@example.org)**", '<strong><a href="mailto:info@example.org"'),
+        # Not formatting: lone stars, snake_case, other link schemes and HTML.
+        ("2 * 3 * 4 and snake_case_name", "2 * 3 * 4 and snake_case_name"),
+        ("[x](javascript:alert(1)) <b>", "[x](javascript:alert(1)) &lt;b&gt;"),
+        ('[x](https://a.fi/"onmouseover=y)', "[x](https://a.fi/&quot;onmouseover=y)"),
+    ],
+)
+def test_the_description_keeps_line_breaks_and_basic_formatting(description, shown):
+    assert shown in description_html(description)
+    page_html = survey_form(survey(description=description), THUMBS, key="k", channel="link")
+    assert f'<p class="description">{description_html(description)}</p>' in page_html
 
 
 def add_questions(survey_id, *questions):
@@ -767,4 +810,22 @@ def test_closed_and_full_surveys_show_why_instead_of_the_form(client, queue, mak
         )
     r = client.get(f"/r/{full}")
     assert r.status_code == 410 and "Enkäten har fått alla svar" in r.text
+    assert queue.messages == []
+
+
+@pytest.mark.db
+@needs_db
+def test_a_blank_survey_of_optional_questions_shows_thanks_and_saves_nothing(
+    client, queue, make_survey
+):
+    survey_id, _, token = make_survey(kind="single_choice", survey_type="custom")
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            "update questions set required = false, options = %s where survey_id = %s",
+            (Jsonb(["A", "B"]), survey_id),
+        )
+    add_questions(survey_id, ("text", "Why?", [], False))
+    key = visit_key(client.get(f"/r/{token}").text)
+    r = client.post(f"/r/{token}", data={"key": key})
+    assert r.status_code == 200 and "Thanks a lot!" in r.text
     assert queue.messages == []

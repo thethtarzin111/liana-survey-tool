@@ -4,8 +4,10 @@ import { ApiError, api, type Question, type Survey } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, Disclosure, TextArea, TextField, useToast } from '../../components/ui';
 import { BrandingFields } from './BrandingFields';
+import { FORMAT_HINT } from './FormattedText';
 import { EditPreviewPage } from './EditPreviewPage';
 import { PublishActions, PublishDialog } from '../publish/PublishDialog';
+import { saveTexts } from './saveTexts';
 import { QuestionList } from './QuestionList';
 import { CustomPreview } from './SurveyPreview';
 import './builder.css';
@@ -103,7 +105,7 @@ export function BuilderPage() {
     if (accent !== survey.accent_color) changes.accent_color = accent;
     if (background !== survey.background_color) changes.background_color = background;
     if (!Object.keys(changes).length) {
-      if (!quiet) toast('Saved as draft');
+      if (!quiet) toast(saveTexts(survey.status).done);
       return true;
     }
 
@@ -117,14 +119,14 @@ export function BuilderPage() {
       setDescription(saved.description ?? '');
       setAccent(saved.accent_color);
       setBackground(saved.background_color);
-      if (!quiet) toast('Saved as draft');
+      if (!quiet) toast(saveTexts(survey.status).done);
       return true;
     } catch (error) {
       if (!mounted.current) return false;
       const errorsFromApi = apiErrors(error);
       setFieldErrors(errorsFromApi);
       if (!Object.keys(errorsFromApi).length) {
-        setSaveError('We couldn\u2019t save your draft. Please try again.');
+        setSaveError(saveTexts(survey.status).failed);
       }
       return false;
     } finally {
@@ -146,7 +148,7 @@ export function BuilderPage() {
         actions={survey ? (
           <div className="survey-builder-actions">
             <ButtonLink to="/surveys/new" variant="ghost">Cancel</ButtonLink>
-            <Button type="submit" form="survey-details-form" loading={isSaving}>Save as draft</Button>
+            <Button type="submit" form="survey-details-form" loading={isSaving}>{saveTexts(survey.status).button}</Button>
             <PublishActions survey={survey} onPublish={() => setPublishing(true)} />
           </div>
         ) : undefined}
@@ -187,6 +189,7 @@ export function BuilderPage() {
             />
             <TextArea
               label="Description (optional)"
+              hint={FORMAT_HINT}
               rows={2}
               value={description}
               error={fieldErrors.description}

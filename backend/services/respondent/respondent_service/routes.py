@@ -219,6 +219,12 @@ async def submit(
             error=problem.message(language),
         )
         return _page(again, problem.status_code)
+    thanks = pages.thank_you(
+        survey["thank_you"], survey["accent_color"], survey["background_color"], language
+    )
+    # Every question is optional and left blank: nothing to save, and no response counted.
+    if not answers:
+        return _page(thanks)
 
     message = AnswerSubmitted(
         tenant_id=tenant_id,
@@ -232,8 +238,4 @@ async def submit(
     except Exception:
         log.exception("could not queue answers for survey %s", survey["id"])
         return _page(pages.problem(text("try_again", language), language), 503)
-    return _page(
-        pages.thank_you(
-            survey["thank_you"], survey["accent_color"], survey["background_color"], language
-        )
-    )
+    return _page(thanks)

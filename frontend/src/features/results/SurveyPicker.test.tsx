@@ -6,7 +6,7 @@ import { SurveyPicker } from './SurveyPicker';
 function survey(id: string, title: string, overrides: Partial<SurveyListItem> = {}): SurveyListItem {
   return {
     id, title, description: null, thank_you: null, type: 'nps', status: 'live', opens_at: null, closes_at: null,
-    answers: 0, last_answer_at: null, headline: null, comment_field: true, show_results: true, contact_opt_in: true,
+    answers: 0, last_answer_at: null, created_at: '2026-11-01T09:00:00Z', updated_at: '2026-11-01T09:00:00Z', headline: null, comment_field: true, show_results: true, contact_opt_in: true,
     accent_color: 'x', background_color: 'y', logo_url: null, ...overrides,
   };
 }

@@ -6,7 +6,7 @@ import { ToastProvider } from '../../components/ui';
 import { SurveysPage } from './SurveysPage';
 import { DEFAULT_ACCENT, DEFAULT_BACKGROUND } from '../builder/branding';
 
-const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, closes_at: null, answers: 0, last_answer_at: null, headline: null } as const;
+const base = { description: null, thank_you: null, comment_field: true, show_results: true, contact_opt_in: true, accent_color: DEFAULT_ACCENT, background_color: DEFAULT_BACKGROUND, logo_url: null, opens_at: null, closes_at: null, answers: 0, last_answer_at: null, created_at: '2026-11-02T09:00:00', updated_at: '2026-11-20T15:30:00', headline: null } as const;
 const live: SurveyListItem = {
   ...base, id: 'live-1', title: 'Member NPS 2026', type: 'nps', status: 'live', answers: 132,
   headline: { score: 'NPS +42', note: 'scale −100 to +100' },
@@ -99,6 +99,11 @@ test('shows each survey with its type, status, answers, note and score', async (
   expect(within(await rowFor('Course feedback')).getByText('—')).toBeInTheDocument();
   expect(within(await rowFor('Newsletter thumbs')).getByText('Opens Tue 01/12/2026')).toBeInTheDocument();
   expect(within(await rowFor('Course feedback')).getByText('Not published yet')).toBeInTheDocument();
+  // When each survey was created and last changed.
+  expect(within(row).getByText('Mon 02/11/2026')).toHaveAttribute('dateTime', '2026-11-02T09:00:00');
+  expect(within(row).getByText('Fri 20/11/2026')).toHaveAttribute('dateTime', '2026-11-20T15:30:00');
+  expect(screen.getByRole('columnheader', { name: 'Created' })).toBeInTheDocument();
+  expect(screen.getByRole('columnheader', { name: 'Modified' })).toBeInTheDocument();
   // Live surveys open their "is live" page (#117).
   expect(screen.getByRole('link', { name: 'Member NPS 2026' })).toHaveAttribute('href', '/surveys/live-1/live');
 });

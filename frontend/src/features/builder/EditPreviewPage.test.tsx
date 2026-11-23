@@ -382,3 +382,14 @@ test('live surveys get Share instead of Publish', async () => {
   expect(await screen.findByRole('link', { name: 'Share' })).toHaveAttribute('href', '/surveys/s1/live');
   expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument();
 });
+
+test('a published survey is saved with Save changes and stays live', async () => {
+  survey = { ...survey, status: 'live' };
+  renderPage();
+  fireEvent.change(await screen.findByLabelText('Thank-you message'), { target: { value: 'Thanks again!' } });
+  expect(screen.queryByRole('button', { name: 'Save as draft' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(await screen.findByText('Changes saved')).toBeInTheDocument();
+  expect(JSON.parse(String(patches(SURVEY_URL)[0][1]?.body))).toEqual({ thank_you: 'Thanks again!' });
+  expect(survey).toMatchObject({ status: 'live', thank_you: 'Thanks again!' });
+});

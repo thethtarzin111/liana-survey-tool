@@ -106,6 +106,8 @@ def test_using_a_template_creates_a_draft_with_its_questions(client):
     assert survey["type"] == "nps"
     assert survey["status"] == "draft"
     assert survey["thank_you"] == "Thank you. This takes our member work forward."
+    # Built-in templates have no colours: the survey gets the defaults.
+    assert (survey["accent_color"], survey["background_color"]) == ("#0F6A5E", "#FFFFFF")
 
     questions = client.get(f"/api/v1/surveys/{survey['id']}/questions").json()
     assert [(q["position"], q["kind"], q["required"]) for q in questions] == [
@@ -227,7 +229,8 @@ def _save(client, survey_id: str, name: str = "Our member NPS", **extra) -> dict
 def test_save_a_survey_as_a_template_and_use_it(client):
     survey = client.post(f"/api/v1/templates/{MEMBER_NPS}/surveys").json()
     url = f"/api/v1/surveys/{survey['id']}"
-    client.patch(url, json={"thank_you": "Thanks, team!"})
+    colours = {"accent_color": "#7A2E6E", "background_color": "#FAF6EE"}
+    client.patch(url, json={"thank_you": "Thanks, team!", **colours})
     reasons = client.get(f"{url}/questions").json()[1]
     client.patch(f"{url}/questions/{reasons['id']}", json={"options": ["Price", "Events"]})
 
@@ -237,6 +240,7 @@ def test_save_a_survey_as_a_template_and_use_it(client):
         assert template["description"] == "For the yearly check"
         assert (template["type"], template["thank_you"]) == ("nps", "Thanks, team!")
         assert (template["own"], template["featured"]) == (True, False)
+        assert (template["accent_color"], template["background_color"]) == ("#7A2E6E", "#FAF6EE")
         assert [(q["kind"], q["options"]) for q in template["questions"]] == [
             ("nps", []),
             ("reasons", ["Price", "Events"]),
@@ -253,6 +257,8 @@ def test_save_a_survey_as_a_template_and_use_it(client):
 
         copy = client.post(f"/api/v1/templates/{template['id']}/surveys").json()
         assert (copy["title"], copy["thank_you"]) == ("Our member NPS", "Thanks, team!")
+        # The branding colours carry over to surveys made from the template.
+        assert (copy["accent_color"], copy["background_color"]) == ("#7A2E6E", "#FAF6EE")
         questions = client.get(f"/api/v1/surveys/{copy['id']}/questions").json()
         assert [q["options"] for q in questions] == [[], ["Price", "Events"]]
     finally:

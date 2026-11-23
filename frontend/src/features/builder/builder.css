@@ -138,3 +138,11 @@
 /* Survey and thank-you pages read from the left; only the email block is centred. */
 .preview-page { align-items: flex-start; text-align: left; }
 .preview-page .preview-chips, .preview-page .preview-thumbs { justify-content: flex-start; }
+/* Survey link page: the description's line breaks, and its questions split into pages. */
+.preview-description { white-space: pre-line; overflow-wrap: anywhere; }
+.preview-description a { color: var(--preview-accent, var(--color-text)); }
+.preview-step { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; width: 100%; }
+.preview-step + .preview-step { padding-top: 12px; border-top: 1px dashed var(--color-border-strong); }
+.preview-step-question { width: 100%; }
+.preview-step-actions { display: flex; width: 100%; justify-content: flex-end; gap: 8px; }
+.preview-previous { margin-right: auto; padding: 8px 14px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill); background: var(--color-surface); font-weight: 600; }

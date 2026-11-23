@@ -17,6 +17,8 @@ function survey(overrides: Partial<SurveyListItem>): SurveyListItem {
     closes_at: null,
     answers: 0,
     last_answer_at: null,
+    created_at: '2026-11-01T09:00:00Z',
+    updated_at: '2026-11-01T09:00:00Z',
     headline: null,
     comment_field: true,
     show_results: true,
