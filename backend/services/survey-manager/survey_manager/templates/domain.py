@@ -4,6 +4,7 @@ from typing import Any
 
 from ..questions.domain import check_options
 from ..questions.schemas import QuestionKind
+from ..surveys.branding import DEFAULT_ACCENT, DEFAULT_BACKGROUND
 
 ORGANISATION = "{organisation}"
 
@@ -48,6 +49,16 @@ def survey_questions(template: dict[str, Any], organisation: str) -> list[dict[s
     for question in questions:
         question["options"] = check_options(QuestionKind(question["kind"]), question["options"])
     return questions
+
+
+def survey_colours(template: dict[str, Any]) -> tuple[str, str]:
+    """The accent and background colours of a survey made from a template. Own
+    templates keep the colours of the survey they were saved from; built-in ones
+    have none, so their surveys get the defaults."""
+    return (
+        template.get("accent_color") or DEFAULT_ACCENT,
+        template.get("background_color") or DEFAULT_BACKGROUND,
+    )
 
 
 def check_own(template: dict[str, Any]) -> None:

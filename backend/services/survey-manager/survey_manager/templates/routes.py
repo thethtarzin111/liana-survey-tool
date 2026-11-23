@@ -40,8 +40,8 @@ def save_as_template(
     user: CurrentUser = Depends(current_user),
     db: TenantDB = Depends(tenant_db),
 ) -> dict:
-    """Save a survey as the organisation's own template: its type, questions and
-    thank-you message, under a new name and description."""
+    """Save a survey as the organisation's own template: its type, questions,
+    thank-you message and branding colours, under a new name and description."""
     with db() as conn:
         survey = survey_repo.get(conn, data.survey_id)
         if survey is None:
@@ -100,10 +100,12 @@ def create_survey_from_template(
     user: CurrentUser = Depends(current_user),
     db: TenantDB = Depends(tenant_db),
 ) -> dict:
-    """Create a draft survey from a template: its name, type, thank-you message and questions."""
+    """Create a draft survey from a template: its name, type, thank-you message, questions
+    and, for the organisation's own templates, branding colours."""
     with db() as conn:
         template = repo.get(conn, template_id)
         if template is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
         questions = domain.survey_questions(template, user.tenant_name)
-        return repo.create_survey(conn, user.tenant_id, user.user_id, template, questions)
+        colours = domain.survey_colours(template)
+        return repo.create_survey(conn, user.tenant_id, user.user_id, template, questions, colours)

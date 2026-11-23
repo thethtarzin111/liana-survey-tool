@@ -407,8 +407,8 @@ paths:
       tags: [templates]
       summary: Save a survey as the organisation's own template
       description: >-
-        The template gets the survey's type, thank-you message and questions, with the name
-        and description sent here. Only the organisation sees it.
+        The template gets the survey's type, thank-you message, questions and branding colours,
+        with the name and description sent here. Only the organisation sees it.
       requestBody:
         required: true
         content:
@@ -458,7 +458,9 @@ paths:
     post:
       tags: [templates]
       summary: Create a draft survey from a template
-      description: The survey gets the template's name as its title, its type, thank-you message and questions.
+      description: >-
+        The survey gets the template's name as its title, its type, thank-you message and
+        questions. Own templates also give it their branding colours.
       responses:
         '201':
           description: The new draft
@@ -1023,6 +1025,16 @@ components:
             The first is the main question. Thumbs, NPS and CSAT templates follow it with
             optional reason bubbles.
           items: { $ref: '#/components/schemas/TemplateQuestion' }
+        accent_color:
+          type: [string, 'null']
+          pattern: '^#[0-9A-F]{6}$'
+          description: >-
+            Accent colour of the survey an own template was saved from; surveys made from
+            the template start with it. Null for built-in templates (the survey default is used).
+        background_color:
+          type: [string, 'null']
+          pattern: '^#[0-9A-F]{6}$'
+          description: Page background, as accent_color.
     TemplateCreate:
       type: object
       additionalProperties: false
