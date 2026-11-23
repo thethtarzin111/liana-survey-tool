@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { ApiError, api, type Question, type QuestionInput, type QuestionKind, type ReaderOptions, type Survey, type SurveyType } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { PublishActions, PublishDialog } from '../publish/PublishDialog';
+import { SaveAsTemplateButton } from '../templates/SaveAsTemplateButton';
 import { Button, ButtonLink, Card, Checkbox, InfoTip, Select, TextArea, TextField, useToast } from '../../components/ui';
 import { AnswerTypeControls } from './AnswerTypeControls';
 import { BrandingFields } from './BrandingFields';
@@ -263,6 +264,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
         actions={
           <div className="survey-builder-actions">
             <ButtonLink to="/surveys/new" variant="ghost">Cancel</ButtonLink>
+            <SaveAsTemplateButton surveyId={survey.id} title={name.trim() || survey.title} beforeSave={() => saveChanges(true)} />
             <Button type="submit" form={formId} loading={saving}>{texts.button}</Button>
             <PublishActions survey={survey} onPublish={() => setPublishing(true)} />
           </div>
