@@ -38,7 +38,7 @@ _STYLES = """
   * { box-sizing: border-box; }
   :root { --font: Inter, Helvetica, Arial, sans-serif; }
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-         background: var(--background); color: #353A40; font: 16px/1.5 var(--font); }
+         background: #FFFFFF; color: #353A40; font: 16px/1.5 var(--font); }
   main { width: 100%; max-width: 480px; margin: 24px; padding: 32px 28px; border-radius: 14px;
          background: var(--background); border-top: 6px solid var(--accent);
          box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); }

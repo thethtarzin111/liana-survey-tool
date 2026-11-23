@@ -8,6 +8,7 @@ import { BrandingFields } from './BrandingFields';
 import { FORMAT_HINT } from './FormattedText';
 import { TemplatePreview } from './SurveyPreview';
 import { ANSWER_TYPES, changesForType, newOptionText } from './answerTypes';
+import { saveTexts } from './saveTexts';
 import { useSavedQuestions } from './useSavedQuestions';
 import './builder.css';
 
@@ -38,7 +39,6 @@ const readerOptionsOf = (s: Survey): ReaderOptions =>
   ({ comment_field: s.comment_field, show_results: s.show_results, contact_opt_in: s.contact_opt_in });
 /** What "+ Add question" adds to the extra questions, as in the prototype. */
 const NEW_EXTRA: QuestionInput = { kind: 'single_choice', prompt: '', options: ['Option 1', 'Option 2'], required: false };
-const DRAFT_SAVE_ERROR = 'We couldn’t save your draft. Please try again.';
 
 type FieldErrors = { title?: string; reader_title?: string; description?: string; thank_you?: string };
 
@@ -159,6 +159,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
   const mounted = useRef(true);
   const reasonsLabel = useId();
   const formId = useId();
+  const texts = saveTexts(survey.status);
 
   useEffect(() => {
     mounted.current = true;
@@ -225,7 +226,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
       if (options[key] !== survey[key]) changes[key] = options[key];
     }
     if (!Object.keys(changes).length) {
-      if (!quiet) toast('Saved as draft');
+      if (!quiet) toast(texts.done);
       return true;
     }
     savingRef.current = true;
@@ -241,13 +242,13 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
       setAccent(saved.accent_color);
       setBackground(saved.background_color);
       onSaved(saved);
-      if (!quiet) toast('Saved as draft');
+      if (!quiet) toast(texts.done);
       return true;
     } catch (error) {
       if (!mounted.current) return false;
       const fromApi = apiErrors(error);
       setErrors(fromApi);
-      if (!Object.keys(fromApi).length) setSaveError(DRAFT_SAVE_ERROR);
+      if (!Object.keys(fromApi).length) setSaveError(texts.failed);
       return false;
     } finally {
       savingRef.current = false;
@@ -262,7 +263,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
         actions={
           <div className="survey-builder-actions">
             <ButtonLink to="/surveys/new" variant="ghost">Cancel</ButtonLink>
-            <Button type="submit" form={formId} loading={saving}>Save as draft</Button>
+            <Button type="submit" form={formId} loading={saving}>{texts.button}</Button>
             <PublishActions survey={survey} onPublish={() => setPublishing(true)} />
           </div>
         }

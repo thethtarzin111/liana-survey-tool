@@ -663,9 +663,10 @@ def test_the_link_page_has_previous_and_next_for_browsers_with_javascript():
     assert 'role="alert" hidden>Vastaa jokaiseen kysymykseen' in page_html
 
 
-def test_the_link_page_card_uses_the_survey_background():
+def test_the_link_page_card_uses_the_survey_background_on_a_white_page():
     page_html = survey_form(survey(background_color="#FAF6EE"), THUMBS, key="k", channel="link")
     assert "--background: #FAF6EE" in page_html
+    assert "background: #FFFFFF; color: #353A40;" in page_html
     assert "background: var(--background); border-top: 6px solid var(--accent);" in page_html
 
 
