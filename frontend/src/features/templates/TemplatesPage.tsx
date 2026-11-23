@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, type Template } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { ActionMenu, Badge, Button, Card, ConfirmDialog, icons, useToast } from '../../components/ui';
+import { CreateTemplateDialog } from './CreateTemplateDialog';
 import { TemplateDetailsDialog } from './TemplateDetailsDialog';
 import { TYPE_LABEL, YOURS, sentence, templateParts, useStartFromTemplate } from './templates';
 import './templates.css';
@@ -17,6 +18,7 @@ export function TemplatesPage() {
     () => renaming && { name: renaming.name, description: renaming.description },
     [renaming],
   );
+  const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Template | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
   const mounted = useRef(true);
@@ -64,7 +66,11 @@ export function TemplatesPage() {
 
   return (
     <>
-      <PageHeader title="Templates" description="Ready-made surveys with tested wording. You can edit everything after you pick one." />
+      <PageHeader
+        title="Templates"
+        description="Ready-made surveys with tested wording. You can edit everything after you pick one."
+        actions={<Button variant="primary" icon={icons.plus} onClick={() => setCreating(true)}>Create template</Button>}
+      />
       {error ? <p className="templates-error" role="alert">{error}</p> : null}
       {loadError ? (
         <div className="templates-error" role="alert">
@@ -108,6 +114,14 @@ export function TemplatesPage() {
           ))}
         </ul>
       )}
+      <CreateTemplateDialog
+        open={creating}
+        onCreated={(saved) => {
+          toast(`“${saved.name}” is saved in Templates.`);
+          setAttempt((n) => n + 1);
+        }}
+        onClose={() => setCreating(false)}
+      />
       <TemplateDetailsDialog
         initial={renameDetails}
         title="Rename template"

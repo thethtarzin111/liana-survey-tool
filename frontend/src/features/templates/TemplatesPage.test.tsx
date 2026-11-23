@@ -28,12 +28,25 @@ const ALL = [
   template('t7', 'nps', 'Employee NPS (eNPS)', false),
   template('own1', 'nps', 'Our board NPS', false, { own: true, description: '' }),
 ];
+const SURVEYS = [
+  { id: 's1', title: 'Spring newsletter', type: 'thumbs' },
+  { id: 's2', title: 'Member NPS 2026', type: 'nps' },
+  { id: 'empty', title: 'Empty draft', type: 'csat' },
+];
+let surveys: typeof SURVEYS;
 const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
+  surveys = SURVEYS;
   fetchMock.mockReset().mockImplementation(async (input, init) => {
     const url = new URL(String(input), 'http://localhost');
+    if (init?.method === 'POST' && url.pathname === '/api/v1/templates') {
+      const body = JSON.parse(String(init.body));
+      if (body.survey_id === 'empty') return Response.json({ detail: 'Add a question before you save the survey as a template.' }, { status: 409 });
+      return Response.json(template('own2', 'thumbs', body.name, false, { own: true, description: body.description }), { status: 201 });
+    }
     if (init?.method === 'POST') return Response.json({ id: 'new-survey' }, { status: 201 });
+    if (url.pathname === '/api/v1/surveys') return Response.json(surveys);
     if (init?.method === 'DELETE') return new Response(null, { status: 204 });
     if (init?.method === 'PATCH') {
       const id = url.pathname.split('/').at(-1);
@@ -236,3 +249,53 @@ test('descriptions end with exactly one full stop', () => {
   expect(sentence('Really?')).toBe('Really?');
 });
 
+
+// --- Create template ------------------------------------------------------------
+
+test('Create template saves one of the organisation’s surveys as a template', async () => {
+  renderAt('/templates');
+  fireEvent.click(await screen.findByRole('button', { name: 'Create template' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Create template' });
+  const survey = await within(dialog).findByRole('combobox', { name: 'Survey' });
+  const name = within(dialog).getByRole('textbox', { name: /Template name/ });
+  expect(within(survey).getAllByRole('option').map((o) => o.textContent)).toEqual([
+    'Spring newsletter (Thumbs rating)', 'Member NPS 2026 (NPS survey)', 'Empty draft (CSAT survey)',
+  ]);
+  expect(name).toHaveValue('Spring newsletter');
+
+  // The name follows the chosen survey until the user types their own.
+  fireEvent.change(survey, { target: { value: 's2' } });
+  expect(name).toHaveValue('Member NPS 2026');
+  fireEvent.change(name, { target: { value: 'Yearly NPS' } });
+  fireEvent.change(survey, { target: { value: 's1' } });
+  expect(name).toHaveValue('Yearly NPS');
+
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Description/ }), { target: { value: ' For spring ' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save template' }));
+  expect(await screen.findByText('“Yearly NPS” is saved in Templates.')).toBeInTheDocument();
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  const post = fetchMock.mock.calls.find(([input, init]) => String(input) === '/api/v1/templates' && init?.method === 'POST');
+  expect(JSON.parse(String(post?.[1]?.body))).toEqual({ survey_id: 's1', name: 'Yearly NPS', description: 'For spring' });
+  // The list is loaded again, so the new template appears.
+  const listLoads = () => fetchMock.mock.calls.filter(([input, init]) => String(input) === '/api/v1/templates' && !init?.method).length;
+  await waitFor(() => expect(listLoads()).toBe(2));
+});
+
+test('Create template shows why a survey cannot be saved', async () => {
+  renderAt('/templates');
+  fireEvent.click(await screen.findByRole('button', { name: 'Create template' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Create template' });
+  fireEvent.change(await within(dialog).findByRole('combobox', { name: 'Survey' }), { target: { value: 'empty' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save template' }));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Add a question before you save the survey as a template.');
+});
+
+test('Create template without any surveys sends the user to Create survey', async () => {
+  surveys = [];
+  renderAt('/templates');
+  fireEvent.click(await screen.findByRole('button', { name: 'Create template' }));
+  const dialog = screen.getByRole('alertdialog', { name: 'Create template' });
+  expect(await within(dialog).findByText(/Create a survey first, then save it as a template/)).toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Create survey' }));
+  expect(screen.getByLabelText('Current location')).toHaveTextContent('/surveys/new');
+});

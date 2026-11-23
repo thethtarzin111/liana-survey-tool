@@ -5,7 +5,7 @@ import './templates.css';
 
 /** Longest template name, as for survey titles in the API. */
 export const NAME_MAX = 80;
-const DESCRIPTION_MAX = 1000;
+export const DESCRIPTION_MAX = 1000;
 
 type TemplateDetailsDialogProps = {
   /** Shows the dialog with these values; null closes it. */

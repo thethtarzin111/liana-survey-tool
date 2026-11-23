@@ -177,3 +177,20 @@ test('the title field stops at 80 characters, like the API', async () => {
   expect(title).toHaveAttribute('maxLength', '80');
   expect(screen.getByText('Up to 80 characters.')).toBeInTheDocument();
 });
+
+test('custom surveys can be saved as a template from the builder', async () => {
+  fetchMock.mockImplementation(async (input, init) =>
+    String(input) === '/api/v1/templates'
+      ? Response.json({ id: 'tpl1', type: 'custom', featured: false, own: true, thank_you: '', questions: [], description: '', name: JSON.parse(String(init?.body)).name }, { status: 201 })
+      : Response.json(saved));
+  renderPage();
+  await screen.findByLabelText(/^Survey title/);
+  fireEvent.click(screen.getByRole('button', { name: 'Save as template' }));
+  const dialog = await screen.findByRole('alertdialog', { name: 'Save “Member survey” as a template' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save template' }));
+  expect(await screen.findByText('“Member survey” is saved in Templates.')).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenLastCalledWith('/api/v1/templates', expect.objectContaining({
+    method: 'POST',
+    body: JSON.stringify({ survey_id: 'survey-1', name: 'Member survey', description: '' }),
+  }));
+});

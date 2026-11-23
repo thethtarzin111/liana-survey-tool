@@ -6,6 +6,7 @@ import { Button, ButtonLink, Card, Disclosure, TextArea, TextField, useToast } f
 import { BrandingFields } from './BrandingFields';
 import { EditPreviewPage } from './EditPreviewPage';
 import { PublishActions, PublishDialog } from '../publish/PublishDialog';
+import { SaveAsTemplateButton } from '../templates/SaveAsTemplateButton';
 import { QuestionList } from './QuestionList';
 import { CustomPreview } from './SurveyPreview';
 import './builder.css';
@@ -146,6 +147,7 @@ export function BuilderPage() {
         actions={survey ? (
           <div className="survey-builder-actions">
             <ButtonLink to="/surveys/new" variant="ghost">Cancel</ButtonLink>
+            <SaveAsTemplateButton surveyId={survey.id} title={title.trim() || survey.title} beforeSave={() => saveChanges(true)} />
             <Button type="submit" form="survey-details-form" loading={isSaving}>Save as draft</Button>
             <PublishActions survey={survey} onPublish={() => setPublishing(true)} />
           </div>
