@@ -4,6 +4,7 @@ import { ApiError, api, type Question, type Survey } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, Disclosure, TextArea, TextField, useToast } from '../../components/ui';
 import { BrandingFields } from './BrandingFields';
+import { FORMAT_HINT } from './FormattedText';
 import { EditPreviewPage } from './EditPreviewPage';
 import { PublishActions, PublishDialog } from '../publish/PublishDialog';
 import { QuestionList } from './QuestionList';
@@ -187,6 +188,7 @@ export function BuilderPage() {
             />
             <TextArea
               label="Description (optional)"
+              hint={FORMAT_HINT}
               rows={2}
               value={description}
               error={fieldErrors.description}

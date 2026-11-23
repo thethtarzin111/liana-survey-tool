@@ -2,12 +2,16 @@ import { useState, type CSSProperties, type ReactNode } from 'react';
 import type { Question, ReaderOptions, SurveyType } from '../../api/client';
 import { SegmentedControl } from '../../components/ui';
 import { TEXT_HINTS } from './answerTypes';
+import { FormattedText } from './FormattedText';
 
 // Texts follow the prototype's "Preview" panels on Edit and preview and Build your survey.
 const CSAT_WORDS = ['Very dissatisfied', 'Dissatisfied', 'Neutral', 'Satisfied', 'Very satisfied'];
 const NPS = Array.from({ length: 11 }, (_, n) => n);
 /** Shown for reasons saved without a heading, as on the survey link page. */
 const REASONS_HEADING = { thumbs: 'What went wrong?', nps: 'What is the main reason for your score?', csat: 'What could we improve?' };
+
+/** Questions per page on the survey link page (QUESTIONS_PER_PAGE in respondent pages.py). */
+export const QUESTIONS_PER_PAGE = 3;
 
 type Brand = { accent: string; background: string; logoUrl: string | null };
 
@@ -91,6 +95,35 @@ function ThumbsButtons() {
   );
 }
 
+/** The questions split into pages as on the survey link page, with Next or Submit under each. */
+function PagedQuestions({ questions, end }: { questions: { key: string; node: ReactNode }[]; end?: ReactNode }) {
+  const pages: (typeof questions)[] = [];
+  for (let i = 0; i < questions.length; i += QUESTIONS_PER_PAGE) pages.push(questions.slice(i, i + QUESTIONS_PER_PAGE));
+  if (pages.length === 0) pages.push([]);
+  return (
+    <>
+      {pages.map((page, i) => {
+        const last = i === pages.length - 1;
+        return (
+          <div key={page[0]?.key ?? 'empty'} className="preview-step">
+            {pages.length > 1 ? <span className="preview-hint preview-step-label">Page {i + 1} of {pages.length}</span> : null}
+            {page.map((q) => <div key={q.key} className="preview-step-question">{q.node}</div>)}
+            {last ? end : null}
+            <div className="preview-step-actions">
+              {i > 0 ? <span className="preview-previous">Previous</span> : null}
+              <span className="preview-submit">{last ? 'Submit' : 'Next'}</span>
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function Description({ text }: { text: string }) {
+  return <span className="preview-description"><FormattedText text={text} /></span>;
+}
+
 function Panel({ tabs, children }: { tabs?: ReactNode; children: ReactNode }) {
   return (
     <section className="preview-panel card" aria-label="Preview">
@@ -141,29 +174,42 @@ export function TemplatePreview({ type, question, reasons, extras, thanks, optio
         {readerTitle.trim() || description.trim() ? (
           <div className="preview-title">
             {readerTitle.trim() ? <strong>{readerTitle.trim()}</strong> : null}
-            {description.trim() ? <span>{description.trim()}</span> : null}
+            {description.trim() ? <Description text={description.trim()} /> : null}
           </div>
         ) : null}
-        <div className="preview-question">
-          <strong>{shown}</strong>
-          {type === 'thumbs' ? <ThumbsButtons /> : null}
-          {type === 'nps' ? (
-            <>
-              <Scale numbers={NPS} />
-              <div className="preview-ends"><span>0 Not at all likely</span><span>10 Extremely likely</span></div>
-            </>
-          ) : null}
-          {type === 'csat' ? <Scale numbers={[1, 2, 3, 4, 5]} words={CSAT_WORDS} /> : null}
-        </div>
-        {reasons.length ? (
-          <div className="preview-question">
-            <strong>{reasonsPrompt.trim() || REASONS_HEADING[type]}</strong>
-            {type === 'thumbs' ? <span className="preview-hint">Only after “Not for me”</span> : null}
-            <ul className="preview-chips">{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-          </div>
-        ) : null}
-        {extraQuestions}
-        <span className="preview-submit">Submit</span>
+        <PagedQuestions
+          questions={[
+            {
+              key: 'main',
+              node: (
+                <div className="preview-question">
+                  <strong>{shown}</strong>
+                  {type === 'thumbs' ? <ThumbsButtons /> : null}
+                  {type === 'nps' ? (
+                    <>
+                      <Scale numbers={NPS} />
+                      <div className="preview-ends"><span>0 Not at all likely</span><span>10 Extremely likely</span></div>
+                    </>
+                  ) : null}
+                  {type === 'csat' ? <Scale numbers={[1, 2, 3, 4, 5]} words={CSAT_WORDS} /> : null}
+                </div>
+              ),
+            },
+            ...(reasons.length
+              ? [{
+                  key: 'reasons',
+                  node: (
+                    <div className="preview-question">
+                      <strong>{reasonsPrompt.trim() || REASONS_HEADING[type]}</strong>
+                      {type === 'thumbs' ? <span className="preview-hint">Only after “Not for me”</span> : null}
+                      <ul className="preview-chips">{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                    </div>
+                  ),
+                }]
+              : []),
+            ...extras.map((q) => ({ key: q.id, node: <PreviewQuestion question={q} /> })),
+          ]}
+        />
       </div>
     );
   } else if (current === 'email') {
@@ -252,11 +298,12 @@ export function CustomPreview({ title, description, questions, contactOptIn, ...
           {brand.logoUrl ? <Logo logoUrl={brand.logoUrl} /> : null}
           <div className="preview-title">
             <strong>{title.trim() || 'Untitled survey'}</strong>
-            {description.trim() ? <span>{description.trim()}</span> : null}
+            {description.trim() ? <Description text={description.trim()} /> : null}
           </div>
-          {questions.map((q) => <PreviewQuestion key={q.id} question={q} />)}
-          {contactOptIn ? <span className="preview-contact"><span className="preview-mark preview-mark-multiple_choice" aria-hidden="true" />Contact me about this by email</span> : null}
-          <span className="preview-submit">Submit</span>
+          <PagedQuestions
+            questions={questions.map((q) => ({ key: q.id, node: <PreviewQuestion question={q} /> }))}
+            end={contactOptIn ? <span className="preview-contact"><span className="preview-mark preview-mark-multiple_choice" aria-hidden="true" />Contact me about this by email</span> : null}
+          />
         </div>
       </div>
     </Panel>

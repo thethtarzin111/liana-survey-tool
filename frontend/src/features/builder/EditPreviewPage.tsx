@@ -5,6 +5,7 @@ import { PublishActions, PublishDialog } from '../publish/PublishDialog';
 import { Button, ButtonLink, Card, Checkbox, InfoTip, Select, TextArea, TextField, useToast } from '../../components/ui';
 import { AnswerTypeControls } from './AnswerTypeControls';
 import { BrandingFields } from './BrandingFields';
+import { FORMAT_HINT } from './FormattedText';
 import { TemplatePreview } from './SurveyPreview';
 import { ANSWER_TYPES, changesForType, newOptionText } from './answerTypes';
 import { useSavedQuestions } from './useSavedQuestions';
@@ -293,7 +294,7 @@ export function EditPreviewPage({ survey, onSaved }: { survey: Survey; onSaved: 
             />
             <TextArea
               label="Description (optional)"
-              hint="A line or two under the title on the survey link page."
+              hint={`A line or two under the title on the survey link page. ${FORMAT_HINT}`}
               rows={2}
               maxLength={1000}
               value={description}
