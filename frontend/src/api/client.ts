@@ -252,6 +252,9 @@ export type SurveyListItem = Survey & {
   answers: number;
   /** When the newest response arrived; null before the first. */
   last_answer_at: string | null;
+  created_at: string;
+  /** Last change to the survey's settings or texts. */
+  updated_at: string;
   /** "Headline score", e.g. { score: 'NPS +42', note: 'scale −100 to +100' }; null before answers. */
   headline: { score: string; note: string } | null;
 };
@@ -378,6 +381,9 @@ export type Template = {
   own: boolean;
   /** The first is the main question; thumbs, NPS and CSAT templates follow it with reason bubbles. */
   questions: Pick<Question, 'kind' | 'prompt' | 'options' | 'required'>[];
+  /** Own templates: the branding colours of the survey they were saved from. */
+  accent_color?: string | null;
+  background_color?: string | null;
 };
 
 /** The name and description a user gives their own template. */

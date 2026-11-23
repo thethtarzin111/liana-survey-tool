@@ -19,6 +19,11 @@ def lock_survey(conn: psycopg.Connection, survey_id: UUID) -> bool:
     )
 
 
+def touch_survey(conn: psycopg.Connection, survey_id: UUID) -> None:
+    """A question change is a change to its survey: the Surveys list shows it as Modified."""
+    conn.execute("update surveys set updated_at = now() where id = %s", (survey_id,))
+
+
 def list_all(conn: psycopg.Connection, survey_id: UUID) -> list[dict[str, Any]]:
     return conn.execute(
         f"select {COLUMNS} from questions where survey_id = %s order by position",
