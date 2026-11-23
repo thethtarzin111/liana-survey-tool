@@ -7,8 +7,8 @@ info:
     pull request as any endpoint change. FastAPI also serves its generated
     version at /openapi.json; this file is the reviewed, hand-kept contract.
     All calls go through the API gateway (backend/scripts/local_gateway.py), which routes them:
-    /api/v1/me is answered by the gateway itself (dev auth), /api/v1/surveys
-    and /api/v1/templates by survey-manager, /api/v1/results by data-analyzer,
+    /api/v1/me is answered by the gateway itself (dev auth), /api/v1/surveys,
+    /api/v1/templates and /api/v1/contact-requests by survey-manager, /api/v1/results by data-analyzer,
     and /r/<token> by the respondent service. The service of each path is in
     its tag. /health and /health/ready also exist on every service.
 servers:
@@ -466,6 +466,43 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such template for this organisation }
+  /api/v1/contact-requests:
+    get:
+      tags: [contact requests]
+      summary: Readers who ticked "Contact me", newest first
+      description: >-
+        The reader is shown by their LianaMailer contact reference, never an e-mail
+        address. `counts` covers every status of the chosen survey (or of all surveys),
+        so the filter chips keep their numbers while one status is picked.
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ContactRequestStatus' } }
+        - { name: survey_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Contact requests and the number per status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactRequestList' }
+        '422': { description: Unknown status or invalid survey id }
+  /api/v1/contact-requests/{request_id}:
+    parameters:
+      - { name: request_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [contact requests]
+      summary: Set the status as the team replies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactRequestUpdate' }
+      responses:
+        '200':
+          description: Updated contact request
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactRequest' }
+        '404': { description: No such contact request for this organisation }
+        '422': { description: Unknown status }
   /api/v1/results/performance:
     get:
       tags: [results]
@@ -1037,3 +1074,45 @@ components:
       properties:
         name: { type: string, minLength: 1, maxLength: 80, description: Trimmed }
         description: { type: string, maxLength: 1000, description: Trimmed; an empty string clears it }
+    ContactRequestStatus:
+      type: string
+      enum: [new, contacted, done]
+      description: The survey team's follow-up
+    ContactRequest:
+      type: object
+      required: [id, survey_id, survey_title, contact_ref, answer, reason, segment, status, liana_status, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        survey_id: { type: string, format: uuid }
+        survey_title: { type: string }
+        contact_ref: { type: string, description: The reader's LianaMailer contact reference, example: member-1042 }
+        answer: { type: [integer, 'null'], description: 'Main question value (NPS 0-10, CSAT 1-5, thumbs 0/1); null for custom surveys' }
+        reason: { type: [string, 'null'], description: 'Reasons the reader picked, joined with "; "', example: Price; Service }
+        segment: { type: string, example: members }
+        status: { $ref: '#/components/schemas/ContactRequestStatus' }
+        liana_status:
+          type: string
+          enum: [pending, sent, failed]
+          description: Whether the request reached LianaAutomation (docs/integrations.md)
+        created_at: { type: string, format: date-time }
+    ContactRequestList:
+      type: object
+      required: [items, counts]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ContactRequest' }
+        counts:
+          type: object
+          required: [all, new, contacted, done]
+          properties:
+            all: { type: integer }
+            new: { type: integer }
+            contacted: { type: integer }
+            done: { type: integer }
+    ContactRequestUpdate:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: { $ref: '#/components/schemas/ContactRequestStatus' }

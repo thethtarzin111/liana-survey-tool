@@ -116,6 +116,7 @@ async def app(scope, receive, send):
     for prefix, service in (
         ("/api/v1/surveys", surveys),
         ("/api/v1/templates", surveys),
+        ("/api/v1/contact-requests", surveys),
         ("/api/v1/results", analyzer),
         ("/r", respondent),
     ):

@@ -30,6 +30,7 @@ def test_routing_preserves_request_and_replaces_identity(monkeypatch):
         admin = client.patch("/api/v1/surveys/123?test=1", headers={"X-User-Id": "fake"})
         public = client.get("/r/token", headers={"X-User-Id": "fake"})
         missing = client.get("/api/v1/surveys-other")
+        contacts = client.get("/api/v1/contact-requests?status=new")
     assert admin.json() == {
         "path": "/api/v1/surveys/123",
         "method": "PATCH",
@@ -38,6 +39,7 @@ def test_routing_preserves_request_and_replaces_identity(monkeypatch):
     }
     assert public.json()["user"] == ""
     assert missing.status_code == 404
+    assert contacts.json()["path"] == "/api/v1/contact-requests"
 
 
 def test_gateway_rejects_non_dev_auth(monkeypatch):

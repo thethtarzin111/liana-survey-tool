@@ -73,7 +73,7 @@ second database. Each service only touches its own tables:
 
 | Service | Writes | Reads |
 |---|---|---|
-| survey-manager | `surveys`, `questions`, `templates` | the same |
+| survey-manager | `surveys`, `questions`, `templates`, `contact_requests.status` | the same, plus `contact_requests`, `responses` and `answers` for the Contact requests page |
 | respondent | nothing (answers go to the queue) | `surveys`, `questions` (to show the survey) |
 | worker | `responses`, `answers`, `contact_requests`, `survey_aggregates`, `response_notifications` | `questions`, `surveys`, `users` (owner of a survey, for "new responses" emails) |
 | data-analyzer | nothing | `survey_aggregates`, `answers`, `contact_requests` |
@@ -89,7 +89,7 @@ database role that may only touch its own tables.
 to loopback on port 8000. Production ingress and authentication are not supplied
 by the development launcher.
 
-- **Routing:** `/api/v1/surveys`, `/api/v1/templates` → survey-manager;
+- **Routing:** `/api/v1/surveys`, `/api/v1/templates`, `/api/v1/contact-requests` → survey-manager;
   `/api/v1/results` → data-analyzer; `/r/<token>` → respondent.
 - **Authentication:** for admin routes the gateway sets who the user is
   (`X-Tenant-Id`, `X-User-Id`, name, email) and always overwrites whatever the
