@@ -12,7 +12,8 @@ from ..surveys.schemas import SurveyStatus, SurveyType
 from .schemas import TemplateUpdate
 
 COLUMNS = (
-    "id, name, type, description, thank_you, featured, tenant_id is not null as own, questions"
+    "id, name, type, description, thank_you, featured, tenant_id is not null as own, questions,"
+    " accent_color, background_color"
 )
 # Built-in templates in their set order, then the organisation's own by name.
 ORDER = "order by tenant_id is not null, sort_order, name"
@@ -39,10 +40,13 @@ def create(
     survey: dict[str, Any],
     questions: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Save a survey's type, thank-you message and questions as the organisation's template."""
+    """Save a survey's type, thank-you message, branding colours and questions as the
+    organisation's template."""
     row = conn.execute(
-        f"""insert into templates (tenant_id, name, type, description, thank_you, questions)
-            values (%s, %s, %s, %s, %s, %s)
+        f"""insert into templates
+              (tenant_id, name, type, description, thank_you, questions,
+               accent_color, background_color)
+            values (%s, %s, %s, %s, %s, %s, %s, %s)
             returning {COLUMNS}""",
         (
             tenant_id,
@@ -51,6 +55,8 @@ def create(
             description,
             survey["thank_you"] or "",
             Jsonb(questions),
+            survey["accent_color"],
+            survey["background_color"],
         ),
     ).fetchone()
     assert row is not None
@@ -88,11 +94,15 @@ def create_survey(
     user_id: UUID,
     template: dict[str, Any],
     questions: list[dict[str, Any]],
+    colours: tuple[str, str],
 ) -> dict[str, Any]:
-    """Create a draft survey with the template's name, type, thank-you message and questions."""
+    """Create a draft survey with the template's name, type, thank-you message and
+    questions, and the given accent and background colours."""
     survey = conn.execute(
-        f"""insert into surveys (tenant_id, title, thank_you, type, status, created_by)
-            values (%s, %s, %s, %s, %s, %s)
+        f"""insert into surveys
+              (tenant_id, title, thank_you, type, status, created_by,
+               accent_color, background_color)
+            values (%s, %s, %s, %s, %s, %s, %s, %s)
             returning {SURVEY_COLUMNS}""",
         (
             tenant_id,
@@ -101,6 +111,7 @@ def create_survey(
             template["type"],
             SurveyStatus.draft.value,
             user_id,
+            *colours,
         ),
     ).fetchone()
     assert survey is not None

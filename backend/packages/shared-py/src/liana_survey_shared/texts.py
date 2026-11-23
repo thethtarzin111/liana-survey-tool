@@ -201,9 +201,9 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.sv: "Föregående",
     },
     "step": {
-        Language.en: "Question {n} of {total}",
-        Language.fi: "Kysymys {n}/{total}",
-        Language.sv: "Fråga {n} av {total}",
+        Language.en: "Page {n} of {total}",
+        Language.fi: "Sivu {n}/{total}",
+        Language.sv: "Sida {n} av {total}",
     },
     "answer_this": {
         Language.en: "Please answer this question.",

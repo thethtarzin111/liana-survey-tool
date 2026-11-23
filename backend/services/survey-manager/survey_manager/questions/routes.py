@@ -39,6 +39,7 @@ def add_question(
         require_survey(conn, survey_id)
         row = repo.create(conn, user.tenant_id, survey_id, data)
         assert row is not None
+        repo.touch_survey(conn, survey_id)
         return row
 
 
@@ -53,6 +54,7 @@ def reorder_questions(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 "question_ids must contain every question in this survey exactly once",
             )
+        repo.touch_survey(conn, survey_id)
         return repo.list_all(conn, survey_id)
 
 
@@ -79,6 +81,7 @@ def edit_question(
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
         row = repo.update(conn, survey_id, question_id, data)
         assert row is not None
+        repo.touch_survey(conn, survey_id)
         return row
 
 
@@ -90,6 +93,7 @@ def delete_question(
         require_survey(conn, survey_id)
         if not repo.delete(conn, survey_id, question_id):
             raise HTTPException(status.HTTP_404_NOT_FOUND, QUESTION_NOT_FOUND)
+        repo.touch_survey(conn, survey_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -107,4 +111,5 @@ def duplicate_question(
         row = repo.duplicate(conn, user.tenant_id, survey_id, question_id)
         if row is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, QUESTION_NOT_FOUND)
+        repo.touch_survey(conn, survey_id)
         return row

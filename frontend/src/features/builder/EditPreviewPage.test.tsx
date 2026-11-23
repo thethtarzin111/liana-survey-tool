@@ -423,3 +423,14 @@ test('Save as template shows why a survey without questions cannot be saved', as
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save template' }));
   expect(await within(dialog).findByRole('alert')).toHaveTextContent('Add a question before you save the survey as a template.');
 });
+
+test('a published survey is saved with Save changes and stays live', async () => {
+  survey = { ...survey, status: 'live' };
+  renderPage();
+  fireEvent.change(await screen.findByLabelText('Thank-you message'), { target: { value: 'Thanks again!' } });
+  expect(screen.queryByRole('button', { name: 'Save as draft' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(await screen.findByText('Changes saved')).toBeInTheDocument();
+  expect(JSON.parse(String(patches(SURVEY_URL)[0][1]?.body))).toEqual({ thank_you: 'Thanks again!' });
+  expect(survey).toMatchObject({ status: 'live', thank_you: 'Thanks again!' });
+});

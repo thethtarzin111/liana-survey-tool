@@ -1,7 +1,10 @@
 """The server-rendered pages readers see: the thank-you and problem pages (#42) and
 the survey link page (#105), which works as a plain HTML form. A small script adds
-the progress bar (#8) and asks thumbs reasons only after "Not for me"; without
-JavaScript the form still works.
+the progress bar (#8), splits the questions into pages and asks thumbs reasons
+only after "Not for me"; without JavaScript the form still works.
+
+The survey description keeps its line breaks and a small Markdown subset:
+**bold**, *italic* or _italic_, and [links](https://example.org).
 
 Survey texts and colours are escaped; colours are only used when they are
 6-digit hex codes, as stored by survey-manager. The styles use the values in
@@ -18,6 +21,14 @@ from liana_survey_shared.texts import language_or_default, text
 from .domain import field_name
 
 _HEX = re.compile(r"#[0-9A-Fa-f]{6}")
+#: Questions per page on the survey link page. The builder preview uses the same number.
+QUESTIONS_PER_PAGE = 3
+_LINK = re.compile(r'\[([^\]\n]+)\]\(((?:https?://|mailto:)[^\s()"<>]+)\)')
+_BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*")
+_ITALIC = re.compile(
+    r"(?<![\w*])\*(?=[^\s*])(.+?)(?<=[^\s*])\*(?![\w*])"  # *italic*, not 2*3 or **
+    r"|(?<!\w)_(?=\S)(.+?)(?<=\S)_(?!\w)"  # _italic_, not snake_case
+)
 DEFAULT_ACCENT = "#0F6A5E"
 DEFAULT_BACKGROUND = "#FFFFFF"
 
@@ -27,19 +38,21 @@ _STYLES = """
   * { box-sizing: border-box; }
   :root { --font: Inter, Helvetica, Arial, sans-serif; }
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-         background: var(--background); color: #353A40; font: 16px/1.5 var(--font); }
+         background: #FFFFFF; color: #353A40; font: 16px/1.5 var(--font); }
   main { width: 100%; max-width: 480px; margin: 24px; padding: 32px 28px; border-radius: 14px;
-         background: #FFFFFF; border-top: 6px solid var(--accent);
+         background: var(--background); border-top: 6px solid var(--accent);
          box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); }
   h1 { margin: 0 0 8px; font: 600 22px/1.3 Poppins, Helvetica, Arial, sans-serif; }
   p { margin: 0; }
   main.survey { max-width: 600px; }
-  .description { color: #696F77; white-space: pre-line; }
+  .description { color: #696F77; white-space: pre-line; overflow-wrap: anywhere; }
+  .description a { color: var(--accent); }
   .error { margin-top: 16px; padding: 10px 14px; border-radius: 7px; color: #DB2828;
            background: #FFF6F6; border: 1px solid #DB2828; }
   form { display: flex; flex-direction: column; gap: 28px; margin-top: 24px; }
   fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   legend { padding: 0; margin-bottom: 12px; font-weight: 600; }
+  .is-missing legend { color: #DB2828; }
   .optional, .hint { color: #696F77; font-weight: 400; }
   .hint { margin: -6px 0 10px; font-size: 14px; }
   label { position: relative; cursor: pointer; }
@@ -85,7 +98,7 @@ _STYLES = """
   .step-error { margin: -12px 0 0; color: #DB2828; }
   legend:focus { outline: none; }
   .progress { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px;
-              margin: 16px -4px -8px; padding: 10px 4px; background: #FFFFFF; }
+              margin: 16px -4px -8px; padding: 10px 4px; background: var(--background); }
   .progress[hidden] { display: none; }
   .survey > .progress:first-child { margin-top: -12px; }
   .progress-track { flex: 1; height: 8px; border-radius: 120px; background: #DFE3E7;
@@ -111,11 +124,12 @@ _STYLES = """
 # - the progress bar (#8) counts the questions shown and answered;
 # - thumbs reasons are shown only after "Not for me" (0); hidden ones are
 #   disabled, so they are not sent;
-# - one question at a time with Previous / Next (#9). Next and Submit check
-#   required answers first; answers stay in the form when going back.
+# - a few questions per page with Previous / Next (#9). Next and Submit check
+#   the required answers first; answers stay in the form when going back.
 _SCRIPT = """
 (function () {
   var form = document.querySelector('form.survey-form');
+  var perPage = Number(form && form.getAttribute('data-per-page')) || 1;
   var bar = document.querySelector('.progress');
   if (!form || !bar) return;
   var each = function (list, fn) { Array.prototype.forEach.call(list, fn); };
@@ -126,7 +140,7 @@ _SCRIPT = """
   var next = form.querySelector('[data-next]');
   var send = form.querySelector('button[type=submit]');
   var missing = form.querySelector('.step-error');
-  var current = null;
+  var at = -1;
   each(document.querySelectorAll('[data-no-script]'), function (el) { el.hidden = true; });
 
   function answered(fieldset) {
@@ -141,20 +155,38 @@ _SCRIPT = """
   function shown() {
     return Array.prototype.filter.call(all, function (f) { return !f.hidden; });
   }
-  function show(target, focus) {
+  function pages() {
     var list = shown();
-    current = list.indexOf(target) < 0 ? list[0] : target;
-    var at = list.indexOf(current);
+    var out = [];
+    for (var i = 0; i < list.length; i += perPage) out.push(list.slice(i, i + perPage));
+    return out;
+  }
+  function pageOf(fieldset) {
+    return Math.floor(shown().indexOf(fieldset) / perPage);
+  }
+  function markMissing(page) {
+    each(all, function (f) {
+      f.classList.toggle('is-missing', page.indexOf(f) >= 0 && isMissing(f));
+    });
+  }
+  function show(index, focus) {
+    var list = pages();
+    at = Math.max(0, Math.min(index, list.length - 1));
+    var page = list[at] || [];
     var last = at === list.length - 1;
-    each(all, function (f) { f.classList.toggle('is-off', f !== current); });
+    each(all, function (f) {
+      f.classList.toggle('is-off', page.indexOf(f) < 0);
+      f.classList.remove('is-missing');
+    });
     previous.hidden = at === 0;
     next.hidden = last;
     send.hidden = !last;
+    stepLabel.hidden = list.length < 2;
     stepLabel.textContent = stepLabel.getAttribute('data-template')
       .replace('{n}', at + 1).replace('{total}', list.length);
     missing.hidden = true;
-    if (focus) {
-      var legend = current.querySelector('legend');
+    if (focus && page.length) {
+      var legend = page[0].querySelector('legend');
       legend.tabIndex = -1;
       legend.focus();
     }
@@ -175,38 +207,40 @@ _SCRIPT = """
     bar.querySelector('.progress-text').textContent = words;
     bar.setAttribute('aria-valuenow', percent);
     bar.setAttribute('aria-valuetext', words);
-    if (current) {
+    if (at >= 0) {
       var wasMissing = !missing.hidden;
-      show(current, false);
-      missing.hidden = !(wasMissing && isMissing(current));
+      show(at, false);
+      var page = pages()[at] || [];
+      if (wasMissing && page.some(isMissing)) {
+        missing.hidden = false;
+        markMissing(page);
+      }
     }
   }
   function forward() {
-    if (isMissing(current)) {
+    var page = pages()[at] || [];
+    if (page.some(isMissing)) {
       missing.hidden = false;
+      markMissing(page);
       return;
     }
-    var list = shown();
-    show(list[list.indexOf(current) + 1], true);
+    show(at + 1, true);
   }
 
   next.addEventListener('click', forward);
-  previous.addEventListener('click', function () {
-    var list = shown();
-    show(list[list.indexOf(current) - 1], true);
-  });
+  previous.addEventListener('click', function () { show(at - 1, true); });
   form.addEventListener('submit', function (event) {
-    var list = shown();
-    if (current !== list[list.length - 1]) {
-      event.preventDefault();  // Enter in a text field on an earlier question
+    if (at !== pages().length - 1) {
+      event.preventDefault();  // Enter in a text field on an earlier page
       forward();
       return;
     }
-    var first = list.filter(isMissing)[0];
+    var first = shown().filter(isMissing)[0];
     if (first) {
       event.preventDefault();
-      show(first, true);
+      show(pageOf(first), true);
       missing.hidden = false;
+      markMissing(pages()[at]);
     }
   });
   form.addEventListener('input', update);
@@ -218,11 +252,35 @@ _SCRIPT = """
   bar.hidden = false;
   stepLabel.hidden = false;
   update();
-  // Sent back with something to fix: start at the first question to answer.
+  // Sent back with something to fix: start at the page of the first question to answer.
   var start = document.querySelector('.error') ? shown().filter(isMissing)[0] : null;
-  show(start || shown()[0], false);
+  show(start ? pageOf(start) : 0, false);
 })();
 """
+
+
+def description_html(description: str) -> str:
+    """The survey description as escaped HTML with **bold**, *italic*, _italic_ and
+    [links](https://...). Line breaks stay in the text; the page keeps them with CSS.
+    Only http, https and mailto links become links."""
+    links: list[str] = []
+
+    def keep_link(match: re.Match[str]) -> str:
+        url = html.escape(match.group(2), quote=True)
+        links.append(
+            f'<a href="{url}" rel="noopener noreferrer" target="_blank">'
+            f"{_emphasis(html.escape(match.group(1), quote=True))}</a>"
+        )
+        return f"\x00{len(links) - 1}\x00"
+
+    marked = _LINK.sub(keep_link, description.replace("\x00", ""))
+    formatted = _emphasis(html.escape(marked, quote=True))
+    return re.sub("\x00(\\d+)\x00", lambda m: links[int(m.group(1))], formatted)
+
+
+def _emphasis(escaped: str) -> str:
+    bold = _BOLD.sub(r"<strong>\1</strong>", escaped)
+    return _ITALIC.sub(lambda m: f"<em>{m.group(1) or m.group(2)}</em>", bold)
 
 
 def _colour(value: str | None, default: str) -> str:
@@ -309,7 +367,7 @@ def survey_form(
     if title:
         parts.append(f"<h1>{html.escape(title)}</h1>")
     if description:
-        parts.append(f'<p class="description">{html.escape(description)}</p>')
+        parts.append(f'<p class="description">{description_html(description)}</p>')
     if error:
         parts.append(f'<p class="error" role="alert">{html.escape(error)}</p>')
     parts.append(
@@ -319,7 +377,7 @@ def survey_form(
         '<span class="progress-track"><span class="progress-fill"></span></span>'
         '<span class="progress-text"></span></div>'
     )
-    parts.append('<form method="post" class="survey-form">')
+    parts.append(f'<form method="post" class="survey-form" data-per-page="{QUESTIONS_PER_PAGE}">')
     parts.append(f'<input type="hidden" name="key" value="{html.escape(key)}">')
     parts.append(f'<input type="hidden" name="ch" value="{html.escape(channel)}">')
     parts.append(
@@ -331,7 +389,7 @@ def survey_form(
         )
     parts.append(
         '<p class="step-error" role="alert" hidden>'
-        f"{html.escape(text('answer_this', language))}</p>"
+        f"{html.escape(text('answer_required', language))}</p>"
     )
     parts.append(
         '<div class="actions">'

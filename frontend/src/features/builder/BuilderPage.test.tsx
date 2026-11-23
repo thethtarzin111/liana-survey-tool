@@ -61,6 +61,19 @@ test('an empty title blocks saving and announces the field error', async () => {
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
+test('a published survey is saved with Save changes', async () => {
+  const live = { ...saved, status: 'live' as const };
+  fetchMock
+    .mockResolvedValueOnce(Response.json(live))
+    .mockResolvedValueOnce(Response.json({ ...live, title: 'Updated survey' }));
+  renderPage();
+  fireEvent.change(await screen.findByLabelText(/^Survey title/), { target: { value: 'Updated survey' } });
+  expect(screen.queryByRole('button', { name: 'Save as draft' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(await screen.findByText('Changes saved')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Share' })).toBeInTheDocument();
+});
+
 test('saves only changed fields, refreshes values and shows the toast', async () => {
   fetchMock
     .mockResolvedValueOnce(Response.json(saved))
