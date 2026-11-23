@@ -10,7 +10,7 @@ from .domain import Status
 # question's value and the first reasons question's choices (as on Results).
 # The respondent is shown by their LianaMailer contact reference only.
 _SELECT = """
-select c.id, c.survey_id, s.title as survey_title, c.contact_ref,
+select c.id, c.survey_id, s.title as survey_title, s.type::text as survey_type, c.contact_ref,
   (select a.value_number::integer
    from answers a join questions q on q.id = a.question_id
    where a.response_id = c.response_id and q.kind::text in ('nps', 'rating', 'thumbs')

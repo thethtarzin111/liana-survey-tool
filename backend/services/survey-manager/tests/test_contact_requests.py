@@ -134,7 +134,7 @@ def test_a_request_shows_the_reader_by_contact_reference_with_their_answer(clien
     [item] = page["items"]
     assert item["id"] == str(request_id)
     assert item["contact_ref"] == "member-1042"
-    assert item["survey_title"] == "Contact test"
+    assert (item["survey_title"], item["survey_type"]) == ("Contact test", "nps")
     assert (item["answer"], item["reason"], item["segment"]) == (3, "Price; Service", "members")
     assert (item["status"], item["liana_status"]) == ("new", "pending")
     # Never an e-mail address: the reader is only known by the contact reference.

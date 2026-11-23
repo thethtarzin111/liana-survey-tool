@@ -1080,13 +1080,14 @@ components:
       description: The survey team's follow-up
     ContactRequest:
       type: object
-      required: [id, survey_id, survey_title, contact_ref, answer, reason, segment, status, liana_status, created_at]
+      required: [id, survey_id, survey_title, survey_type, contact_ref, answer, reason, segment, status, liana_status, created_at]
       properties:
         id: { type: string, format: uuid }
         survey_id: { type: string, format: uuid }
         survey_title: { type: string }
+        survey_type: { $ref: '#/components/schemas/SurveyType' }
         contact_ref: { type: string, description: The reader's LianaMailer contact reference, example: member-1042 }
-        answer: { type: [integer, 'null'], description: 'Main question value (NPS 0-10, CSAT 1-5, thumbs 0/1); null for custom surveys' }
+        answer: { type: [integer, 'null'], description: 'Main question value, read by survey_type (thumbs 0-2, NPS 0-10, CSAT 1-5); null when there is no scale question' }
         reason: { type: [string, 'null'], description: 'Reasons the reader picked, joined with "; "', example: Price; Service }
         segment: { type: string, example: members }
         status: { $ref: '#/components/schemas/ContactRequestStatus' }

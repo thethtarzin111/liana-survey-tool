@@ -11,9 +11,11 @@ class ContactRequest(BaseModel):
     id: UUID
     survey_id: UUID
     survey_title: str
+    #: How to read `answer`: thumbs 0-2, nps 0-10, csat 1-5.
+    survey_type: Literal["thumbs", "nps", "csat", "custom"]
     #: The reader's LianaMailer contact reference. Never an e-mail address.
     contact_ref: str
-    #: The main question's value (NPS 0-10, CSAT 1-5, thumbs 0/1); None for custom surveys.
+    #: The main question's value; None when the survey has no scale question.
     answer: int | None
     #: The reasons the reader picked, joined with "; ".
     reason: str | None
