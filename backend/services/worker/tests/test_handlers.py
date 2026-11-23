@@ -16,7 +16,7 @@ import pytest
 from liana_survey_shared.db import ping, tenant_connection
 from liana_survey_shared.messages import AnswerSubmitted, AnswerValue
 from survey_worker import main as worker
-from survey_worker.handlers import BadMessage, Recorded, handle_answer, parse
+from survey_worker.handlers import BadMessage, Recorded, handle_answer, parse, record_answer
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
 OTHER_TENANT = UUID("00000000-0000-4000-8000-0000000000ff")
@@ -371,3 +371,119 @@ def test_readers_answering_at_the_same_time_never_go_past_the_limit(make_survey)
     assert saved.count(True) == 3
     assert totals(survey_id) == (3, {"9": 3})
     assert len(stored(survey_id)) == 3
+
+
+# --- "Contact me" requests (#58) --------------------------------------------------
+
+
+def contact_message(survey_id, answers, *, contact_ref, reader="reader-1", at=None) -> bytes:
+    return (
+        AnswerSubmitted(
+            tenant_id=DEMO_TENANT,
+            survey_id=survey_id,
+            link_token_hash=f"key-{reader}",
+            answers=answers,
+            contact_ref=contact_ref,
+            **({"created_at": at} if at else {}),
+        )
+        .model_dump_json()
+        .encode()
+    )
+
+
+def contact_requests(survey_id):
+    with tenant_connection(DEMO_TENANT) as conn:
+        return conn.execute(
+            """select id, contact_ref, status::text, liana_status
+               from contact_requests where survey_id = %s""",
+            (survey_id,),
+        ).fetchall()
+
+
+@pytest.mark.db
+@needs_db
+def test_a_reader_who_opted_in_gets_a_contact_request_to_pass_on(make_survey):
+    survey_id, main, _ = make_survey()
+    recorded = record_answer(contact_message(survey_id, nps(main, 3), contact_ref="member-1042"))
+    [(request_id, ref, status, liana_status)] = contact_requests(survey_id)
+    assert (ref, status, liana_status) == ("member-1042", "new", "pending")
+    event = recorded.contact_request
+    assert event is not None
+    assert (event.contact_request_id, event.contact_ref) == (request_id, "member-1042")
+    assert (event.tenant_id, event.survey_id) == (DEMO_TENANT, survey_id)
+
+
+@pytest.mark.db
+@needs_db
+def test_an_anonymous_answer_creates_no_contact_request(make_survey):
+    survey_id, main, _ = make_survey()
+    recorded = record_answer(message(survey_id, nps(main, 3)))
+    assert recorded.contact_request is None
+    assert contact_requests(survey_id) == []
+
+
+@pytest.mark.db
+@needs_db
+def test_a_reader_who_taps_again_keeps_one_contact_request(make_survey):
+    survey_id, main, _ = make_survey()
+    first = datetime.now(UTC) - timedelta(minutes=5)
+    record_answer(contact_message(survey_id, nps(main, 3), contact_ref="member-1042", at=first))
+    again = record_answer(contact_message(survey_id, nps(main, 2), contact_ref="member-1042"))
+    assert again.changed
+    assert again.contact_request is None
+    assert len(contact_requests(survey_id)) == 1
+
+
+@pytest.mark.db
+@needs_db
+def test_a_reader_who_opts_in_on_a_later_tap_gets_a_contact_request(make_survey):
+    survey_id, main, _ = make_survey()
+    first = datetime.now(UTC) - timedelta(minutes=5)
+    record_answer(message(survey_id, nps(main, 3), at=first))
+    later = record_answer(contact_message(survey_id, nps(main, 3), contact_ref="member-1042"))
+    assert later.contact_request is not None
+    assert len(contact_requests(survey_id)) == 1
+
+
+@pytest.mark.db
+@needs_db
+def test_the_same_message_twice_creates_one_contact_request(make_survey):
+    survey_id, main, _ = make_survey()
+    body = contact_message(survey_id, nps(main, 3), contact_ref="member-1042")
+    record_answer(body)
+    assert record_answer(body).contact_request is None
+    assert len(contact_requests(survey_id)) == 1
+
+
+def test_the_contact_request_is_published_before_the_ack(monkeypatch):
+    from liana_survey_shared.messages import ContactRequested
+
+    event = ContactRequested(
+        tenant_id=DEMO_TENANT, survey_id=uuid4(), contact_request_id=uuid4(), contact_ref="c1"
+    )
+    monkeypatch.setattr(worker, "record_answer", lambda body: Recorded(True, None, event))
+    published = []
+
+    async def publish(message):
+        published.append(message)
+
+    msg = FakeMessage()
+    asyncio.run(worker.process(msg, publish))
+    assert published == [event]
+    assert msg.outcome == "ack"
+
+
+def test_an_answer_is_acked_even_if_its_contact_request_cannot_be_published(monkeypatch):
+    from liana_survey_shared.messages import ContactRequested
+
+    event = ContactRequested(
+        tenant_id=DEMO_TENANT, survey_id=uuid4(), contact_request_id=uuid4(), contact_ref="c1"
+    )
+    monkeypatch.setattr(worker, "record_answer", lambda body: Recorded(True, None, event))
+
+    async def broken_publish(message):
+        raise RuntimeError("broker is down")
+
+    msg = FakeMessage()
+    asyncio.run(worker.process(msg, broken_publish))
+    assert msg.outcome == "ack"

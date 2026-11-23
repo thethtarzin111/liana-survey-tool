@@ -20,13 +20,13 @@ import psycopg
 
 from liana_survey_shared.config import get_settings
 from liana_survey_shared.db import due_response_digests, tenant_connection
-from liana_survey_shared.messages import NewResponsesDigest
+from liana_survey_shared.messages import Message, NewResponsesDigest
 
 from . import domain
 
 log = logging.getLogger(__name__)
 
-Publish = Callable[[NewResponsesDigest], Awaitable[None]]
+Publish = Callable[[Message], Awaitable[None]]
 
 
 def claim_digest(

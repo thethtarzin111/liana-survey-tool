@@ -12,7 +12,7 @@ and are visible to everyone.
 | `questions` | Questions of a survey, ordered by `position` | kind `single_choice/multiple_choice/dropdown/text/long_text/rating/nps/reasons` (rules in `survey_manager/questions/domain.py`); `options` is a JSON list of texts, only for the four choice kinds |
 | `responses` | One submitted response | `link_token_hash` stops double counting; `contact_ref` only in identified mode; `channel` (email/link/qr); `segment` (newsletter segment tag from the link's `seg`, default `all`, 1–40 characters of lowercase letters, digits and hyphens) |
 | `answers` | One answer to one question | number, text or choices |
-| `contact_requests` | "Contact me" requests | status `new/contacted/done` |
+| `contact_requests` | "Contact me" requests, one per response, created by the worker | status `new/contacted/done` (the survey team's follow-up); `liana_status` `pending/sent/failed`, `liana_attempts`, `liana_updated_at` (whether the connector passed it on to LianaAutomation, #58) |
 | `survey_aggregates` | Totals kept by the worker | response count, score distribution |
 | `survey_links` | Public link token → survey and organisation | Lets the respondent service find a survey's tenant without a login, then read it with row-level security; anyone may look a token up, only the survey's own organisation may add one |
 | `survey_logos` | One survey's logo | PNG/JPEG/SVG/WebP up to 1 MB as `bytea` (no file storage needed for the demo); checked in `surveys/branding.py` |

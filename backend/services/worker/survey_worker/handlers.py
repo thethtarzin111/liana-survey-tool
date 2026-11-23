@@ -13,7 +13,7 @@ from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from liana_survey_shared.db import tenant_connection
-from liana_survey_shared.messages import AnswerSubmitted, NewResponsesDigest
+from liana_survey_shared.messages import AnswerSubmitted, ContactRequested, NewResponsesDigest
 
 from .digests import claim_digest
 
@@ -46,6 +46,8 @@ class Recorded:
     changed: bool
     #: The "new responses" email to publish now, if one is due.
     digest: NewResponsesDigest | None = None
+    #: The "Contact me" request to pass on to LianaAutomation, if one was created.
+    contact_request: ContactRequested | None = None
 
 
 def handle_answer(body: bytes, connect: Connect = tenant_connection) -> bool:
@@ -67,24 +69,52 @@ def handle_answer(body: bytes, connect: Connect = tenant_connection) -> bool:
 
 def record_answer(body: bytes, connect: Connect = tenant_connection) -> Recorded:
     """handle_answer(), plus the owner's "new responses" email when a new reader's
-    answer makes one due. It is claimed in the same transaction as the answer."""
+    answer makes one due. It is claimed in the same transaction as the answer.
+
+    A reader who opted in to "Contact me" (the message has a contact_ref) gets a
+    contact request in the same transaction, once per response."""
     msg = parse(body)
     digest = None
+    contact_request = None
     try:
         with connect(msg.tenant_id) as conn:
-            outcome = _save(conn, msg)
+            outcome, response_id = _save(conn, msg)
             if outcome == "saved":
                 digest = claim_digest(conn, msg.survey_id, after_new_response=True)
+            if response_id is not None and msg.contact_ref:
+                contact_request = _request_contact(conn, msg, response_id)
     except (psycopg.errors.ForeignKeyViolation, psycopg.errors.DataError) as error:
         raise BadMessage(f"answer does not fit the survey: {error.diag.message_primary}") from error
     log.info("answer %s survey=%s message=%s", outcome, msg.survey_id, msg.message_id)
-    return Recorded(outcome in ("saved", "replaced"), digest)
+    return Recorded(outcome in ("saved", "replaced"), digest, contact_request)
 
 
-def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
-    """What happened: "saved" or "replaced", or why nothing changed: "kept" (the
-    stored answer is as new or newer), "closed" (tapped on or after the close
-    date) or "full" (a new reader once the response limit is reached)."""
+def _request_contact(
+    conn: psycopg.Connection, msg: AnswerSubmitted, response_id: UUID
+) -> ContactRequested | None:
+    """Create the response's contact request, or None if it already has one."""
+    row = conn.execute(
+        """insert into contact_requests (tenant_id, survey_id, response_id, contact_ref)
+           values (%s, %s, %s, %s)
+           on conflict (response_id) do nothing
+           returning id""",
+        (msg.tenant_id, msg.survey_id, response_id, msg.contact_ref),
+    ).fetchone()
+    if row is None:
+        return None
+    return ContactRequested(
+        tenant_id=msg.tenant_id,
+        survey_id=msg.survey_id,
+        contact_request_id=row[0],
+        contact_ref=msg.contact_ref,
+    )
+
+
+def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> tuple[str, UUID | None]:
+    """What happened, and the response it happened to: "saved" or "replaced", or
+    why nothing changed: "kept" (the stored answer is as new or newer), "closed"
+    (tapped on or after the close date) or "full" (a new reader once the response
+    limit is reached). The response is None when nothing changed."""
     # Row-level security limits this connection to the message's tenant, so a
     # survey of another tenant looks like an unknown survey.
     survey = conn.execute(
@@ -95,7 +125,7 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
     closes_at, response_limit = survey
     # The reader's tap time decides, not when the worker gets to the message.
     if closes_at is not None and msg.created_at >= closes_at:
-        return "closed"
+        return "closed", None
     main = _main_question(conn, msg.survey_id)
     new_count = _main_count(main, [(a.question_id, a.number) for a in msg.answers])
 
@@ -118,9 +148,9 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
     if inserted is not None:
         if not _add_to_totals(conn, msg, new_count, new_reader=True, limit=response_limit):
             conn.execute("delete from responses where id = %s", (inserted[0],))
-            return "full"
+            return "full", None
         _save_answers(conn, msg, inserted[0])
-        return "saved"
+        return "saved", inserted[0]
 
     # This reader answered before. Lock their response so two taps at the same
     # time can't both replace it.
@@ -130,7 +160,7 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
         (msg.survey_id, msg.link_token_hash),
     ).fetchone()
     if msg.created_at <= submitted_at:
-        return "kept"
+        return "kept", None
 
     old_answers = conn.execute(
         "select question_id, value_number from answers where response_id = %s", (response_id,)
@@ -147,7 +177,7 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
     for value, count in old_count.items():
         change[value] = change.get(value, 0) - count
     _add_to_totals(conn, msg, change, new_reader=False)
-    return "replaced"
+    return "replaced", response_id
 
 
 def _save_answers(conn: psycopg.Connection, msg: AnswerSubmitted, response_id: UUID) -> None:

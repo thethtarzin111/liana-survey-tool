@@ -77,6 +77,7 @@ second database. Each service only touches its own tables:
 | respondent | nothing (answers go to the queue) | `surveys`, `questions` (to show the survey) |
 | worker | `responses`, `answers`, `contact_requests`, `survey_aggregates`, `response_notifications` | `questions`, `surveys`, `users` (owner of a survey, for "new responses" emails) |
 | data-analyzer | nothing | `survey_aggregates`, `answers`, `contact_requests` |
+| liana-connector | `contact_requests` delivery columns only (`liana_status`, `liana_attempts`, `liana_updated_at`) | the same |
 
 A second database would mean keeping two copies of survey data in sync, which
 the demo does not need. If needed later, each service can get its own

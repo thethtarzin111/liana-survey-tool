@@ -266,12 +266,14 @@ cross join (values ('email'::distribution_channel, 3), ('link', 4), ('qr', 6)) a
 on conflict (survey_id, channel) do nothing;
 
 -- Contact requests: identified respondents who asked to be contacted, in every status.
+-- All of them already reached LianaAutomation.
 insert into contact_requests (id, tenant_id, survey_id, response_id, contact_ref, status,
-                              created_at)
+                              created_at, liana_status, liana_attempts, liana_updated_at)
 select md5('contact-' || r.id)::uuid, '00000000-0000-4000-8000-000000000001', r.survey_id,
        r.id, r.contact_ref,
        (array['new','contacted','done'])[1 + (r.i / 3) % 3]::contact_request_status,
-       r.submitted_at + interval '1 hour'
+       r.submitted_at + interval '1 hour',
+       'sent', 1, r.submitted_at + interval '1 hour'
 from seed_resp r
 where r.contact_ref is not null
 on conflict (id) do nothing;
