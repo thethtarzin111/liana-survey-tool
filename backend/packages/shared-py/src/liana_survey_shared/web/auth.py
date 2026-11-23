@@ -41,6 +41,26 @@ def demo_user() -> CurrentUser:
     )
 
 
+# A second demo organisation (backend/db/seed/seed.sql). The dev-auth gateway can
+# switch to it, to show that organisations never see each other's data.
+SECOND_DEMO_USER = CurrentUser(
+    user_id=UUID("00000000-0000-4000-8000-000000000102"),
+    tenant_id=UUID("00000000-0000-4000-8000-000000000002"),
+    tenant_name="Example Sports Club",
+    name="Mikko Korhonen",
+    email="mikko.korhonen@example.org",
+)
+
+
+def demo_users() -> list[CurrentUser]:
+    """The demo users the dev-auth gateway can sign in as, one per organisation.
+    The configured demo user comes first and is the default."""
+    first = demo_user()
+    if SECOND_DEMO_USER.tenant_id == first.tenant_id:
+        return [first]
+    return [first, SECOND_DEMO_USER]
+
+
 def current_user(
     x_tenant_id: UUID | None = Header(default=None, include_in_schema=False),
     x_user_id: UUID | None = Header(default=None, include_in_schema=False),

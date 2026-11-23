@@ -1,5 +1,6 @@
-import type { RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
+import { api, type DemoOrganization } from '../api/client';
 import { useCurrentUser } from '../api/useCurrentUser';
 import { Icon } from '../components/Icon';
 import { LianaSurveyLogo } from '../components/LianaSurveyLogo';
@@ -12,6 +13,8 @@ type Props = {
   menuButtonRef?: RefObject<HTMLButtonElement>;
   /** The other Liana apps; by default from this build's settings. */
   apps?: LianaApp[];
+  /** After switching organisation: reload the app, so nothing of the old one stays on screen. */
+  onSwitched?: () => void;
 };
 
 const ICONS = {
@@ -40,9 +43,32 @@ function AppIcon({ color, icon }: { color: string; icon: string }) {
 }
 
 /** The top bar, as in the other Liana apps (#74). */
-export function Header({ navOpen, onToggleNav, menuButtonRef, apps: liana = lianaApps() }: Props) {
+export function Header({
+  navOpen, onToggleNav, menuButtonRef, apps: liana = lianaApps(), onSwitched = () => window.location.assign('/'),
+}: Props) {
   const user = useCurrentUser();
   const toast = useToast();
+  const [organizations, setOrganizations] = useState<DemoOrganization[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    // Only the dev-auth gateway lists demo organisations. Without the list, there is no switcher.
+    api.demoOrganizations().then(
+      (list) => { if (alive && Array.isArray(list)) setOrganizations(list); },
+      () => {},
+    );
+    return () => { alive = false; };
+  }, []);
+
+  async function switchTo(organization: DemoOrganization) {
+    if (organization.current) return;
+    try {
+      await api.switchOrganization(organization.tenant_id);
+      onSwitched();
+    } catch {
+      toast('We couldn’t switch the organization. Please try again.');
+    }
+  }
   const notYet = (what: string) => () => toast(`${what} is not available yet.`);
   const org = user?.tenant_name;
   const withOrg = (name: string) => (org ? `${name} - ${org}` : name);
@@ -65,6 +91,16 @@ export function Header({ navOpen, onToggleNav, menuButtonRef, apps: liana = lian
     { label: 'User account', icon: ICONS.user, onSelect: notYet('User account') },
     { label: 'Organization account', icon: ICONS.organization, onSelect: notYet('Organization account') },
     { label: 'Sign out', icon: ICONS.signOut, onSelect: notYet('Sign out') },
+    // The demo has no real login: switching shows that organisations are kept apart.
+    ...(organizations.length > 1
+      ? organizations.map((organization, i): MenuAction => ({
+        label: organization.tenant_name,
+        icon: ICONS.organization,
+        current: organization.current,
+        heading: i === 0 ? 'Switch organization (demo)' : undefined,
+        onSelect: () => { void switchTo(organization); },
+      }))
+      : []),
   ];
 
   return (

@@ -2,21 +2,74 @@
 
 Also runs the shared demo server (backend/infra/deploy/README.md), bound to
 127.0.0.1 behind Caddy, which adds HTTPS and a shared password. It gives every
-admin request the demo user, so it is not a production entry point."""
+admin request a demo user, so it is not a production entry point. The user
+menu can switch between the demo organisations (a cookie picks the demo user)."""
 
 import asyncio
 import logging
 import os
 
-from starlette.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 from data_analyzer.main import app as analyzer
 from liana_survey_shared.config import get_settings
-from liana_survey_shared.web.auth import demo_user
+from liana_survey_shared.web.auth import CurrentUser, demo_user, demo_users
 from respondent_service.main import app as respondent
 from survey_manager.main import app as surveys
 
 IDENTITY = {b"x-tenant-id", b"x-user-id", b"x-tenant-name", b"x-user-name", b"x-user-email"}
+DEMO_ORG_COOKIE = "demo_org"
+ONE_YEAR = 365 * 24 * 60 * 60
+
+
+class OrganizationChoice(BaseModel):
+    tenant_id: str
+
+
+def signed_in(request: Request) -> CurrentUser:
+    """The demo user of the organisation chosen in the user menu, or the default one.
+    An unknown or missing choice falls back to the default."""
+    chosen = request.cookies.get(DEMO_ORG_COOKIE)
+    return next((u for u in demo_users() if str(u.tenant_id) == chosen), demo_user())
+
+
+async def organizations(request: Request) -> Response:
+    """GET lists the demo organisations. PUT switches to one, for this browser."""
+    current = signed_in(request)
+    if request.method == "GET":
+        return JSONResponse(
+            [
+                {
+                    "tenant_id": str(u.tenant_id),
+                    "tenant_name": u.tenant_name,
+                    "user_name": u.name,
+                    "current": u.tenant_id == current.tenant_id,
+                }
+                for u in demo_users()
+            ]
+        )
+    if request.method != "PUT":
+        return JSONResponse({"detail": "Method not allowed"}, 405, headers={"Allow": "GET, PUT"})
+    try:
+        choice = OrganizationChoice.model_validate_json(await request.body())
+    except ValidationError:
+        return JSONResponse({"detail": 'Send {"tenant_id": "..."}'}, 422)
+    user = next((u for u in demo_users() if str(u.tenant_id) == choice.tenant_id), None)
+    if user is None:
+        return JSONResponse({"detail": "Unknown demo organisation"}, 422)
+    response = JSONResponse(user.model_dump(mode="json"))
+    response.set_cookie(
+        DEMO_ORG_COOKIE,
+        str(user.tenant_id),
+        max_age=ONE_YEAR,
+        httponly=True,
+        samesite="lax",
+        # The demo server is behind Caddy, which adds HTTPS.
+        secure=request.headers.get("x-forwarded-proto") == "https",
+    )
+    return response
 
 
 class DirectLianaEvents:
@@ -96,8 +149,12 @@ async def app(scope, receive, send):
             scope, receive, send
         )
         return
+    request = Request(scope, receive)
     if path == "/api/v1/me":
-        await JSONResponse(demo_user().model_dump(mode="json"))(scope, receive, send)
+        await JSONResponse(signed_in(request).model_dump(mode="json"))(scope, receive, send)
+        return
+    if path == "/api/v1/me/organizations":
+        await (await organizations(request))(scope, receive, send)
         return
     if path == "/health":
         await JSONResponse({"status": "ok", "service": "local-gateway"})(scope, receive, send)
@@ -119,7 +176,7 @@ async def app(scope, receive, send):
     # Never trust identity headers supplied by the browser, including public requests.
     headers = [(key, value) for key, value in scope["headers"] if key.lower() not in IDENTITY]
     if not (path == "/r" or path.startswith("/r/")):
-        user = demo_user()
+        user = signed_in(request)
         headers.extend(
             (key, str(value).encode("utf-8"))
             for key, value in (

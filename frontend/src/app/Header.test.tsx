@@ -115,3 +115,72 @@ test('initials are the first letters of the first two names', () => {
   expect(initials('Cher')).toBe('C');
   expect(initials('')).toBe('');
 });
+
+const ORGS = [
+  { tenant_id: 't1', tenant_name: 'Example Members Association', user_name: 'Anna Virtanen', current: true },
+  { tenant_id: 't2', tenant_name: 'Example Sports Club', user_name: 'Mikko Korhonen', current: false },
+];
+
+function stubDemoGateway(organizations: typeof ORGS, switchStatus = 200) {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    calls.push({ url, init });
+    if (url === '/api/v1/me/organizations' && init?.method === 'PUT') {
+      return Response.json({ detail: 'x' }, { status: switchStatus });
+    }
+    if (url === '/api/v1/me/organizations') return Response.json(organizations);
+    return Response.json({
+      user_id: 'u', tenant_id: 't1', tenant_name: 'Example Members Association',
+      name: 'Anna Virtanen', email: 'anna.virtanen@example.org',
+    });
+  }));
+  return calls;
+}
+
+function renderWithSwitch(onSwitched: () => void) {
+  render(
+    <MemoryRouter>
+      <ToastProvider>
+        <Header navOpen={false} onToggleNav={() => {}} apps={STAGING} onSwitched={onSwitched} />
+      </ToastProvider>
+    </MemoryRouter>,
+  );
+}
+
+test('the user menu switches between the demo organizations and reloads the app', async () => {
+  const calls = stubDemoGateway(ORGS);
+  const onSwitched = vi.fn();
+  renderWithSwitch(onSwitched);
+  fireEvent.click(await screen.findByRole('button', { name: 'Account: Anna Virtanen' }));
+  const menu = screen.getByRole('menu', { name: 'Account: Anna Virtanen' });
+  await within(menu).findByText('Switch organization (demo)');
+  const current = within(menu).getByRole('menuitem', { name: 'Example Members Association' });
+  expect(current).toHaveAttribute('aria-current', 'true');
+
+  fireEvent.click(within(menu).getByRole('menuitem', { name: 'Example Sports Club' }));
+  await vi.waitFor(() => expect(onSwitched).toHaveBeenCalledTimes(1));
+  const put = calls.find((c) => c.init?.method === 'PUT');
+  expect(put?.url).toBe('/api/v1/me/organizations');
+  expect(JSON.parse(String(put?.init?.body))).toEqual({ tenant_id: 't2' });
+});
+
+test('picking the current organization does nothing, and a failed switch says so', async () => {
+  stubDemoGateway(ORGS, 500);
+  const onSwitched = vi.fn();
+  renderWithSwitch(onSwitched);
+  fireEvent.click(await screen.findByRole('button', { name: 'Account: Anna Virtanen' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Example Members Association' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Account: Anna Virtanen' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Example Sports Club' }));
+  expect(await screen.findByText('We couldn’t switch the organization. Please try again.')).toBeInTheDocument();
+  expect(onSwitched).not.toHaveBeenCalled();
+});
+
+test('with one organization there is no switcher', async () => {
+  stubDemoGateway([ORGS[0]]);
+  renderWithSwitch(vi.fn());
+  fireEvent.click(await screen.findByRole('button', { name: 'Account: Anna Virtanen' }));
+  const items = within(screen.getByRole('menu', { name: 'Account: Anna Virtanen' })).getAllByRole('menuitem');
+  expect(items.map((item) => item.textContent)).toEqual(['User account', 'Organization account', 'Sign out']);
+});

@@ -12,8 +12,11 @@ small Linux VM in the EU. It runs the same way as `npm run dev`:
 - **GitHub Actions:** after CI passes on `main`, "Deploy demo" builds the admin
   app, copies the release to the VM and installs it (`deploy.sh`).
 
-There is no real login yet: everyone who has the password is the demo user
-Anna Virtanen in the same organisation, and can change or delete any survey.
+There is no real login yet: everyone who has the password is a demo user and
+can change or delete any survey of that organisation. There are two demo
+organisations: Example Members Association (Anna Virtanen, the default) and
+Example Sports Club (Mikko Korhonen). The user menu switches between them, to
+show that one organisation never sees another's surveys or answers.
 Use demo data only. Every deploy reloads the demo data, so deleted demo surveys
 come back.
 

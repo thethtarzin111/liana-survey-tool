@@ -7,7 +7,7 @@ info:
     pull request as any endpoint change. FastAPI also serves its generated
     version at /openapi.json; this file is the reviewed, hand-kept contract.
     All calls go through the API gateway (backend/scripts/local_gateway.py), which routes them:
-    /api/v1/me is answered by the gateway itself (dev auth), /api/v1/surveys
+    /api/v1/me and /api/v1/me/organizations are answered by the gateway itself (dev auth), /api/v1/surveys
     and /api/v1/templates by survey-manager, /api/v1/results by data-analyzer,
     and /r/<token> by the respondent service. The service of each path is in
     its tag. /health and /health/ready also exist on every service.
@@ -45,6 +45,42 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CurrentUser' }
+  /api/v1/me/organizations:
+    get:
+      tags: [auth]
+      summary: The demo organisations this browser can switch to (dev auth only). Answered by the gateway.
+      description: |
+        The demo has no real login. The user menu lists these organisations to show
+        that each one sees only its own data. Real login does not have this endpoint.
+      responses:
+        '200':
+          description: The demo organisations, the default one first
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DemoOrganization' } }
+    put:
+      tags: [auth]
+      summary: Switch this browser to another demo organisation (dev auth only). Answered by the gateway.
+      description: |
+        Sets the `demo_org` cookie (HttpOnly, SameSite=Lax). Every later admin request
+        is made as that organisation's demo user. An unknown or missing cookie means
+        the default demo user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id]
+              properties:
+                tenant_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The user of the chosen organisation
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUser' }
+        '422': { description: Not one of the demo organisations }
   /api/v1/surveys:
     get:
       tags: [surveys]
@@ -694,6 +730,14 @@ components:
         tenant_name: { type: string, example: Example Members Association }
         name: { type: string, example: Anna Virtanen }
         email: { type: string, format: email }
+    DemoOrganization:
+      type: object
+      required: [tenant_id, tenant_name, user_name, current]
+      properties:
+        tenant_id: { type: string, format: uuid }
+        tenant_name: { type: string, example: Example Sports Club }
+        user_name: { type: string, example: Mikko Korhonen }
+        current: { type: boolean, description: This browser is signed in to it }
     Snippet:
       type: object
       required: [campaign, segment, html]

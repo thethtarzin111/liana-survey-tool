@@ -40,6 +40,61 @@ def test_routing_preserves_request_and_replaces_identity(monkeypatch):
     assert missing.status_code == 404
 
 
+SPORTS_CLUB = "00000000-0000-4000-8000-000000000002"
+
+
+def test_the_demo_organizations_are_listed_with_the_default_one_current():
+    with TestClient(local_gateway.app) as client:
+        organizations = client.get("/api/v1/me/organizations").json()
+    assert [o["tenant_name"] for o in organizations] == [
+        get_settings().dev_tenant_name,
+        "Example Sports Club",
+    ]
+    assert [o["current"] for o in organizations] == [True, False]
+
+
+def test_switching_organization_changes_the_user_for_every_admin_request(monkeypatch):
+    async def capture(scope, receive, send):
+        headers = dict(scope["headers"])
+        await JSONResponse({"tenant": headers.get(b"x-tenant-id", b"").decode()})(
+            scope, receive, send
+        )
+
+    monkeypatch.setattr(local_gateway, "surveys", capture)
+    monkeypatch.setattr(local_gateway, "respondent", capture)
+    with TestClient(local_gateway.app) as client:
+        switched = client.put("/api/v1/me/organizations", json={"tenant_id": SPORTS_CLUB})
+        assert switched.status_code == 200
+        assert switched.json()["name"] == "Mikko Korhonen"
+        assert "httponly" in switched.headers["set-cookie"].lower()
+        assert client.get("/api/v1/me").json()["tenant_id"] == SPORTS_CLUB
+        assert client.get("/api/v1/surveys").json() == {"tenant": SPORTS_CLUB}
+        # Identity headers from the browser are still replaced, and links stay public.
+        spoofed = client.get("/api/v1/surveys", headers={"X-Tenant-Id": "other"})
+        assert spoofed.json() == {"tenant": SPORTS_CLUB}
+        assert client.get("/r/token").json() == {"tenant": ""}
+        current = [o["current"] for o in client.get("/api/v1/me/organizations").json()]
+        assert current == [False, True]
+
+
+def test_an_unknown_organization_is_refused_and_the_default_stays():
+    with TestClient(local_gateway.app) as client:
+        unknown = client.put("/api/v1/me/organizations", json={"tenant_id": "someone-else"})
+        broken = client.put("/api/v1/me/organizations", content=b"not json")
+        deleted = client.delete("/api/v1/me/organizations")
+        me = client.get("/api/v1/me").json()
+    assert unknown.status_code == 422
+    assert broken.status_code == 422
+    assert deleted.status_code == 405
+    assert me["tenant_id"] == str(get_settings().dev_tenant_id)
+
+
+def test_a_forged_cookie_for_an_unknown_organization_gets_the_default_user():
+    with TestClient(local_gateway.app, cookies={"demo_org": "someone-else"}) as client:
+        me = client.get("/api/v1/me").json()
+    assert me["tenant_id"] == str(get_settings().dev_tenant_id)
+
+
 def test_gateway_rejects_non_dev_auth(monkeypatch):
     monkeypatch.setattr(get_settings(), "auth_mode", "production")
     with TestClient(local_gateway.app) as client:
