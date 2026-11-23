@@ -3,9 +3,9 @@
 # Respondent service -> background worker: a submitted answer to save.
 ANSWERS = "survey.answers"
 
-# Data analyzer and worker -> Liana connector (the report's integration queue):
-# identified answers and "Contact me" requests for other Liana products, and
-# "new responses" emails for survey owners.
+# Worker and survey-manager -> Liana connector (the report's integration queue):
+# "Contact me" requests and their "You said, we did" replies for other Liana
+# products, and "new responses" emails for survey owners.
 LIANA_EVENTS = "survey.liana-events"
 
 # Messages that failed too many times end up here for manual checking.
@@ -19,6 +19,6 @@ ANSWERS_ARGUMENTS = {
     "x-dead-letter-routing-key": DEAD_LETTER,
 }
 
-# survey.liana-events is declared by the connector (reads) and the worker
-# (publishes), so both use these arguments.
+# survey.liana-events is declared by the connector (reads) and the worker and
+# survey-manager (publish), so all use these arguments.
 LIANA_EVENTS_ARGUMENTS = ANSWERS_ARGUMENTS

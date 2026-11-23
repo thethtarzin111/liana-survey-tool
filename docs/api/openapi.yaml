@@ -503,6 +503,32 @@ paths:
               schema: { $ref: '#/components/schemas/ContactRequest' }
         '404': { description: No such contact request for this organisation }
         '422': { description: Unknown status }
+  /api/v1/contact-requests/{request_id}/resolve:
+    parameters:
+      - { name: request_id, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [contact requests]
+      summary: Resolve the request and send the reader a "You said, we did" message
+      description: >-
+        Sets the status to done and queues the message for the Liana connector
+        (`ContactResolved` on survey.liana-events, see docs/integrations.md), which passes
+        it on to the reader by their contact reference. A request is resolved once: only a
+        message whose `reply_status` is `failed` can be sent again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContactRequestResolve' }
+      responses:
+        '200':
+          description: Resolved; `reply_status` is `pending` until the connector has passed it on
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContactRequest' }
+        '404': { description: No such contact request for this organisation }
+        '409': { description: Already resolved and the reader has been told (or is being told) }
+        '422': { description: Missing, blank or too long message }
+        '503': { description: Marked as done, but the message could not be queued; `reply_status` is `failed`, try again }
   /api/v1/results/performance:
     get:
       tags: [results]
@@ -1080,7 +1106,7 @@ components:
       description: The survey team's follow-up
     ContactRequest:
       type: object
-      required: [id, survey_id, survey_title, survey_type, contact_ref, answer, reason, segment, status, liana_status, created_at]
+      required: [id, survey_id, survey_title, survey_type, contact_ref, answer, reason, segment, status, liana_status, created_at, reply_status, reply_text, resolved_at]
       properties:
         id: { type: string, format: uuid }
         survey_id: { type: string, format: uuid }
@@ -1096,6 +1122,12 @@ components:
           enum: [pending, sent, failed]
           description: Whether the request reached LianaAutomation (docs/integrations.md)
         created_at: { type: string, format: date-time }
+        reply_status:
+          type: [string, 'null']
+          enum: [pending, sent, failed, null]
+          description: Whether the "You said, we did" message reached LianaAutomation; null until resolved
+        reply_text: { type: [string, 'null'], description: The "You said, we did" message }
+        resolved_at: { type: [string, 'null'], format: date-time }
     ContactRequestList:
       type: object
       required: [items, counts]
@@ -1117,3 +1149,9 @@ components:
       required: [status]
       properties:
         status: { $ref: '#/components/schemas/ContactRequestStatus' }
+    ContactRequestResolve:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message: { type: string, minLength: 1, maxLength: 1000, description: 'The "You said, we did" message. Trimmed.' }

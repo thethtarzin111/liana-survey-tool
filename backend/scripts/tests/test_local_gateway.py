@@ -68,6 +68,8 @@ def test_without_rabbitmq_answers_go_straight_to_the_worker_code(monkeypatch):
     assert saved == [message.model_dump_json().encode()]
     # The respondent app in this process uses it (LOCAL_QUEUE_WORKERS is not 1 in tests).
     assert isinstance(local_gateway.respondent.state.answer_queue, local_gateway.DirectAnswerQueue)
+    # And survey-manager hands "You said, we did" replies straight to the connector code.
+    assert local_gateway.surveys.state.liana_events is local_gateway.direct_events
 
 
 def test_without_rabbitmq_a_due_email_goes_straight_to_the_mock_mail(monkeypatch):

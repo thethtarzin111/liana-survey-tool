@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, TypeAdapter, ValidationError
 
-from liana_survey_shared.messages import ContactRequested, NewResponsesDigest
+from liana_survey_shared.messages import ContactRequested, ContactResolved, NewResponsesDigest
 
 from .notifications import new_responses_email
 from .ports.contact_events import ContactEvents, TemporaryError
@@ -17,12 +17,16 @@ from .retry import MAX_ATTEMPTS, backoff_seconds
 
 log = logging.getLogger(__name__)
 
-LianaEvent = Annotated[ContactRequested | NewResponsesDigest, Field(discriminator="type")]
+LianaEvent = Annotated[
+    ContactRequested | ContactResolved | NewResponsesDigest, Field(discriminator="type")
+]
+#: The messages whose delivery is stored on their contact request.
+TrackedEvent = ContactRequested | ContactResolved
 _events = TypeAdapter(LianaEvent)
 
 DeliveryStatus = Literal["pending", "sent", "failed"]
-#: Stores how a contact request's delivery went: (event, status, attempts so far).
-RecordStatus = Callable[[ContactRequested, DeliveryStatus, int], None]
+#: Stores how a delivery went on its contact request: (event, status, attempts so far).
+RecordStatus = Callable[[TrackedEvent, DeliveryStatus, int], None]
 
 
 class BadMessage(Exception):
@@ -30,7 +34,7 @@ class BadMessage(Exception):
     dead-letter queue instead of being retried."""
 
 
-def parse(body: bytes) -> ContactRequested | NewResponsesDigest:
+def parse(body: bytes) -> ContactRequested | ContactResolved | NewResponsesDigest:
     try:
         return _events.validate_json(body)
     except ValidationError as error:
@@ -43,10 +47,14 @@ def handle_event(body: bytes, contacts: ContactEvents, mail: NotificationMail) -
 
 
 def _dispatch(
-    event: ContactRequested | NewResponsesDigest, contacts: ContactEvents, mail: NotificationMail
+    event: ContactRequested | ContactResolved | NewResponsesDigest,
+    contacts: ContactEvents,
+    mail: NotificationMail,
 ) -> None:
     if isinstance(event, NewResponsesDigest):
         mail.send(new_responses_email(event))
+    elif isinstance(event, ContactResolved):
+        contacts.send_contact_resolved(event)
     else:
         contacts.send_contact_requested(event)
 
@@ -71,7 +79,8 @@ def deliver(
 
     A TemporaryError is retried with back-off until MAX_ATTEMPTS. Any other
     error does not go away by retrying, so the message goes to the dead-letter
-    queue at once. A contact request's result is stored through `record`."""
+    queue at once. The result of a contact request or its reply is stored
+    through `record`."""
     try:
         event = parse(body)
     except BadMessage:
@@ -98,13 +107,13 @@ def deliver(
 
 def _record(
     record: RecordStatus,
-    event: ContactRequested | NewResponsesDigest,
+    event: ContactRequested | ContactResolved | NewResponsesDigest,
     status: DeliveryStatus,
     attempts: int,
 ) -> None:
-    """Store a contact request's result. The status is only shown to people, so
-    a failure to store it is logged and does not change the delivery."""
-    if not isinstance(event, ContactRequested):
+    """Store a delivery's result. The status is only shown to people, so a
+    failure to store it is logged and does not change the delivery."""
+    if isinstance(event, NewResponsesDigest):
         return
     try:
         record(event, status, attempts)

@@ -277,3 +277,60 @@ def test_another_tenant_cannot_change_the_status(contact_request):
     )
     record_contact_request_status(other, "sent", 1)
     assert stored_status(contact_request.contact_request_id) == ("pending", 0, False)
+
+
+# --- "You said, we did" replies (#63) -----------------------------------------------
+
+
+def a_reply(**changes):
+    from liana_survey_shared.messages import ContactResolved
+
+    fields = {
+        "tenant_id": DEMO_TENANT,
+        "survey_id": uuid4(),
+        "contact_request_id": uuid4(),
+        "contact_ref": "member-1042",
+        "message": "You said the events start too late. From January they start at 17.",
+    }
+    return ContactResolved(**{**fields, **changes})
+
+
+def test_a_reply_goes_to_the_reader_through_the_contact_events_port():
+    event, contacts, record = a_reply(), MockContactEvents(), Recorder()
+    outcome = deliver(body(event), 1, contacts, MockNotificationMail(), record)
+    assert outcome == Outcome("ack")
+    assert contacts.resolved == [event]
+    assert contacts.sent == []
+    assert record.calls == [(event.contact_request_id, "sent", 1)]
+
+
+def test_a_reply_is_retried_like_a_request():
+    class Down:
+        def send_contact_resolved(self, event):
+            raise TemporaryError("503")
+
+    event, record = a_reply(), Recorder()
+    assert deliver(body(event), 1, Down(), MockNotificationMail(), record) == Outcome("retry", 2)
+    assert deliver(body(event), MAX_ATTEMPTS, Down(), MockNotificationMail(), record) == Outcome(
+        "dead"
+    )
+    assert [status for _, status, _ in record.calls] == ["pending", "failed"]
+
+
+def stored_reply(request_id):
+    with tenant_connection(DEMO_TENANT) as conn:
+        return conn.execute(
+            "select reply_status, reply_attempts, liana_status from contact_requests where id = %s",
+            (request_id,),
+        ).fetchone()
+
+
+@pytest.mark.db
+@needs_db
+def test_a_replys_result_is_stored_apart_from_the_requests(contact_request):
+    reply = a_reply(
+        survey_id=contact_request.survey_id,
+        contact_request_id=contact_request.contact_request_id,
+    )
+    record_contact_request_status(reply, "sent", 2)
+    assert stored_reply(contact_request.contact_request_id) == ("sent", 2, "pending")

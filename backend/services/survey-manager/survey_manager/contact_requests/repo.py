@@ -4,7 +4,7 @@ from uuid import UUID
 
 import psycopg
 
-from .domain import Status
+from .domain import ReplyStatus, Status
 
 # One contact request with its survey and the reader's answer: the first scale
 # question's value and the first reasons question's choices (as on Results).
@@ -23,7 +23,8 @@ select c.id, c.survey_id, s.title as survey_title, s.type::text as survey_type, 
    from answers a join questions q on q.id = a.question_id
    where a.response_id = c.response_id and q.kind::text = 'reasons'
    order by q.position limit 1) as reason,
-  r.segment, c.status::text as status, c.liana_status, c.created_at
+  r.segment, c.status::text as status, c.liana_status, c.created_at,
+  c.reply_status, c.reply_text, c.resolved_at
 from contact_requests c
 join surveys s on s.id = c.survey_id
 join responses r on r.id = c.response_id
@@ -63,4 +64,29 @@ def set_status(conn: psycopg.Connection, request_id: UUID, status: Status) -> bo
             (status, request_id),
         ).rowcount
         == 1
+    )
+
+
+def reply_status_for_update(conn: psycopg.Connection, request_id: UUID) -> tuple[bool, str | None]:
+    """(exists, reply_status), locking the request until the transaction ends so
+    two clicks on "Mark resolved" cannot both send the message."""
+    row = conn.execute(
+        "select reply_status from contact_requests where id = %s for update", (request_id,)
+    ).fetchone()
+    return (False, None) if row is None else (True, row["reply_status"])
+
+
+def resolve(conn: psycopg.Connection, request_id: UUID, reply_text: str) -> None:
+    conn.execute(
+        """update contact_requests
+           set status = 'done', reply_text = %s, reply_status = 'pending',
+               reply_attempts = 0, resolved_at = now()
+           where id = %s""",
+        (reply_text, request_id),
+    )
+
+
+def set_reply_status(conn: psycopg.Connection, request_id: UUID, status: ReplyStatus) -> None:
+    conn.execute(
+        "update contact_requests set reply_status = %s where id = %s", (status, request_id)
     )

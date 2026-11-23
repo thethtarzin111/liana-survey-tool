@@ -11,7 +11,7 @@ Backlog card: "Send contact requests to LianaAutomation". Waiting for a
 working LianaAutomation test account.
 """
 
-from liana_survey_shared.messages import ContactRequested
+from liana_survey_shared.messages import ContactRequested, ContactResolved
 
 
 class LianaAutomationContactEvents:
@@ -21,6 +21,11 @@ class LianaAutomationContactEvents:
         self.client_secret = client_secret
 
     def send_contact_requested(self, event: ContactRequested) -> None:
+        raise NotImplementedError(
+            "LianaAutomation adapter is not built yet; use LIANA_ADAPTER=mock"
+        )
+
+    def send_contact_resolved(self, event: ContactResolved) -> None:
         raise NotImplementedError(
             "LianaAutomation adapter is not built yet; use LIANA_ADAPTER=mock"
         )

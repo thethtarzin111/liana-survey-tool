@@ -207,3 +207,113 @@ def test_another_organisation_cannot_see_or_change_requests(client, make_request
     assert listed(client)["items"] == []
     response = client.patch(f"/api/v1/contact-requests/{request_id}", json={"status": "done"})
     assert response.status_code == 404
+
+
+# --- Close the loop: resolve and tell the reader (#63) --------------------------------
+
+
+class FakeEvents:
+    def __init__(self, fail: bool = False):
+        self.fail = fail
+        self.published = []
+
+    async def publish(self, message):
+        if self.fail:
+            raise ConnectionError("RabbitMQ is down")
+        self.published.append(message)
+
+
+@pytest.fixture
+def events():
+    from survey_manager.liana_events import get_liana_events
+
+    fake = FakeEvents()
+    app.dependency_overrides[get_liana_events] = lambda: fake
+    return fake
+
+
+SAID_DID = "You said the events start too late. From January they start at 17."
+
+
+def resolve(client, request_id, message=SAID_DID):
+    return client.post(f"/api/v1/contact-requests/{request_id}/resolve", json={"message": message})
+
+
+def test_a_resolve_needs_a_message_of_at_most_1000_characters(client, events):
+    app.dependency_overrides[tenant_db] = lambda: None
+    for body in ({}, {"message": "   "}, {"message": "x" * 1001}, {"message": "Hi", "to": "x"}):
+        response = client.post(f"/api/v1/contact-requests/{uuid4()}/resolve", json=body)
+        assert response.status_code == 422, body
+    assert events.published == []
+
+
+@pytest.mark.db
+@needs_db
+def test_resolving_marks_the_request_done_and_queues_the_message_for_the_reader(
+    client, make_request, events
+):
+    request_id = make_request(ref="member-1042")
+    response = resolve(client, request_id, f"  {SAID_DID}  ")
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["status"], body["reply_status"], body["reply_text"]) == (
+        "done",
+        "pending",
+        SAID_DID,
+    )
+    assert body["resolved_at"] is not None
+    [message] = events.published
+    assert message.type == "contact.resolved"
+    assert (message.contact_request_id, message.contact_ref) == (request_id, "member-1042")
+    assert (message.tenant_id, message.survey_id) == (DEMO_TENANT, make_request.survey_id())
+    assert message.message == SAID_DID
+
+
+@pytest.mark.db
+@needs_db
+def test_a_reader_is_told_once(client, make_request, events):
+    request_id = make_request()
+    assert resolve(client, request_id).status_code == 200
+    again = resolve(client, request_id, "Another message")
+    assert again.status_code == 409
+    assert len(events.published) == 1
+
+
+@pytest.mark.db
+@needs_db
+def test_a_message_that_cannot_be_queued_is_marked_failed_and_can_be_sent_again(
+    client, make_request, events
+):
+    request_id = make_request()
+    events.fail = True
+    response = resolve(client, request_id)
+    assert response.status_code == 503
+    [item] = listed(client, survey_id=str(make_request.survey_id()))["items"]
+    assert (item["status"], item["reply_status"]) == ("done", "failed")
+    events.fail = False
+    assert resolve(client, request_id).status_code == 200
+    assert len(events.published) == 1
+
+
+@pytest.mark.db
+@needs_db
+def test_unknown_or_other_organisations_requests_cannot_be_resolved(client, make_request, events):
+    assert resolve(client, uuid4()).status_code == 404
+    request_id = make_request()
+    app.dependency_overrides[current_user] = lambda: CurrentUser(
+        user_id=uuid4(),
+        tenant_id=OTHER_TENANT,
+        tenant_name="Other",
+        name="Other user",
+        email="other@example.org",
+    )
+    assert resolve(client, request_id).status_code == 404
+    assert events.published == []
+
+
+@pytest.mark.db
+@needs_db
+def test_an_open_request_has_no_reply_yet(client, make_request):
+    make_request()
+    [item] = listed(client, survey_id=str(make_request.survey_id()))["items"]
+    assert (item["reply_status"], item["reply_text"], item["resolved_at"]) == (None, None, None)

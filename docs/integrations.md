@@ -7,6 +7,7 @@ system only publishes messages to RabbitMQ.
 |---|---|---|
 | Survey in a LianaMailer newsletter | Copy-paste HTML snippet (R06, #40): one link per answer, with LianaMailer's `$id$` placeholder as the reader (so each reader counts once) and campaign/segment tags. Not signed, because a pasted snippet is the same for everyone, so only surveys whose snippet was made accept unsigned links; signed links through the LianaMailer API are #118. | `POST /api/v1/surveys/{id}/snippet`; needs no Liana API |
 | "Contact me" → LianaAutomation | Worker creates a contact request → `ContactRequested` message → connector → `ContactEvents` port → LianaAutomation `POST /import` with `no_duplicates`. Retries and result: see below | Mock adapter (#58). Real adapter is #72, waiting for a working LianaAutomation test account |
+| "You said, we did" → LianaAutomation | Resolve on Close the loop → survey-manager publishes `ContactResolved` → connector → `ContactEvents.send_contact_resolved` | Mock adapter (#63). Real adapter is #72 |
 | "New responses" emails to a survey's owner | `NewResponsesDigest` message (worker → connector) → `NotificationMail` port | Mock adapter (logs the email). No real mail adapter yet |
 | Send surveys through LianaMailer API | `MailDelivery` port + LianaMailer adapter | Placeholder. No LianaMailer API docs yet |
 | Save answers to contact attributes | Through LianaAutomation or LianaMailer API | Not started |
@@ -63,6 +64,27 @@ The connector passes it to the `ContactEvents` port (`LIANA_ADAPTER`):
 
 `liana_attempts` and `liana_updated_at` record the last try. "New responses"
 emails are retried the same way but have no stored status.
+
+## "You said, we did" replies
+
+`POST /api/v1/contact-requests/{id}/resolve` with the team's message sets the
+request to `done`, stores the message (`reply_text`) with `reply_status =
+'pending'` and `resolved_at`, and then publishes `ContactResolved` to
+`survey.liana-events`. The connector passes it to
+`ContactEvents.send_contact_resolved`, with the same retries as a contact
+request, and stores `reply_status` (`sent` or `failed`) and `reply_attempts`.
+
+A request is resolved once. Resolving again is a 409, unless the reply
+`failed`. If survey-manager cannot publish the message, it sets `reply_status =
+'failed'` and answers 503, so the team can try again.
+
+`ContactResolved` fields: `tenant_id`, `survey_id`, `contact_request_id`,
+`contact_ref`, `message` (1 to 1000 characters), `type` = `contact.resolved`.
+The message is the team's own text. It holds nothing about the reader except
+the contact reference.
+
+Until the follow-up step (#59, #60) stores a default "You said, we did" text
+per survey, the team types the message when it resolves the request.
 
 ## LianaAutomation (from the API docs the team has)
 - Host: `https://rest.automation.lianacloud.com/api/v1`, OAuth 2.0 Bearer token.

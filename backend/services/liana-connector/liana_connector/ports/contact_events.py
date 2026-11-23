@@ -6,12 +6,17 @@ event really goes (mock, LianaAutomation, ...).
 
 from typing import Protocol
 
-from liana_survey_shared.messages import ContactRequested
+from liana_survey_shared.messages import ContactRequested, ContactResolved
 
 
 class ContactEvents(Protocol):
     def send_contact_requested(self, event: ContactRequested) -> None:
         """Deliver the event. Raise TemporaryError to retry later."""
+        ...
+
+    def send_contact_resolved(self, event: ContactResolved) -> None:
+        """Pass the team's "You said, we did" message on to the reader.
+        Raise TemporaryError to retry later."""
         ...
 
 

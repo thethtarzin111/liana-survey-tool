@@ -62,6 +62,18 @@ class ContactRequested(Message):
     contact_ref: str
 
 
+class ContactResolved(Message):
+    """Sent by survey-manager when the team resolves a contact request. The
+    Liana connector passes the team's "You said, we did" message on to the
+    reader, known only by their contact reference."""
+
+    type: Literal["contact.resolved"] = "contact.resolved"
+    survey_id: UUID
+    contact_request_id: UUID
+    contact_ref: str
+    message: str = Field(min_length=1, max_length=1000)
+
+
 class NewResponsesDigest(Message):
     """Sent by the worker when a survey's owner is due an email about new
     responses. The Liana connector sends it through its notification mail port.

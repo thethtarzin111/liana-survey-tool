@@ -73,11 +73,11 @@ second database. Each service only touches its own tables:
 
 | Service | Writes | Reads |
 |---|---|---|
-| survey-manager | `surveys`, `questions`, `templates`, `contact_requests.status` | the same, plus `contact_requests`, `responses` and `answers` for the Contact requests page |
+| survey-manager | `surveys`, `questions`, `templates`, `contact_requests` status and reply (`reply_text`, `reply_status`, `resolved_at`) | the same, plus `contact_requests`, `responses` and `answers` for the Contact requests page |
 | respondent | nothing (answers go to the queue) | `surveys`, `questions` (to show the survey) |
 | worker | `responses`, `answers`, `contact_requests`, `survey_aggregates`, `response_notifications` | `questions`, `surveys`, `users` (owner of a survey, for "new responses" emails) |
 | data-analyzer | nothing | `survey_aggregates`, `answers`, `contact_requests` |
-| liana-connector | `contact_requests` delivery columns only (`liana_status`, `liana_attempts`, `liana_updated_at`) | the same |
+| liana-connector | `contact_requests` delivery columns only (`liana_status`, `liana_attempts`, `liana_updated_at`, `reply_status`, `reply_attempts`) | the same |
 
 A second database would mean keeping two copies of survey data in sync, which
 the demo does not need. If needed later, each service can get its own
@@ -106,7 +106,7 @@ by the development launcher.
 | Queue | From → to | Message |
 |---|---|---|
 | `survey.answers` (answers queue) | respondent → worker | `AnswerSubmitted` |
-| `survey.liana-events` (integration queue) | data-analyzer, worker → liana-connector | `ContactRequested`, `NewResponsesDigest`, identified answers |
+| `survey.liana-events` (integration queue) | worker, survey-manager → liana-connector | `ContactRequested`, `ContactResolved`, `NewResponsesDigest` |
 | `survey.dead-letter` | any → people | messages that failed |
 
 Because a newsletter can bring thousands of clicks at once, the respondent

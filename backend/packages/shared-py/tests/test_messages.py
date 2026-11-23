@@ -7,6 +7,7 @@ from liana_survey_shared.messages import (
     AnswerSubmitted,
     AnswerValue,
     ContactRequested,
+    ContactResolved,
     NewResponsesDigest,
 )
 
@@ -57,3 +58,18 @@ def test_a_new_responses_digest_needs_at_least_one_new_response():
     assert NewResponsesDigest.model_validate_json(msg.model_dump_json()) == msg
     with pytest.raises(ValidationError):
         NewResponsesDigest(new_responses=0, **fields)
+
+
+def test_a_resolved_request_carries_the_teams_message():
+    fields = {
+        "tenant_id": uuid4(),
+        "survey_id": uuid4(),
+        "contact_request_id": uuid4(),
+        "contact_ref": "member-1042",
+    }
+    msg = ContactResolved(message="You said the events were too late. We moved them.", **fields)
+    assert msg.type == "contact.resolved"
+    assert ContactResolved.model_validate_json(msg.model_dump_json()) == msg
+    for bad in ("", "x" * 1001):
+        with pytest.raises(ValidationError):
+            ContactResolved(message=bad, **fields)

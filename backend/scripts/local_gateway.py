@@ -20,11 +20,12 @@ IDENTITY = {b"x-tenant-id", b"x-user-id", b"x-tenant-name", b"x-user-name", b"x-
 
 
 class DirectLianaEvents:
-    """Local development without RabbitMQ: hands each contact request and "new
-    responses" email straight to the connector's code with its mock adapters,
-    instead of putting it on survey.liana-events. The mock mail shows up in this
-    terminal, and the contact request's status is stored as with the real
-    connector. There is no retry: a temporary error leaves the request pending."""
+    """Local development without RabbitMQ: hands each contact request, its
+    "You said, we did" reply and "new responses" email straight to the
+    connector's code with its mock adapters, instead of putting it on
+    survey.liana-events. The mock mail shows up in this terminal, and the
+    delivery status is stored as with the real connector. There is no retry: a
+    temporary error leaves the status pending."""
 
     def __init__(self) -> None:
         from liana_connector.delivery_status import record_contact_request_status
@@ -71,6 +72,8 @@ direct_events: DirectLianaEvents | None = None
 if os.environ.get("LOCAL_QUEUE_WORKERS") != "1":
     direct_events = DirectLianaEvents()
     respondent.state.answer_queue = DirectAnswerQueue(direct_events)
+    # "You said, we did" replies from the Close the loop tab.
+    surveys.state.liana_events = direct_events
     # Uvicorn only sets up its own loggers; show the worker's and the mock mail's.
     for name in ("survey_worker", "liana_connector"):
         logger = logging.getLogger(name)
