@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     lianaautomation_client_secret: str = ""
     # mock = log the email only. No real mail adapter yet.
     notification_mail_adapter: str = "mock"
+    # Encrypts the LianaAutomation client secrets saved on the Integrations page.
+    # Use a long random value outside local development; changing it makes saved
+    # secrets unreadable (the page then asks for them again).
+    integration_secret_key: str = "change-me-integration-secret-key"
 
 
 @lru_cache

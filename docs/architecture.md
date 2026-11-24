@@ -89,7 +89,8 @@ to loopback on port 8000. Production ingress and authentication are not supplied
 by the development launcher.
 
 - **Routing:** `/api/v1/surveys`, `/api/v1/templates` → survey-manager;
-  `/api/v1/results` → data-analyzer; `/r/<token>` → respondent.
+  `/api/v1/results` → data-analyzer; `/api/v1/integrations` → liana-connector's
+  HTTP API (`liana_connector.api`); `/r/<token>` → respondent.
 - **Authentication:** for admin routes the gateway sets who the user is
   (`X-Tenant-Id`, `X-User-Id`, name, email) and always overwrites whatever the
   client sent. Respondent routes get these headers cleared. Services read the

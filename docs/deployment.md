@@ -31,15 +31,15 @@ For a production setup (e.g. on Liana's own infrastructure), the source layout i
 | Respondent | `backend/services/respondent` | `uvicorn respondent_service.main:app` |
 | Data analyzer | `backend/services/data-analyzer` | `uvicorn data_analyzer.main:app` |
 | Worker | `backend/services/worker` | `python -m survey_worker.main` |
-| Liana connector | `backend/services/liana-connector` | `python -m liana_connector.main` |
+| Liana connector | `backend/services/liana-connector` | `python -m liana_connector.main` (queue) and `uvicorn liana_connector.api:app` (Integrations page API) |
 
 Install `backend/packages/shared-py` and the relevant service dependencies into
 the deployed Python environment. Configure each HTTP service's listening host
 and port for its hosting platform, and supervise long-running processes.
 
 A production entry point must route `/api/v1/surveys` and `/api/v1/templates`
-to the survey manager, `/api/v1/results` to the analyzer, and `/r/` to the
-respondent. It must authenticate admin requests, provide `/api/v1/me`, replace
+to the survey manager, `/api/v1/results` to the analyzer, `/api/v1/integrations`
+to the connector's API, and `/r/` to the respondent. It must authenticate admin requests, provide `/api/v1/me`, replace
 forwarded identity headers, provide TLS and rate limits, and keep the individual
 services private. `backend/scripts/local_gateway.py` is a loopback-only demo
 entry point and does not implement production authentication.
