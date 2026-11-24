@@ -205,6 +205,42 @@ function LianaMailerCard() {
   );
 }
 
+function ShareLinkCard() {
+  return (
+    <Card padded className="integrations-card">
+      <div className="integrations-card-head">
+        <h2 className="integrations-card-title">Share link and QR code</h2>
+        <Badge tone="positive">Ready</Badge>
+      </div>
+      <p className="integrations-hint">
+        Every live survey has a public link and a QR code, for social media posts, posters or automation steps. No
+        login needed, and answers stay anonymous.
+      </p>
+      <p className="integrations-hint">
+        Open a live survey and find them under <strong>Share outside email</strong>.
+      </p>
+      <div>
+        <ButtonLink to="/surveys">Choose a survey</ButtonLink>
+      </div>
+    </Card>
+  );
+}
+
+function WebsiteEmbedCard() {
+  return (
+    <Card padded className="integrations-card">
+      <div className="integrations-card-head">
+        <h2 className="integrations-card-title">Website embed</h2>
+        <Badge tone="muted">Planned</Badge>
+      </div>
+      <p className="integrations-hint">
+        A code snippet that shows the survey on your own website. Until then, link to the survey’s public link from
+        your site.
+      </p>
+    </Card>
+  );
+}
+
 function ExportCard() {
   return (
     <Card padded className="integrations-card">
@@ -310,6 +346,8 @@ export function IntegrationsPage() {
       )}
       <div className="integrations-grid">
         <LianaMailerCard />
+        <ShareLinkCard />
+        <WebsiteEmbedCard />
         <ExportCard />
       </div>
       <SyncLog reload={logReload} onChange={load} />
