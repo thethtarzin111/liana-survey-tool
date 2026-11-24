@@ -8,9 +8,11 @@ const STATUS: Record<SyncEvent['status'], { label: string; tone: BadgeTone }> = 
   pending: { label: 'Waiting', tone: 'neutral' },
   retrying: { label: 'Retrying', tone: 'outline' },
   failed: { label: 'Failed', tone: 'negative' },
+  skipped: { label: 'Not sent', tone: 'muted' },
 };
 
-/** Every event sent to LianaAutomation, newest first, with Retry for failed ones. */
+/** Every event for LianaAutomation, newest first, with Retry for failed ones. Answers that are
+ * deliberately not sent (anonymous, unknown contact) are listed as "Not sent" with the reason. */
 export function SyncLog({ reload, onChange }: { reload: number; onChange: () => void }) {
   const [onlyFailed, setOnlyFailed] = useState(false);
   const [rows, setRows] = useState<SyncEvent[] | null>(null);
@@ -61,7 +63,12 @@ export function SyncLog({ reload, onChange }: { reload: number; onChange: () => 
     { key: 'contact', header: 'Contact', render: (e) => e.contact ?? '—' },
     { key: 'status', header: 'Status', render: (e) => <Badge tone={STATUS[e.status].tone}>{STATUS[e.status].label}</Badge> },
     { key: 'attempts', header: 'Tries', numeric: true },
-    { key: 'last_error', header: 'Error', render: (e) => <span className="sync-error">{e.last_error ?? ''}</span> },
+    {
+      key: 'last_error',
+      header: 'Error or reason',
+      render: (e) =>
+        e.status === 'skipped' ? (e.last_error ?? '') : <span className="sync-error">{e.last_error ?? ''}</span>,
+    },
     {
       key: 'retry',
       header: 'Actions',
@@ -80,7 +87,10 @@ export function SyncLog({ reload, onChange }: { reload: number; onChange: () => 
       <div className="integrations-card-head">
         <div>
           <h2 className="integrations-card-title">Sync log</h2>
-          <p className="integrations-hint">Check that events reached LianaAutomation, and retry the ones that failed.</p>
+          <p className="integrations-hint">
+            Check that events reached LianaAutomation, and retry the ones that failed. “Not sent” says why an answer
+            stayed in the survey tool.
+          </p>
         </div>
         <ToggleChip selected={onlyFailed} onChange={setOnlyFailed}>
           Only failed

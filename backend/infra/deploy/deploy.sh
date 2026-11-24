@@ -35,6 +35,14 @@ set -a
 set +a
 "$VENV/bin/python" -m backend.scripts.prepare_db
 
+echo "== Release settings"
+# Defaults for settings that servers set up before they existed do not have in
+# app.env. The app reads .env from its working directory (this release); app.env
+# still wins for anything it sets. No secrets here.
+# LianaAutomation: each organisation's own connection from the Integrations page
+# (nothing is sent until an admin connects one), instead of the log-only mock.
+printf 'LIANA_ADAPTER=lianaautomation\n' > "$RELEASE/.env"
+
 echo "== Switch to this release"
 previous="$(readlink -f "$APP_DIR/current" 2>/dev/null || true)"
 ln -sfn "$RELEASE" "$APP_DIR/current.new"

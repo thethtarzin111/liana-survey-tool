@@ -44,6 +44,11 @@ async def main() -> None:
                 except BadMessage:
                     log.exception("bad message, sending to dead letter")
                     await message.reject(requeue=False)
+                except Exception:
+                    # Delivery failed (the sync log has it, with Retry) or a bug: keep
+                    # consuming the other messages.
+                    log.exception("could not deliver message, sending to dead letter")
+                    await message.reject(requeue=False)
 
 
 if __name__ == "__main__":

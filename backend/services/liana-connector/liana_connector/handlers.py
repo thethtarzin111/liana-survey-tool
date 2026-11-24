@@ -5,13 +5,15 @@ from typing import Annotated
 
 from pydantic import Field, TypeAdapter, ValidationError
 
-from liana_survey_shared.messages import ContactRequested, NewResponsesDigest
+from liana_survey_shared.messages import AnswerRecorded, ContactRequested, NewResponsesDigest
 
 from .notifications import new_responses_email
 from .ports.contact_events import ContactEvents
 from .ports.notification_mail import NotificationMail
 
-LianaEvent = Annotated[ContactRequested | NewResponsesDigest, Field(discriminator="type")]
+LianaEvent = Annotated[
+    AnswerRecorded | ContactRequested | NewResponsesDigest, Field(discriminator="type")
+]
 _events = TypeAdapter(LianaEvent)
 
 
@@ -28,5 +30,7 @@ def handle_event(body: bytes, contacts: ContactEvents, mail: NotificationMail) -
         raise BadMessage(f"not a Liana event ({error.error_count()} errors)") from error
     if isinstance(event, NewResponsesDigest):
         mail.send(new_responses_email(event))
+    elif isinstance(event, AnswerRecorded):
+        contacts.send_answer_recorded(event)
     else:
         contacts.send_contact_requested(event)

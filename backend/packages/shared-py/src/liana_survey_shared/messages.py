@@ -13,6 +13,14 @@ _SEGMENT = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 RESERVED_SEGMENTS = ("none", "other")
 
 
+_CAMPAIGN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
+
+
+def is_valid_campaign(value: str) -> bool:
+    """A campaign tag from a link: lowercase letters, digits and hyphens."""
+    return _CAMPAIGN.fullmatch(value) is not None
+
+
 def is_valid_segment(value: str) -> bool:
     """A segment tag from a link: lowercase letters, digits and hyphens, not reserved."""
     return _SEGMENT.fullmatch(value) is not None and value not in RESERVED_SEGMENTS
@@ -41,8 +49,18 @@ class AnswerSubmitted(Message):
     segment: str = "all"
     channel: Literal["email", "link", "qr"] = "link"
     answers: list[AnswerValue]
-    # Only set in identified mode, after the respondent opted in.
+    # The LianaMailer contact id from the link, only when the answer may be linked
+    # to the contact (liana_survey_shared.contact.answer_contact_ref).
     contact_ref: str | None = None
+    # The "Tell us more" box, for surveys without a text question of their own.
+    comment: str | None = Field(default=None, max_length=5000)
+    # The reader ticked "Contact me about this by email" (needs a contact_ref).
+    contact_me: bool = False
+    # The follow-up page saving the tapped answer alone (step=tap): it replaces only
+    # the answers in this message, so the reader's earlier follow-up answers stay.
+    main_only: bool = False
+    # The newsletter's campaign tag from the link (c=), passed on to LianaAutomation.
+    campaign: str | None = None
 
     @field_validator("segment")
     @classmethod
@@ -50,6 +68,31 @@ class AnswerSubmitted(Message):
         if not is_valid_segment(value):
             raise ValueError("invalid segment")
         return value
+
+    @field_validator("campaign")
+    @classmethod
+    def _campaign_is_valid(cls, value: str | None) -> str | None:
+        if value is not None and not is_valid_campaign(value):
+            raise ValueError("invalid campaign")
+        return value
+
+
+class AnswerRecorded(Message):
+    """Sent by the worker each time it saves or changes an answer. The Liana
+    connector sends it to LianaAutomation as a survey_answered event when the
+    organisation connected it and the answer has a contact; otherwise the sync log
+    says why it was not sent. Never the answers' texts."""
+
+    type: Literal["answer.recorded"] = "answer.recorded"
+    survey_id: UUID
+    response_id: UUID
+    survey_title: str
+    # The main question's kind (nps, rating, thumbs) and the reader's answer to it.
+    main_kind: str | None = None
+    score: int | None = None
+    campaign: str | None = None
+    # None for anonymous answers.
+    contact_ref: str | None = None
 
 
 class ContactRequested(Message):

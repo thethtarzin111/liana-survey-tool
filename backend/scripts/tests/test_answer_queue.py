@@ -8,6 +8,7 @@ answer. The surveys they create are deleted afterwards.
 
 import asyncio
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -129,10 +130,15 @@ def live_survey():
 
 
 def tap(client, token, reader, answer) -> int:
+    """Open the answer link, then save the answer as the follow-up page's script does
+    (opening the link alone saves nothing, so mail scanners never answer)."""
     settings = get_settings()
     url = links.answer_link(settings.public_base_url, settings.link_signing_secret, token, reader)
     parts = urlsplit(url)
-    return client.get(f"{parts.path}?{parts.query}&a={answer}").status_code
+    page = client.get(f"{parts.path}?{parts.query}&a={answer}")
+    assert page.status_code == 200, page.text
+    fields = dict(re.findall(r'<input type="hidden" name="([^"]+)" value="([^"]*)">', page.text))
+    return client.post(parts.path, data={**fields, "step": "tap"}).status_code
 
 
 def totals(survey_id):
@@ -159,7 +165,7 @@ def test_a_tap_travels_through_rabbitmq_and_is_saved_once(worker, live_survey):
 
     survey_id, token = live_survey
     with TestClient(app) as client:
-        assert tap(client, token, "reader-1", 9) == 200
+        assert tap(client, token, "reader-1", 9) == 204
         assert wait_for(lambda: totals(survey_id) if totals(survey_id)[0] else None, worker) == (
             1,
             {"9": 1},
@@ -167,8 +173,8 @@ def test_a_tap_travels_through_rabbitmq_and_is_saved_once(worker, live_survey):
 
         # The same reader again, then someone else: each reader counts once, and
         # reader-1's later tap replaces their first answer (#126).
-        assert tap(client, token, "reader-1", 3) == 200
-        assert tap(client, token, "reader-2", 10) == 200
+        assert tap(client, token, "reader-1", 3) == 204
+        assert tap(client, token, "reader-2", 10) == 204
         final = wait_for(lambda: totals(survey_id) if totals(survey_id)[0] >= 2 else None, worker)
     assert final == (2, {"3": 1, "10": 1})
 

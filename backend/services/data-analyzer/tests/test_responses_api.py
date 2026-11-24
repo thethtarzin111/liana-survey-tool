@@ -433,3 +433,23 @@ def test_sql_masks_the_same_strings_as_python(text):
             {"text": text, "email": EMAIL_PATTERN, "phone": PHONE_PATTERN},
         ).fetchone()[0]
     assert sql == mask(text)[0]
+
+
+@pytest.mark.db
+@needs_db
+def test_the_tell_us_more_box_is_the_comment_of_surveys_without_a_text_question():
+    with tenant_connection(DEMO_TENANT) as conn:
+        survey_id = _make_survey(conn, "Comment box test")
+        nps = _make_question(conn, survey_id, 1, "nps", "Recommend us?")
+        rid = _make_response(conn, survey_id, 1, "all", datetime.now(UTC))
+        _answer(conn, rid, nps, number=4)
+        conn.execute(
+            "update responses set comment = %s where id = %s",
+            ("Mail me at anna.virtanen@example.org", rid),
+        )
+    try:
+        [row] = responses(survey_id).json()["rows"]
+        # Masked like any other comment.
+        assert (row["comment"], row["masked"]) == ("Mail me at [hidden]", True)
+    finally:
+        _delete(survey_id)

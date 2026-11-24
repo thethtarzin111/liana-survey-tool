@@ -211,8 +211,9 @@ _demo_ids = itertools.count(2)
 
 class DemoLianaClient:
     """A fake LianaAutomation for local development, so every step of the page can be
-    tried without a Liana account. Client ID demo-client, secret demo-secret. A test
-    contact with "fail" in the address gets a temporary error, to try Retry."""
+    tried without a Liana account. Client ID demo-client, secret demo-secret. A
+    contact with "fail" in its email or contact id gets a temporary error, to try
+    Retry."""
 
     def __init__(self, client_id: str, secret: str) -> None:
         self.ok = client_id == DEMO_CLIENT_ID and secret == DEMO_SECRET
@@ -241,7 +242,7 @@ class DemoLianaClient:
         if not str(body.get("channel", "")).startswith("demo-"):
             raise PermanentError("Liana refused the data (400): unknown channel.")
         for item in body.get("data", []):
-            if "fail" in str((item.get("identity") or {}).get("email", "")):
+            if any("fail" in str(value) for value in (item.get("identity") or {}).values()):
                 raise TemporaryError("Liana answered 503. Try again later. (demo)")
 
 

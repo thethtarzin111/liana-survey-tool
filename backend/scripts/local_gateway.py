@@ -21,9 +21,11 @@ IDENTITY = {b"x-tenant-id", b"x-user-id", b"x-tenant-name", b"x-user-name", b"x-
 
 
 class DirectLianaEvents:
-    """Local development without RabbitMQ: hands each "new responses" email
-    straight to the connector's code with its mock adapters, instead of putting
-    it on survey.liana-events. The mock mail shows up in this terminal."""
+    """Local development without RabbitMQ: hands each message for the connector
+    (saved answers, "Contact me" requests, "new responses" emails) straight to the
+    connector's code, instead of putting it on survey.liana-events. The adapters
+    are the ones LIANA_ADAPTER and NOTIFICATION_MAIL_ADAPTER pick; the mock mail
+    shows up in this terminal."""
 
     def __init__(self) -> None:
         from liana_connector.factory import build_contact_events, build_notification_mail
@@ -34,7 +36,10 @@ class DirectLianaEvents:
     async def publish(self, message) -> None:
         from liana_connector.handlers import handle_event
 
-        handle_event(message.model_dump_json().encode(), self.contacts, self.mail)
+        # The LianaAutomation adapter calls Liana over HTTP: off the event loop.
+        await asyncio.to_thread(
+            handle_event, message.model_dump_json().encode(), self.contacts, self.mail
+        )
 
 
 class DirectAnswerQueue:
@@ -51,8 +56,18 @@ class DirectAnswerQueue:
         from survey_worker.handlers import record_answer
 
         recorded = await asyncio.to_thread(record_answer, message.model_dump_json().encode())
-        if recorded.digest is not None and self.events is not None:
-            await self.events.publish(recorded.digest)
+        if self.events is None:
+            return
+        for event in (*recorded.events, recorded.digest):
+            if event is None:
+                continue
+            try:
+                await self.events.publish(event)
+            except Exception:
+                # As the worker: the answer stays saved; the sync log shows the failure.
+                logging.getLogger("liana_connector").exception(
+                    "could not pass on %s", type(event).__name__
+                )
 
     async def close(self) -> None:
         pass

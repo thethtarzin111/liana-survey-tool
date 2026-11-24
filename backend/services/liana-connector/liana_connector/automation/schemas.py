@@ -65,7 +65,8 @@ class SyncEvent(BaseModel):
     #: Shortened, e.g. "su…@example.com".
     contact: str | None
     test: bool
-    status: Literal["pending", "sent", "retrying", "failed"]
+    #: skipped: deliberately not sent; last_error says why (anonymous, unknown contact).
+    status: Literal["pending", "sent", "retrying", "failed", "skipped"]
     attempts: int
     last_error: str | None
     created_at: datetime

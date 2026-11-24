@@ -1,12 +1,13 @@
-"""LianaAutomation adapter: "Contact me" requests become survey_contact_request events
-(POST /import with no_duplicates).
+"""LianaAutomation adapter: saved answers become survey_answered events and "Contact
+me" requests survey_contact_request events (POST /import with no_duplicates).
 
 Each organisation connects its own LianaAutomation account on the Integrations page,
 so the host, credentials, channel and switches come from its `integrations` row, not
 from environment variables. Every request is a row in the sync log, so the admin sees
 what was sent and can press Retry after fixing a broken connection.
 
-    not connected, or "Contact me" requests switched off -> skipped (nothing to send)
+    not connected, or that switch is off                  -> nothing (no sync log row)
+    an anonymous answer, or an unknown contact            -> "skipped" row with the reason
     connection not tested, or no channel                  -> failed in the sync log, Retry
     TemporaryError (5xx, timeout)                         -> retrying; raised so the
                                                              connector tries again later
@@ -26,7 +27,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from liana_survey_shared.db import tenant_connection
-from liana_survey_shared.messages import ContactRequested
+from liana_survey_shared.messages import AnswerRecorded, ContactRequested
 
 from ...automation import domain, repo, secrets
 from ...automation.client import AutomationClient, LianaError, build_client
@@ -83,23 +84,55 @@ class LianaAutomationContactEvents:
             if problem:
                 repo.finish_event(conn, logged["id"], "failed", problem)
                 return
+        self._deliver(event.tenant_id, connection, logged)
+
+    def send_answer_recorded(self, event: AnswerRecorded) -> None:
+        with self._db(event.tenant_id) as conn:
+            connection = repo.get(conn)
+            if not domain.sends_answers(connection):
+                return
+            payload, not_sent = domain.answer_event(
+                event.survey_id,
+                event.survey_title,
+                event.main_kind,
+                event.score,
+                event.campaign,
+                event.contact_ref,
+            )
+            problem = None if not_sent else domain.not_ready(connection)
+            status = "skipped" if not_sent else "failed" if problem else "pending"
+            logged = repo.log_answer_event(
+                conn,
+                event.tenant_id,
+                event.response_id,
+                domain.ANSWER_VERB,
+                payload,
+                status,
+                not_sent or problem,
+            )
+        if logged is None or status != "pending":
+            return  # nothing new to send, not sent on purpose, or waiting for Retry
+        self._deliver(event.tenant_id, connection, logged)
+
+    def _deliver(self, tenant_id: UUID, connection: dict, logged: dict) -> None:
+        """Send one pending sync log row and record the outcome."""
         try:
             secret = secrets.decrypt(connection["secret_encrypted"], self.secret_key)
         except secrets.UnreadableSecret:
             message = "The saved secret can no longer be read. Enter the credentials again."
-            self._finish(event.tenant_id, logged["id"], "failed", message, broken=True)
+            self._finish(tenant_id, logged["id"], "failed", message, broken=True)
             raise DeliveryFailed(message) from None
         try:
             client = self.build(connection["host"], connection["client_id"], secret)
             client.import_events(domain.import_body(connection["channel_id"], [logged["payload"]]))
         except LianaTemporaryError as error:
-            self._finish(event.tenant_id, logged["id"], "retrying", str(error))
+            self._finish(tenant_id, logged["id"], "retrying", str(error))
             raise TemporaryError(str(error)) from error
         except LianaError as error:
             broken = error.kind in ("config", "auth")
-            self._finish(event.tenant_id, logged["id"], "failed", str(error), broken=broken)
+            self._finish(tenant_id, logged["id"], "failed", str(error), broken=broken)
             raise DeliveryFailed(str(error)) from error
-        self._finish(event.tenant_id, logged["id"], "sent", None)
+        self._finish(tenant_id, logged["id"], "sent", None)
 
     def _finish(
         self, tenant_id: UUID, event_id: UUID, status: str, error: str | None, broken=False

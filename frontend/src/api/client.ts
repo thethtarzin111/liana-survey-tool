@@ -247,6 +247,8 @@ export type SurveySettings = {
   /** "Notify me of new responses by email". */
   notify_on_response: boolean;
   language: SurveyLanguage;
+  /** false = identified answers: newsletter answers keep the reader's LianaMailer contact id. */
+  anonymous: boolean;
 };
 
 /** Branding: colours as "#RRGGBB", and where to load the logo (null when there is none). */
@@ -378,7 +380,8 @@ export type SyncEvent = {
   /** Shortened, e.g. "su…@example.com". */
   contact: string | null;
   test: boolean;
-  status: 'pending' | 'sent' | 'retrying' | 'failed';
+  /** skipped: deliberately not sent (anonymous answer, unknown contact); last_error says why. */
+  status: 'pending' | 'sent' | 'retrying' | 'failed' | 'skipped';
   attempts: number;
   last_error: string | null;
   created_at: string;

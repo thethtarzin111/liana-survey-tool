@@ -111,6 +111,42 @@ def event_for_request(conn: psycopg.Connection, contact_request_id: UUID) -> dic
     ).fetchone()
 
 
+def log_answer_event(
+    conn: psycopg.Connection,
+    tenant_id: UUID,
+    response_id: UUID,
+    verb: str,
+    payload: dict,
+    status: str,
+    error: str | None,
+) -> dict[str, Any] | None:
+    """The response's row in the sync log, made or changed for this answer. None when
+    there is nothing new to do: the row already has this payload and is sent, being
+    sent or deliberately not sent. A changed answer (new payload) or a failed row
+    starts again with `status`."""
+    return conn.execute(
+        f"""insert into integration_events
+              (tenant_id, provider, response_id, verb, payload, status, last_error)
+            values (%(tenant)s, %(provider)s, %(response)s, %(verb)s, %(payload)s, %(status)s,
+                    %(error)s)
+            on conflict (response_id, verb) where response_id is not null do update set
+              payload = excluded.payload, status = excluded.status,
+              last_error = excluded.last_error
+            where integration_events.payload is distinct from excluded.payload
+               or integration_events.status in ('failed', 'retrying')
+            returning {_EVENT}""",
+        {
+            "tenant": tenant_id,
+            "provider": PROVIDER,
+            "response": response_id,
+            "verb": verb,
+            "payload": Jsonb(payload),
+            "status": status,
+            "error": error,
+        },
+    ).fetchone()
+
+
 def get_event(conn: psycopg.Connection, event_id: UUID) -> dict[str, Any] | None:
     return conn.execute(
         f"select {_EVENT} from integration_events where id = %s and provider = %s",

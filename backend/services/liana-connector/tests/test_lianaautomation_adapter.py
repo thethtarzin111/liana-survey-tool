@@ -19,7 +19,7 @@ from liana_connector.factory import build_contact_events
 from liana_connector.ports.contact_events import TemporaryError as RetryLater
 from liana_survey_shared.config import Settings
 from liana_survey_shared.db import ping, tenant_connection
-from liana_survey_shared.messages import ContactRequested
+from liana_survey_shared.messages import AnswerRecorded, ContactRequested
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
 KEY = "test-key"
@@ -64,6 +64,7 @@ def _clean():
     with tenant_connection(DEMO_TENANT) as conn:
         conn.execute("delete from integrations")
         conn.execute("delete from integration_events where verb = 'survey_contact_request'")
+        conn.execute("delete from integration_events where not test")
 
 
 @pytest.fixture
@@ -210,3 +211,146 @@ def test_a_wrong_host_fails_and_marks_the_connection(connect):
         "error",
         "Not found (404): check the host.",
     )
+
+
+# --- Saved answers: survey_answered (demo review, bug 1) ----------------------------
+
+
+@pytest.fixture
+def response():
+    """A survey with one response (the sync log row points at it); deleted afterwards."""
+    with tenant_connection(DEMO_TENANT) as conn:
+        survey_id = conn.execute(
+            """insert into surveys (tenant_id, title, type)
+               values (%s, 'Survey tool (test) November', 'nps') returning id""",
+            (DEMO_TENANT,),
+        ).fetchone()[0]
+        response_id = conn.execute(
+            """insert into responses (tenant_id, survey_id, link_token_hash)
+               values (%s, %s, 'key-adapter-test') returning id""",
+            (DEMO_TENANT, survey_id),
+        ).fetchone()[0]
+    yield survey_id, response_id
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute("delete from surveys where id = %s", (survey_id,))
+
+
+def an_answer(response, **changes) -> AnswerRecorded:
+    survey_id, response_id = response
+    fields = {
+        "tenant_id": DEMO_TENANT,
+        "survey_id": survey_id,
+        "response_id": response_id,
+        "survey_title": "Survey tool (test) November",
+        "main_kind": "nps",
+        "score": 9,
+        "campaign": "test-november-customer-survey",
+        "contact_ref": "4084399",
+    }
+    return AnswerRecorded(**{**fields, **changes})
+
+
+def test_an_answer_event_has_the_score_group_and_campaign_never_texts():
+    event, not_sent = domain.answer_event("s1", "November", "nps", 3, "nov", "4084400")
+    assert not_sent is None
+    assert event == {
+        "identity": {"lianamailer_id": "4084400"},
+        "events": [
+            {
+                "verb": "survey_answered",
+                "items": {
+                    "survey_id": "s1",
+                    "survey_name": "November",
+                    "score": "3",
+                    "nps_group": "detractor",
+                    "campaign": "nov",
+                },
+            }
+        ],
+    }
+    # CSAT has no NPS group; no campaign tag, no campaign item.
+    csat, _ = domain.answer_event("s1", "x", "rating", 4, None, "1")
+    assert csat["events"][0]["items"] == {"survey_id": "s1", "survey_name": "x", "score": "4"}
+
+
+def test_anonymous_answers_and_unknown_contacts_are_not_sent():
+    event, not_sent = domain.answer_event("s1", "x", "nps", 9, None, None)
+    assert not_sent == "Not sent: anonymous answer." and "identity" not in event
+    _, not_sent = domain.answer_event("s1", "x", "nps", 9, None, "contact-42")
+    assert not_sent == "Not sent: contact unknown (r=co\u2026)."
+
+
+@needs_db
+def test_an_identified_answer_is_sent_once(connect, response):
+    connect()
+    fake = FakeClient()
+    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter.send_answer_recorded(an_answer(response))
+    adapter.send_answer_recorded(an_answer(response))  # the follow-up form, same answer
+
+    [body] = fake.imports
+    assert body["data"][0]["identity"] == {"lianamailer_id": "4084399"}
+    assert body["data"][0]["events"][0]["items"]["nps_group"] == "promoter"
+    [row], _ = _log()
+    assert (row["verb"], row["status"], row["attempts"]) == ("survey_answered", "sent", 1)
+
+
+@needs_db
+def test_a_changed_answer_updates_its_row_and_is_sent_again(connect, response):
+    connect()
+    fake = FakeClient()
+    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter.send_answer_recorded(an_answer(response, score=9))
+    adapter.send_answer_recorded(an_answer(response, score=3))
+    assert [b["data"][0]["events"][0]["items"]["score"] for b in fake.imports] == ["9", "3"]
+    [row], _ = _log()
+    assert row["status"] == "sent" and row["payload"]["events"][0]["items"]["score"] == "3"
+
+
+@needs_db
+def test_an_anonymous_answer_is_listed_as_not_sent(connect, response):
+    connect()
+    fake = FakeClient()
+    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter.send_answer_recorded(an_answer(response, contact_ref=None))
+    [row], _ = _log()
+    assert (row["status"], row["last_error"]) == ("skipped", "Not sent: anonymous answer.")
+    assert fake.imports == []
+
+    # The reader then ticks "Contact me": the answer gets a contact and is sent.
+    adapter.send_answer_recorded(an_answer(response))
+    [row], _ = _log()
+    assert (row["status"], row["last_error"]) == ("sent", None)
+    assert len(fake.imports) == 1
+
+
+@needs_db
+def test_no_answer_rows_without_a_connection_or_with_answers_off(connect, response):
+    _clean()
+    fake = FakeClient()
+    LianaAutomationContactEvents(KEY, build=fake).send_answer_recorded(an_answer(response))
+    connect(answers=False)
+    LianaAutomationContactEvents(KEY, build=fake).send_answer_recorded(an_answer(response))
+    assert fake.imports == [] and _log()[0] == []
+
+
+@needs_db
+def test_an_answer_waits_as_failed_until_the_connection_is_ready(connect, response):
+    connect(status="disconnected")
+    fake = FakeClient()
+    LianaAutomationContactEvents(KEY, build=fake).send_answer_recorded(an_answer(response))
+    [row], _ = _log()
+    assert row["status"] == "failed" and "Test the connection" in row["last_error"]
+    assert fake.imports == []
+
+
+@needs_db
+def test_a_failed_answer_is_sent_when_it_is_delivered_again(connect, response):
+    connect()
+    fake = FakeClient(failures=[TemporaryError("Liana answered 503. Try again later.")])
+    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    with pytest.raises(RetryLater):
+        adapter.send_answer_recorded(an_answer(response))
+    adapter.send_answer_recorded(an_answer(response))
+    [row], _ = _log()
+    assert (row["status"], row["attempts"]) == ("sent", 2)
