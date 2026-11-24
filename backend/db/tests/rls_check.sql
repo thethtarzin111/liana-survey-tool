@@ -129,35 +129,6 @@ begin
   end;
   perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
 
-  -- 3h. Integrations and their event log are per organisation.
-  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
-  insert into integrations (id, tenant_id, provider, host, client_id, secret_encrypted, secret_hint)
-  values ('00000000-0000-4000-8000-0000000004ff', '00000000-0000-4000-8000-000000000001',
-          'liana_automation', 'demo', 'rls-check', '\x00'::bytea, 'xxxx')
-  on conflict (tenant_id, provider) do nothing;
-  insert into integration_events (id, tenant_id, verb, payload, test)
-  values ('00000000-0000-4000-8000-0000000005ff', '00000000-0000-4000-8000-000000000001',
-          'survey_answered', '{}', true);
-  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
-  select count(*) into n from integrations;
-  if n <> 0 then raise exception 'RLS: other tenant sees % integrations', n; end if;
-  select count(*) into n from integration_events;
-  if n <> 0 then raise exception 'RLS: other tenant sees % integration events', n; end if;
-  update integrations set client_id = 'sneaky';
-  get diagnostics n = row_count;
-  if n <> 0 then raise exception 'RLS: other tenant changed an integration'; end if;
-  begin
-    insert into integration_events (tenant_id, verb, payload)
-    values ('00000000-0000-4000-8000-000000000001', 'sneaky', '{}');
-    raise exception 'RLS: an event was added for another tenant';
-  exception when insufficient_privilege then
-    null; -- expected
-  end;
-  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
-  delete from integration_events where id = '00000000-0000-4000-8000-0000000005ff';
-  delete from integrations where id = '00000000-0000-4000-8000-0000000004ff';
-  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
-
   -- 4. Writing a row for a different tenant is refused.
   begin
     insert into surveys (tenant_id, title, type)

@@ -68,29 +68,6 @@ export const api = {
     const query = params.toString();
     return getJson<SurveyListItem[]>(`/api/v1/surveys${query ? `?${query}` : ''}`);
   },
-  /** Card status for the Integrations page. */
-  integrations: () => getJson<IntegrationsStatus>(INTEGRATIONS),
-  /** Wizard step 1. Leave the secret out to keep the saved one. 422 for a host outside lianacloud.com. */
-  saveLianaCredentials: (body: { host: string; client_id: string; client_secret?: string }) =>
-    send<LianaConnection>('PUT', `${INTEGRATIONS}/liana-automation`, body),
-  /** Wizard step 2: ping LianaAutomation; the result is in `status` and `last_error`. */
-  testLianaConnection: () => send<LianaConnection>('POST', `${INTEGRATIONS}/liana-automation/test`),
-  lianaChannels: () => getJson<LianaChannel[]>(`${INTEGRATIONS}/liana-automation/channels`),
-  createLianaChannel: (name: string) =>
-    send<LianaChannel>('POST', `${INTEGRATIONS}/liana-automation/channels`, { name }),
-  /** Wizard steps 3 and 4: the channel and the "what to send" switches. */
-  changeLianaConnection: (changes: {
-    channel_id?: string;
-    channel_name?: string;
-    settings?: Partial<LianaSendSettings>;
-  }) => send<LianaConnection>('PATCH', `${INTEGRATIONS}/liana-automation`, changes),
-  /** Wizard step 5: a test event for a made-up @example.com contact. */
-  sendLianaTestEvent: (email?: string) =>
-    send<SyncEvent>('POST', `${INTEGRATIONS}/liana-automation/test-event`, email ? { email } : {}),
-  syncLog: (status?: SyncEvent['status']) =>
-    getJson<SyncEvent[]>(`${INTEGRATIONS}/liana-automation/events${status ? `?status=${status}` : ''}`),
-  retrySyncEvent: (id: string) => send<SyncEvent>('POST', `${INTEGRATIONS}/events/${encodeURIComponent(id)}/retry`),
-  disconnectLiana: () => send<void>('DELETE', `${INTEGRATIONS}/liana-automation`),
   /** Everything the Results overview shows for one survey. 400 for an unknown segment, 404 for an unknown survey. */
   overview: (surveyId: string, segment = 'all') =>
     getJson<SurveyOverview>(
@@ -341,48 +318,6 @@ export type SurveyOverview = {
   reasons: { label: string; count: number; percent: number | null }[];
   trend: { month: string; score: number | null; answers: number }[];
   by_segment: { value: string; label: string; answers: number; score: number | null; counts: Record<string, number> }[];
-};
-
-const INTEGRATIONS = '/api/v1/integrations';
-
-export type LianaSendSettings = { answers: boolean; contact_requests: boolean; themes: boolean };
-
-export type LianaConnection = {
-  host: string;
-  auth_type: 'oauth';
-  client_id: string;
-  /** The last 4 characters of the secret, shown as ••••a91f. */
-  secret_hint: string;
-  channel_id: string | null;
-  channel_name: string | null;
-  settings: LianaSendSettings;
-  /** disconnected: saved but not tested yet. */
-  status: 'disconnected' | 'connected' | 'error';
-  last_error: string | null;
-  updated_at: string;
-};
-
-export type IntegrationsStatus = {
-  liana_automation: LianaConnection | null;
-  /** Sync log events by status. */
-  events: Partial<Record<SyncEvent['status'], number>>;
-  /** The built-in demo host can be used (local development). */
-  demo_available: boolean;
-};
-
-export type LianaChannel = { id: string; name: string };
-
-export type SyncEvent = {
-  id: string;
-  verb: string;
-  /** Shortened, e.g. "su…@example.com". */
-  contact: string | null;
-  test: boolean;
-  status: 'pending' | 'sent' | 'retrying' | 'failed';
-  attempts: number;
-  last_error: string | null;
-  created_at: string;
-  sent_at: string | null;
 };
 
 export type ResponseFilters = { segment?: string; q?: string; group?: string };
