@@ -3,15 +3,7 @@ name = "liana-connector"
 version = "0.1.0"
 description = "The only component that talks to other Liana products (ports and adapters)."
 requires-python = ">=3.12"
-dependencies = [
-  "liana-survey-shared[web]",
-  "aio-pika>=9.4,<10",
-  "httpx>=0.27,<1",
-  # The Integrations page's API (liana_connector.api) and encrypted client secrets.
-  "fastapi>=0.115,<1",
-  "uvicorn[standard]>=0.32,<1",
-  "cryptography>=43,<47",
-]
+dependencies = ["liana-survey-shared", "aio-pika>=9.4,<10", "httpx>=0.27,<1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3,<9", "ruff>=0.8,<1"]
@@ -25,6 +17,3 @@ include = ["liana_connector*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = [
-  "db: needs a migrated Postgres (DATABASE_URL as the app role); skipped when none answers",
-]
