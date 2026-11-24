@@ -44,9 +44,68 @@ stored anywhere new.
 - HMAC-SHA256 signing is deprecated and ends 31 Dec 2026; do not implement it.
 - `POST /import` with `no_duplicates`, so a retried message is not recorded twice.
 
+## Integrations page: connecting LianaAutomation
+
+The admin connects their own LianaAutomation account on the Integrations page, in
+five steps: credentials (OAuth client ID and secret, scope `automation-api`), test
+connection (`/pingpong`), channel (`/channel/list`, `/channel/create`), what to send,
+and a test event (`/import` for a made-up `@example.com` contact). The connector's
+HTTP API does the calls (`liana_connector/automation`), because only the connector
+talks to Liana.
+
+- The secret is encrypted with `INTEGRATION_SECRET_KEY` before it is stored; the
+  page only ever shows its last 4 characters. Outside `AUTH_MODE=dev` the connector
+  API refuses to start (and to save secrets) when the key is the default from the
+  repo or shorter than 32 characters.
+- Only `*.lianacloud.com` hosts are accepted, so a saved host cannot make the
+  backend send the secret anywhere else. In dev mode the host `demo` is a built-in
+  fake LianaAutomation (client `demo-client`, secret `demo-secret`). Outside dev
+  mode a saved demo connection is refused when it is used, so it can never record
+  "Sent" for an event that did not leave the server.
+- Every event is a row in `integration_events`: the sync log, with Retry for failed
+  ones. A retry sends the same data with `no_duplicates`, so Liana never counts it
+  twice, and it first moves the row to `pending` in one statement, so a double
+  click sends once. The checks that can refuse a send (connected, channel chosen,
+  secret readable) run before that, and an unexpected error while sending puts the
+  row back to `failed`, so an event is never left `pending` with no way to retry it.
+- Errors: 401 gets a new token and one retry; 400 and a non-JSON answer fail
+  without retry; 404 marks the connection as broken; 5xx, timeouts and failed
+  connections (DNS, outage) fail so they can be retried, without marking a correct
+  connection as broken.
+- Not built yet: a role check. Any signed-in member of the organisation can
+  connect, disconnect or retry; with real authentication only admins should.
+- Not built yet: the worker writing an event for each identified answer (outbox)
+  and the connector sending them in batches with back-off.
+
+## "Contact me" requests to LianaAutomation (#72)
+
+With `LIANA_ADAPTER=lianaautomation`, each `ContactRequested` message becomes a
+`survey_contact_request` event on the contact's timeline, sent through the
+organisation's own connection from the Integrations page:
+
+```json
+{"identity": {"lianamailer_id": "<contact_ref>"},
+ "events": [{"verb": "survey_contact_request",
+             "items": {"survey_id": "…", "contact_request_id": "…", "requested_at": "…"}}]}
+```
+
+- Skipped when the organisation has not connected LianaAutomation or switched
+  "Contact me" requests off.
+- Every request is a row in the sync log (`integration_events`). A redelivered
+  message reuses its row and is not sent again once it was sent.
+- Not tested yet, or no channel: the row is failed with the reason, and the admin
+  presses Retry after fixing it.
+- 5xx and timeouts: the row is `retrying` and the port's `TemporaryError` is raised,
+  so the connector retries with back-off (#58). Bad data, a wrong host or wrong
+  credentials: the row is failed, the connection shows the error, and the message
+  goes to the dead-letter queue (`DeliveryFailed`).
+- To check with Liana: the identity name (`lianamailer_id`). The survey tool never
+  stores email addresses, so a contact is matched on its LianaMailer contact id.
+
 ## Switching adapters
-`LIANA_ADAPTER=mock` (default) or `LIANA_ADAPTER=lianaautomation` in `.env`.
-Credentials go in `.env` locally or GitHub secrets in CI, never in the repo.
+`LIANA_ADAPTER=mock` (default) or `LIANA_ADAPTER=lianaautomation` in `.env`. The
+LianaAutomation credentials are not in `.env`: each organisation saves its own on the
+Integrations page, encrypted with `INTEGRATION_SECRET_KEY`.
 
 ## Test environments Liana gave the team
 LianaCloud account (staging), LianaMailer (testing) and LianaMonitor (staging).

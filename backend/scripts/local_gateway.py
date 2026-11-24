@@ -11,6 +11,7 @@ import os
 from starlette.responses import JSONResponse
 
 from data_analyzer.main import app as analyzer
+from liana_connector.api import app as connector
 from liana_survey_shared.config import get_settings
 from liana_survey_shared.web.auth import demo_user
 from respondent_service.main import app as respondent
@@ -109,6 +110,7 @@ async def app(scope, receive, send):
         ("/api/v1/surveys", surveys),
         ("/api/v1/templates", surveys),
         ("/api/v1/results", analyzer),
+        ("/api/v1/integrations", connector),
         ("/r", respondent),
     ):
         if path == prefix or path.startswith(prefix + "/"):
