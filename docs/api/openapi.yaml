@@ -468,6 +468,131 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Survey' }
         '404': { description: No such template for this organisation }
+  /api/v1/integrations:
+    get:
+      tags: [integrations]
+      summary: Status of the Integrations page
+      description: Served by the Liana connector's API. Event counts are by sync log status.
+      responses:
+        '200':
+          description: The status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IntegrationsStatus' }
+  /api/v1/integrations/liana-automation:
+    put:
+      tags: [integrations]
+      summary: Save LianaAutomation credentials (wizard step 1)
+      description: >-
+        The secret is encrypted before it is stored and never returned; leave it out to keep the
+        saved one. Only *.lianacloud.com hosts are accepted (and `demo` in dev mode). The status
+        goes back to `disconnected` until the next test.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [host, client_id]
+              properties:
+                host: { type: string, example: rest.automation.lianacloud.com }
+                client_id: { type: string }
+                client_secret: { type: string, writeOnly: true }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/LianaConnection' } } } }
+        '422': { description: Host not allowed, or no secret saved yet }
+    patch:
+      tags: [integrations]
+      summary: Choose the channel and what to send (wizard steps 3 and 4)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel_id: { type: string }
+                channel_name: { type: string }
+                settings: { $ref: '#/components/schemas/LianaSendSettings' }
+      responses:
+        '200': { description: Changed, content: { application/json: { schema: { $ref: '#/components/schemas/LianaConnection' } } } }
+        '404': { description: Not connected }
+    delete:
+      tags: [integrations]
+      summary: Disconnect; the sync log stays
+      responses:
+        '204': { description: Disconnected }
+        '404': { description: Not connected }
+  /api/v1/integrations/liana-automation/test:
+    post:
+      tags: [integrations]
+      summary: Test the connection (wizard step 2)
+      description: Gets a token and calls /pingpong. The outcome is in `status` and `last_error`.
+      responses:
+        '200': { description: Tested, content: { application/json: { schema: { $ref: '#/components/schemas/LianaConnection' } } } }
+        '404': { description: Not connected }
+        '409': { description: The saved secret can no longer be read; save the credentials again }
+  /api/v1/integrations/liana-automation/channels:
+    get:
+      tags: [integrations]
+      summary: The account's channels
+      responses:
+        '200':
+          description: Channels
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/LianaChannel' } }
+        '502': { description: 'LianaAutomation refused or failed; `detail` says why' }
+    post:
+      tags: [integrations]
+      summary: Create a channel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [name], properties: { name: { type: string, example: Survey tool (test) } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/LianaChannel' } } } }
+        '502': { description: LianaAutomation refused or failed }
+  /api/v1/integrations/liana-automation/test-event:
+    post:
+      tags: [integrations]
+      summary: Send a test event (wizard step 5)
+      description: >-
+        A survey_answered event (score 3, detractor) for a made-up contact, by default
+        survey-test-1@example.com. Only @example.com addresses are accepted. The event is stored in
+        the sync log whether it was sent or failed.
+      requestBody:
+        content:
+          application/json:
+            schema: { type: object, properties: { email: { type: string, example: survey-test-1@example.com } } }
+      responses:
+        '201': { description: Sent or failed, content: { application/json: { schema: { $ref: '#/components/schemas/SyncEvent' } } } }
+        '409': { description: No channel chosen }
+        '422': { description: Not an @example.com address }
+  /api/v1/integrations/liana-automation/events:
+    get:
+      tags: [integrations]
+      summary: The sync log, newest first
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [pending, sent, retrying, failed] } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: Events
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SyncEvent' } }
+  /api/v1/integrations/events/{event_id}/retry:
+    post:
+      tags: [integrations]
+      summary: Send a failed event again, with the same data
+      parameters:
+        - { name: event_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Sent or failed again, content: { application/json: { schema: { $ref: '#/components/schemas/SyncEvent' } } } }
+        '404': { description: Event not found }
+        '409': { description: Already sent }
   /api/v1/results/performance:
     get:
       tags: [results]
@@ -809,6 +934,53 @@ components:
         responses: { type: integer, minimum: 0 }
         response_rate: { type: [integer, 'null'], minimum: 0, description: Responses divided by views, as a whole percentage }
         main_result: { type: [string, 'null'], example: NPS +42 }
+    LianaSendSettings:
+      type: object
+      properties:
+        answers: { type: boolean }
+        contact_requests: { type: boolean }
+        themes: { type: boolean }
+    LianaConnection:
+      type: object
+      required: [host, auth_type, client_id, secret_hint, channel_id, channel_name, settings, status, last_error, updated_at]
+      properties:
+        host: { type: string }
+        auth_type: { type: string, enum: [oauth] }
+        client_id: { type: string }
+        secret_hint: { type: string, description: Last 4 characters of the secret, example: a91f }
+        channel_id: { type: [string, 'null'] }
+        channel_name: { type: [string, 'null'] }
+        settings: { $ref: '#/components/schemas/LianaSendSettings' }
+        status: { type: string, enum: [disconnected, connected, error], description: 'disconnected: saved, not tested yet' }
+        last_error: { type: [string, 'null'] }
+        updated_at: { type: string, format: date-time }
+    IntegrationsStatus:
+      type: object
+      required: [liana_automation, events, demo_available]
+      properties:
+        liana_automation:
+          oneOf: [{ $ref: '#/components/schemas/LianaConnection' }, { type: 'null' }]
+        events: { type: object, additionalProperties: { type: integer }, example: { sent: 12, failed: 1 } }
+        demo_available: { type: boolean, description: The demo host can be used (dev mode) }
+    LianaChannel:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    SyncEvent:
+      type: object
+      required: [id, verb, contact, test, status, attempts, last_error, created_at, sent_at]
+      properties:
+        id: { type: string, format: uuid }
+        verb: { type: string, example: survey_answered }
+        contact: { type: [string, 'null'], description: 'Shortened email, e.g. su…@example.com' }
+        test: { type: boolean }
+        status: { type: string, enum: [pending, sent, retrying, failed] }
+        attempts: { type: integer }
+        last_error: { type: [string, 'null'] }
+        created_at: { type: string, format: date-time }
+        sent_at: { type: [string, 'null'], format: date-time }
     ResponsesPage:
       type: object
       required: [total, rows]
