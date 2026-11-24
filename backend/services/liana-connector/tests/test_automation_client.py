@@ -241,3 +241,18 @@ def test_the_default_or_a_short_key_is_refused_outside_dev():
             secrets.check_key(weak, "oidc")
     strong = "k" * 32
     assert secrets.check_key(strong, "oidc") == strong
+
+
+def test_the_api_refuses_to_start_with_the_default_key_outside_dev(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from liana_connector import api
+    from liana_survey_shared.config import Settings
+
+    monkeypatch.setattr(
+        api,
+        "get_settings",
+        lambda: Settings(auth_mode="oidc", integration_secret_key=secrets.DEV_KEY),
+    )
+    with pytest.raises(secrets.WeakKey), TestClient(api.app):
+        pass

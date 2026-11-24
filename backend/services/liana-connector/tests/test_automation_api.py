@@ -136,6 +136,69 @@ def test_a_double_click_on_retry_sends_once(api):
     )
 
 
+def _failed_event(api) -> str:
+    api.put(f"{URL}/liana-automation", json=DEMO)
+    api.patch(f"{URL}/liana-automation", json={"channel_id": "demo-1"})
+    failed = api.post(f"{URL}/liana-automation/test-event", json={"email": "fail@example.com"})
+    assert failed.json()["status"] == "failed"
+    return failed.json()["id"]
+
+
+def _status(api, event_id) -> str:
+    return next(e for e in api.get(f"{URL}/liana-automation/events").json() if e["id"] == event_id)[
+        "status"
+    ]
+
+
+def test_a_refused_retry_leaves_the_event_failed_and_retryable(api):
+    event_id = _failed_event(api)
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute("update integrations set channel_id = null")
+    assert api.post(f"{URL}/events/{event_id}/retry").status_code == 409
+    assert _status(api, event_id) == "failed"
+
+    api.patch(f"{URL}/liana-automation", json={"channel_id": "demo-1"})
+
+    class Healthy:
+        def import_events(self, body):
+            pass
+
+    app.dependency_overrides[client_factory] = lambda: lambda *args: Healthy()
+    assert api.post(f"{URL}/events/{event_id}/retry").json()["status"] == "sent"
+
+
+def test_a_retry_after_disconnecting_leaves_the_event_failed(api):
+    event_id = _failed_event(api)
+    api.delete(f"{URL}/liana-automation")
+    assert api.post(f"{URL}/events/{event_id}/retry").status_code == 404
+    assert _status(api, event_id) == "failed"
+
+
+def test_an_unexpected_error_puts_the_event_back_to_failed(api):
+    event_id = _failed_event(api)
+
+    class Broken:
+        def import_events(self, body):
+            raise KeyError("id")
+
+    app.dependency_overrides[client_factory] = lambda: lambda *args: Broken()
+    with pytest.raises(KeyError):
+        api.post(f"{URL}/events/{event_id}/retry")
+    [event] = [e for e in api.get(f"{URL}/liana-automation/events").json() if e["id"] == event_id]
+    assert (event["status"], event["last_error"]) == ("failed", routes.UNEXPECTED)
+    with pytest.raises(KeyError):
+        api.post(f"{URL}/liana-automation/test-event", json={})
+    assert {e["status"] for e in api.get(f"{URL}/liana-automation/events").json()} == {"failed"}
+
+
+def test_a_refused_test_event_leaves_nothing_in_the_log(api, monkeypatch):
+    api.put(f"{URL}/liana-automation", json=DEMO)
+    api.patch(f"{URL}/liana-automation", json={"channel_id": "demo-1"})
+    monkeypatch.setattr(routes, "demo_allowed", lambda: False)
+    assert api.post(f"{URL}/liana-automation/test-event", json={}).status_code == 409
+    assert api.get(f"{URL}/liana-automation/events").json() == []
+
+
 def test_a_demo_connection_sends_nothing_outside_dev_mode(api, monkeypatch):
     api.put(f"{URL}/liana-automation", json=DEMO)
     monkeypatch.setattr(routes, "demo_allowed", lambda: False)

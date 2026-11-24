@@ -65,7 +65,9 @@ talks to Liana.
 - Every event is a row in `integration_events`: the sync log, with Retry for failed
   ones. A retry sends the same data with `no_duplicates`, so Liana never counts it
   twice, and it first moves the row to `pending` in one statement, so a double
-  click sends once.
+  click sends once. The checks that can refuse a send (connected, channel chosen,
+  secret readable) run before that, and an unexpected error while sending puts the
+  row back to `failed`, so an event is never left `pending` with no way to retry it.
 - Errors: 401 gets a new token and one retry; 400 and a non-JSON answer fail
   without retry; 404 marks the connection as broken; 5xx, timeouts and failed
   connections (DNS, outage) fail so they can be retried, without marking a correct

@@ -1,6 +1,7 @@
 """The Integrations page's API. Calls to Liana run outside the database transaction,
 so a slow Liana never keeps a connection open."""
 
+import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated, Any
@@ -26,6 +27,7 @@ from .schemas import (
 )
 
 router = APIRouter(prefix="/api/v1/integrations", tags=["integrations"])
+log = logging.getLogger(__name__)
 
 ClientFactory = Callable[[str, str, str], AutomationClient]
 
@@ -172,13 +174,25 @@ def change_connection(body: ConnectionChanges, db: TenantDB = Depends(tenant_db)
         return _connection(repo.update(conn, **changes))
 
 
-def _send(event: dict[str, Any], db: TenantDB, build: ClientFactory) -> dict[str, Any]:
-    """Send one stored event and record the attempt. A wrong host (404) also marks the
-    connection as broken, so nothing more is sent until it is fixed."""
+#: Shown in the sync log when sending failed in an unexpected way (logged in full).
+UNEXPECTED = "Sending failed unexpectedly. Try again."
+
+
+def _sender(db: TenantDB, build: ClientFactory) -> tuple[dict[str, Any], AutomationClient]:
+    """The connection and its client, or the HTTP error saying why events can't be sent.
+    Runs before an event is created or claimed, so a refusal never leaves one pending."""
     row = _saved(db)
     if not row["channel_id"]:
         raise HTTPException(409, "Choose a channel first.")
-    client = _client(row, build, db)
+    return row, _client(row, build, db)
+
+
+def _send(
+    event: dict[str, Any], row: dict[str, Any], client: AutomationClient, db: TenantDB
+) -> dict[str, Any]:
+    """Send one pending event and record the attempt. Every way out records an outcome,
+    so the event never stays pending. A wrong host (404) or credentials also mark the
+    connection as broken, so nothing more is sent until it is fixed."""
     status, error = "sent", None
     try:
         client.import_events(domain.import_body(row["channel_id"], [event["payload"]]))
@@ -187,6 +201,11 @@ def _send(event: dict[str, Any], db: TenantDB, build: ClientFactory) -> dict[str
         if failure.kind in ("config", "auth"):
             with db() as conn:
                 repo.update(conn, status="error", last_error=error)
+    except Exception:
+        log.exception("sending event %s failed unexpectedly", event["id"])
+        with db() as conn:
+            repo.finish_event(conn, event["id"], "failed", UNEXPECTED)
+        raise
     with db() as conn:
         return _event(repo.finish_event(conn, event["id"], status, error))
 
@@ -203,12 +222,11 @@ def send_test_event(
         email = domain.test_contact(body.email)
     except domain.InvalidInput as error:
         raise HTTPException(422, str(error)) from None
-    if not _saved(db)["channel_id"]:
-        raise HTTPException(409, "Choose a channel first.")
+    row, client = _sender(db, build)
     payload = domain.test_event(email, datetime.now(UTC))
     with db() as conn:
         event = repo.add_event(conn, user.tenant_id, "survey_answered", payload, test=True)
-    return _send(event, db, build)
+    return _send(event, row, client, db)
 
 
 @router.get("/liana-automation/events", response_model=list[SyncEvent])
@@ -233,12 +251,15 @@ def retry_event(
         raise HTTPException(404, "Event not found")
     if event["status"] == "sent":
         raise HTTPException(409, "This event was already sent.")
+    # Checks first: if the connection is gone or broken, the event stays failed and
+    # can be retried once it is fixed.
+    row, client = _sender(db, build)
     with db() as conn:
         # Atomic, so a double click sends once: only one request moves it to pending.
         event = repo.claim_event(conn, event_id)
     if event is None:
         raise HTTPException(409, "This event is already being sent.")
-    return _send(event, db, build)
+    return _send(event, row, client, db)
 
 
 @router.delete("/liana-automation", status_code=204)

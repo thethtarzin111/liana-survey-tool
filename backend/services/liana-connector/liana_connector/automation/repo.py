@@ -70,7 +70,10 @@ def save_credentials(
 def update(conn: psycopg.Connection, **changes: Any) -> dict[str, Any] | None:
     """Set some of channel_id, channel_name, settings, status, last_error."""
     allowed = {"channel_id", "channel_name", "settings", "status", "last_error"}
-    assert set(changes) <= allowed
+    # The column names go into the SQL, so refuse anything else (not an assert:
+    # python -O removes those).
+    if not changes or not set(changes) <= allowed:
+        raise ValueError(f"cannot update {sorted(set(changes) - allowed) or 'nothing'}")
     sets = ", ".join(f"{key} = %({key})s" for key in changes)
     params = {k: Jsonb(v) if k == "settings" else v for k, v in changes.items()}
     return conn.execute(
