@@ -49,8 +49,9 @@ function LianaAutomationCard({
       <div>
         <h2 className="integrations-card-title">LianaAutomation</h2>
         <p className="integrations-hint">
-          Identified answers and “Contact me” requests become events on the contact, so segments and automations can
-          react to them.
+          Answers from newsletter links become events on the contact when the survey is set to identified answers
+          or the reader ticks “Contact me”, so segments and automations can react to them. Other answers stay
+          anonymous in the survey tool.
         </p>
       </div>
       {c ? <Badge tone={STATUS[c.status].tone}>{STATUS[c.status].label}</Badge> : <Badge tone="muted">Not connected</Badge>}
@@ -78,6 +79,7 @@ function LianaAutomationCard({
 
   const sent = status.events.sent ?? 0;
   const failed = status.events.failed ?? 0;
+  const skipped = status.events.skipped ?? 0;
   return (
     <Card padded className="integrations-card integrations-main">
       {head}
@@ -98,6 +100,7 @@ function LianaAutomationCard({
         <dt>Events</dt>
         <dd>
           {sent} sent{failed ? `, ${failed} failed` : ''}
+          {skipped ? `, ${skipped} not sent` : ''}
         </dd>
         <dt>Changed</dt>
         <dd>{when(c.updated_at)}</dd>
@@ -193,7 +196,8 @@ function LianaMailerCard() {
       </div>
       <p className="integrations-hint">
         Put a survey’s rating block in a newsletter. Each number is a link; LianaMailer fills in every recipient’s
-        contact tag when it sends, so answers can be identified without an email address in the link.
+        contact ID when it sends, so each reader counts once. Answers stay anonymous unless the survey is set to
+        identified answers or the reader ticks “Contact me”. There is never an email address in the link.
       </p>
       <p className="integrations-hint">
         Open a live survey and copy its <strong>newsletter snippet</strong>.

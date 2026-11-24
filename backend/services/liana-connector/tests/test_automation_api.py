@@ -258,3 +258,18 @@ def test_test_events_only_go_to_example_contacts(api):
 def test_nothing_without_a_connection(api):
     assert api.post(f"{URL}/liana-automation/test").status_code == 404
     assert api.delete(f"{URL}/liana-automation").status_code == 404
+
+
+def test_answers_not_sent_on_purpose_cannot_be_retried(api):
+    with tenant_connection(DEMO_TENANT) as conn:
+        event_id = conn.execute(
+            """insert into integration_events (tenant_id, verb, payload, test, status, last_error)
+               values (%s, 'survey_answered', '{}', true, 'skipped',
+                       'Not sent: anonymous answer.') returning id""",
+            (DEMO_TENANT,),
+        ).fetchone()[0]
+    r = api.post(f"{URL}/events/{event_id}/retry")
+    assert r.status_code == 409 and "not sent on purpose" in r.json()["detail"]
+    skipped = api.get(f"{URL}/liana-automation/events", params={"status": "skipped"}).json()
+    assert [e["status"] for e in skipped] == ["skipped"]
+    assert api.get(URL).json()["events"] == {"skipped": 1}

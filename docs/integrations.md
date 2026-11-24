@@ -6,7 +6,8 @@ system only publishes messages to RabbitMQ.
 | Integration | How | Status |
 |---|---|---|
 | Survey in a LianaMailer newsletter | Copy-paste HTML snippet (R06, #40): one link per answer, with LianaMailer's `$id$` placeholder as the reader (so each reader counts once) and campaign/segment tags. Not signed, because a pasted snippet is the same for everyone, so only surveys whose snippet was made accept unsigned links; signed links through the LianaMailer API are #118. | `POST /api/v1/surveys/{id}/snippet`; needs no Liana API |
-| "Contact me" → LianaAutomation | `ContactRequested` message → connector → LianaAutomation `POST /import` with `no_duplicates` | Mock adapter. Waiting for a working LianaAutomation test account |
+| "Contact me" → LianaAutomation | `ContactRequested` message (worker) → connector → LianaAutomation `POST /import` with `no_duplicates` | Through each organisation's connection (`LIANA_ADAPTER=lianaautomation`) |
+| Identified answers → LianaAutomation | `AnswerRecorded` message (worker) → connector → `survey_answered` event | Through each organisation's connection; anonymous answers are listed as "Not sent" |
 | "New responses" emails to a survey's owner | `NewResponsesDigest` message (worker → connector) → `NotificationMail` port | Mock adapter (logs the email). No real mail adapter yet |
 | Send surveys through LianaMailer API | `MailDelivery` port + LianaMailer adapter | Placeholder. No LianaMailer API docs yet |
 | Save answers to contact attributes | Through LianaAutomation or LianaMailer API | Not started |
@@ -74,8 +75,61 @@ talks to Liana.
   connection as broken.
 - Not built yet: a role check. Any signed-in member of the organisation can
   connect, disconnect or retry; with real authentication only admins should.
-- Not built yet: the worker writing an event for each identified answer (outbox)
-  and the connector sending them in batches with back-off.
+- Not built yet: an outbox (the worker writes the event in the answer's
+  transaction instead of publishing it afterwards) and sending in batches with
+  back-off. Today a message lost between the worker and the connector leaves no
+  sync log row.
+
+## Answers from newsletter links: the follow-up page
+
+An answer link (`/r/<token>?r=<contact id>&c=<campaign>&seg=<segment>&a=<answer>`)
+opens the follow-up page. Opening it saves nothing, because email security
+scanners open every link in a newsletter; the page saves the tapped answer itself
+with a POST as soon as it shows (without JavaScript the reader presses Submit).
+Below it are the survey's other questions (all optional there), the "Tell us
+more" box (`comment_field`, when the survey has no text question; stored in
+`responses.comment`) and the "Contact me" box (`contact_opt_in`). Submit updates
+the same response: the reader still counts once.
+
+The answer keeps the contact id from `r=` only when the survey is set to
+identified answers (Survey settings, `surveys.anonymous` off; the page tells the
+reader) or the reader ticks "Contact me" (`liana_survey_shared.contact`). The
+public link and the QR code have no contact, so their page has no "Contact me".
+
+`AnswerSubmitted` also carries `comment`, `contact_me` and `campaign` (the link's
+`c`, a lowercase tag; an invalid one is left out).
+
+After saving, the worker publishes to `survey.liana-events`:
+
+- `AnswerRecorded` for every saved or changed answer: `tenant_id`, `survey_id`,
+  `response_id`, `survey_title`, `main_kind`, `score`, `campaign`, `contact_ref`
+  (null when anonymous), `type` = `answer.recorded`. Never the answers' texts.
+- `ContactRequested` when the reader ticked "Contact me" and the answer has a
+  contact. The contact request is created in the same transaction, once per
+  response (Contact requests page).
+
+With `LIANA_ADAPTER=lianaautomation` and the organisation's "Survey answers"
+switch on, the connector turns `AnswerRecorded` into one sync log row per response:
+
+```json
+{"identity": {"lianamailer_id": "4084399"},
+ "events": [{"verb": "survey_answered",
+             "items": {"survey_id": "…", "survey_name": "…", "score": "9",
+                       "nps_group": "promoter", "campaign": "november"}}]}
+```
+
+- Anonymous answer: the row is "Not sent" (`skipped`) with "Not sent: anonymous
+  answer." A contact id that is not a number: "Not sent: contact unknown (r=…)."
+  These rows can't be retried; they show why the answer stayed in the survey tool.
+- The same answer again (the follow-up form, a second tap) is not sent again. A
+  changed answer updates the row and is sent again.
+- Not tested yet, or no channel: failed with the reason, and Retry.
+- Not checked yet: what LianaAutomation does with a contact id it doesn't know.
+  Without the LianaMailer API (#118) the survey tool can't check a contact id
+  itself, so a numeric id that is not a real contact is sent like any other.
+
+The demo server runs `LIANA_ADAPTER=lianaautomation` (set by `deploy.sh` in the
+release's `.env`), so the sync log there shows real answers.
 
 ## "Contact me" requests to LianaAutomation (#72)
 

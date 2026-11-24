@@ -576,7 +576,7 @@ paths:
       tags: [integrations]
       summary: The sync log, newest first
       parameters:
-        - { name: status, in: query, required: false, schema: { type: string, enum: [pending, sent, retrying, failed] } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [pending, sent, retrying, failed, skipped] } }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
       responses:
         '200':
@@ -593,7 +593,7 @@ paths:
       responses:
         '200': { description: Sent or failed again, content: { application/json: { schema: { $ref: '#/components/schemas/SyncEvent' } } } }
         '404': { description: Event not found }
-        '409': { description: Already sent, or already being sent (a double click) }
+        '409': { description: 'Already sent, already being sent (a double click), or not sent on purpose (skipped: an anonymous answer or an unknown contact)' }
   /api/v1/results/performance:
     get:
       tags: [results]
@@ -746,16 +746,22 @@ paths:
         With r and a, a one-tap answer link from the email. Signed links carry the reader and
         its signature (s). Newsletter snippet links (#40) have no signature: the reader is the
         contact id LianaMailer filled in, and an unreplaced placeholder such as $id$ is refused.
-        Only surveys with newsletter_links accept them. Records the answer to the survey's main
-        question (thumbs 0-2, NPS 0-10, CSAT 1-5), puts it on the survey.answers queue for the
-        worker, and returns a plain HTML thank-you page with the survey's thank-you message.
+        Only surveys with newsletter_links accept them. Checks the link and the answer to the
+        survey's main question (thumbs 0-2, NPS 0-10, CSAT 1-5) and returns the follow-up page
+        (HTML). Opening the link saves nothing, so mail scanners that open every link in an email
+        never answer: the page saves the tapped answer itself with a POST (step=tap) as soon as it
+        opens; without JavaScript the reader presses Submit. The follow-up page also has the
+        survey's other questions (all optional there), the "Tell us more" box (comment_field, when
+        the survey has no text question) and the "Contact me" box (contact_opt_in).
         Answers stay anonymous: only a key derived from the reader is stored, so each reader counts
-        once. A reader's later tap replaces their earlier answer (#126), so a mail scanner opening
-        every link before the reader does not decide the answer.
+        once. Only when the survey is set to identified answers (anonymous false) or the reader
+        ticks "Contact me" does the reader reference go with the answer, as the LianaMailer contact
+        id (never an email address). A reader's later answer replaces their earlier one (#126).
         Without r, s and a (the plain public link, copied or from the QR code), returns the survey
-        link page (#105): the reader title (custom surveys: the survey title), the description and
-        every question, as an HTML form that posts to the same address. Each visit gets a new
-        signed visit key. The visit counts toward the ch channel's views.
+        link page (#105): the reader title (custom surveys: the survey title), the description,
+        every question and the "Tell us more" box, as an HTML form that posts to the same address.
+        No "Contact me" there: these readers have no contact. Each visit gets a new signed visit
+        key. The visit counts toward the ch channel's views.
         Pages are sent with Cache-Control no-store and Referrer-Policy no-referrer. Once the survey
         is found, its fixed texts (headings, buttons, default and error messages) are in the
         survey's language.
@@ -768,17 +774,22 @@ paths:
         - { name: a, in: query, required: false, description: The tapped answer (answer links), schema: { type: integer } }
         - { name: ch, in: query, required: false, description: 'Distribution channel for survey performance (email, link or qr). Without it, an answer link counts as email and a plain visit as link.', schema: { type: string, enum: [email, link, qr] } }
       responses:
-        '200': { description: 'Thank-you page, or the survey link page for the plain public link (HTML)', content: { text/html: {} } }
+        '200': { description: 'The follow-up page for an answer link, or the survey link page for the plain public link (HTML)', content: { text/html: {} } }
         '400': { description: 'Link not complete or not valid, or an answer that is not one of the choices (HTML)' }
         '403': { description: The survey is not open yet, or has no questions (HTML) }
         '404': { description: Unknown link (HTML) }
         '410': { description: The survey is closed, or has reached its response limit (HTML) }
-        '503': { description: The answer could not be queued; the reader is asked to try again (HTML) }
     post:
       tags: [respondent]
-      summary: Answers from the survey link page (public, no login)
+      summary: Answers from the survey link page or the follow-up page (public, no login)
       description: >-
-        The form on the survey link page (#105). Checks every answer against its question
+        From the follow-up page of an answer link (the form has a and no key): the link's fields
+        r, s, a, c, seg and ch are checked again as for GET. With step=tap (sent by the page's
+        script as soon as it opens) only the tapped answer is queued and the answer is 204. The
+        whole form adds the other questions, comment and contact_me, and returns the thank-you
+        page; it replaces the tapped answer (the same reader key), so the reader counts once.
+        contact_me is only taken from links with a reader (r).
+        From the survey link page (#105): checks every answer against its question
         (required questions, choices, scales, text length; thumbs surveys only take reasons after
         "Not for me"), puts them on the survey.answers queue with the visit's channel, and returns
         the thank-you page. Answers that do not fit show the form again with the reader's answers
@@ -795,15 +806,24 @@ paths:
               type: object
               required: [key]
               properties:
-                key: { type: string, description: The signed visit key from the page }
-                ch: { type: string, enum: [link, qr], default: link }
+                key: { type: string, description: 'The signed visit key from the survey link page' }
+                ch: { type: string, enum: [email, link, qr], default: link }
+                r: { type: string, description: 'Follow-up page: the reader reference from the link' }
+                s: { type: string, description: 'Follow-up page: the signature from the link (none on snippet links)' }
+                a: { type: integer, description: 'Follow-up page: the tapped answer' }
+                c: { type: string, description: 'Follow-up page: the campaign tag; an invalid tag is left out' }
+                seg: { type: string, description: 'Follow-up page: the segment tag' }
+                step: { type: string, enum: [tap], description: 'Follow-up page: save the tapped answer alone (204)' }
+                comment: { type: string, maxLength: 5000, description: 'The optional "Tell us more" box' }
+                contact_me: { type: string, description: '"Contact me about this by email" ticked (follow-up page with a reader only)' }
               additionalProperties:
                 description: 'q-<question id>: the answer; repeated for each picked option'
                 type: array
                 items: { type: string }
       responses:
         '200': { description: Thank-you page (HTML), content: { text/html: {} } }
-        '400': { description: 'Missing or invalid visit key, or answers that do not fit: the form again, with what to fix (HTML)' }
+        '204': { description: 'step=tap: the tapped answer is queued' }
+        '400': { description: 'Missing or invalid visit key or link, or answers that do not fit: the form again, with what to fix (HTML)' }
         '403': { description: The survey is not open yet (HTML) }
         '404': { description: Unknown link (HTML) }
         '410': { description: The survey is closed, or has reached its response limit (HTML) }
@@ -860,6 +880,7 @@ components:
         closes_at: { type: [string, 'null'], format: date-time, description: 'Setting: no answers after this time; must be in the future and include a time zone; null removes it' }
         response_limit: { type: [integer, 'null'], minimum: 1, maximum: 1000000, description: 'Setting: no new readers once this many have answered (a reader can still change their answer); null removes it' }
         notify_on_response: { type: boolean, description: 'Setting: "Notify me of new responses by email". Stored only; the emails are #128' }
+        anonymous: { type: boolean, description: 'Setting: false = identified answers. An answer from a newsletter link keeps the reader''s LianaMailer contact id and is sent to LianaAutomation; the answer page tells the reader. Default true (anonymous unless the reader ticks "Contact me")' }
     Survey:
       type: object
       required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, accent_color, background_color, logo_url, public_url, published_at, language, opens_at, closes_at, response_limit, notify_on_response, created_at, updated_at]
@@ -977,7 +998,7 @@ components:
         verb: { type: string, example: survey_answered }
         contact: { type: [string, 'null'], description: 'Shortened email, e.g. su…@example.com' }
         test: { type: boolean }
-        status: { type: string, enum: [pending, sent, retrying, failed] }
+        status: { type: string, enum: [pending, sent, retrying, failed, skipped], description: 'skipped: deliberately not sent (an anonymous answer, or an unknown contact); last_error says why' }
         attempts: { type: integer }
         last_error: { type: [string, 'null'] }
         created_at: { type: string, format: date-time }

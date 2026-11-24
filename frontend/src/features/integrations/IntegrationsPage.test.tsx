@@ -169,3 +169,18 @@ test('without demo mode only Liana hosts are offered', async () => {
   expect(host).toHaveValue('rest.automation.lianacloud.com');
   expect(within(host).queryByText(/Demo/)).toBeNull();
 });
+
+test('answers that were not sent on purpose say why and have no Retry', async () => {
+  status = {
+    liana_automation: connection({ status: 'connected', channel_id: '1', channel_name: 'Website' }),
+    events: { sent: 1, skipped: 1 },
+    demo_available: true,
+  };
+  log = [event({ id: 'e5', verb: 'survey_answered', test: false, status: 'skipped', last_error: 'Not sent: anonymous answer.' })];
+  renderPage();
+  const table = await screen.findByRole('table', { name: 'Events sent to LianaAutomation' });
+  expect(within(table).getByText('Not sent')).toBeInTheDocument();
+  expect(within(table).getByText('Not sent: anonymous answer.')).toBeInTheDocument();
+  expect(within(table).queryByRole('button', { name: 'Retry' })).toBeNull();
+  expect(screen.getByText(/1 sent/)).toHaveTextContent('1 sent, 1 not sent');
+});

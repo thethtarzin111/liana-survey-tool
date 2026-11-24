@@ -18,8 +18,9 @@ def tenant_for_token(link_token: str) -> UUID | None:
 def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
     """What the answer pages need: status, type, language, the texts readers see
     (title, description, thank-you message), colours, the main question, whether
-    unsigned newsletter links are accepted, and the close date, response limit and
-    response count (#47)."""
+    unsigned newsletter links are accepted, the close date, response limit and
+    response count (#47), and the reader options: the "Tell us more" box, the
+    "Contact me" opt-in and whether answers are identified (anonymous off)."""
     with tenant_connection(tenant_id) as conn:
         conn.row_factory = dict_row
         survey = conn.execute(
@@ -27,6 +28,7 @@ def survey_for_token(tenant_id: UUID, link_token: str) -> dict[str, Any] | None:
                       s.language, s.thank_you,
                       s.accent_color, s.background_color,
                       s.newsletter_links, s.closes_at, s.response_limit,
+                      s.comment_field, s.contact_opt_in, s.anonymous,
                       coalesce(a.response_count, 0) as response_count
                from surveys s left join survey_aggregates a on a.survey_id = s.id
                where s.link_token = %s""",

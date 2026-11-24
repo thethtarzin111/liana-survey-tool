@@ -18,6 +18,11 @@ MULTI_KINDS = frozenset({"multiple_choice", "reasons"})
 TEXT_LIMITS = {"text": 500, "long_text": 5000}
 #: "Not for me": the only thumbs answer that asks for reasons (as in the email flow).
 THUMBS_NOT_FOR_ME = 0
+#: The "Tell us more" box's form field and longest text (as a long_text answer).
+COMMENT_FIELD = "comment"
+COMMENT_LIMIT = 5000
+#: The "Contact me about this by email" box's form field.
+CONTACT_ME_FIELD = "contact_me"
 
 
 class AnswerProblem(Exception):
@@ -135,3 +140,46 @@ def _answer(question: Mapping[str, Any], values: list[str]) -> AnswerValue:
     else:
         raise AnswerProblem("answer_not_valid", 400)
     return answer
+
+
+def has_text_question(questions: Sequence[Mapping[str, Any]]) -> bool:
+    """Whether the survey asks for free text itself (Results shows that as the comment)."""
+    return any(question["kind"] in TEXT_LIMITS for question in questions)
+
+
+def shows_comment_box(survey: Mapping[str, Any], questions: Sequence[Mapping[str, Any]]) -> bool:
+    """The "Tell us more" box: when it is switched on and no question asks for text."""
+    return bool(survey["comment_field"]) and not has_text_question(questions)
+
+
+def shows_contact_me(survey: Mapping[str, Any], reader_ref: str | None) -> bool:
+    """The "Contact me" box: only on links that say who the reader is (r=). The plain
+    link and the QR code have no contact to tie a request to."""
+    return bool(survey["contact_opt_in"]) and bool(reader_ref)
+
+
+def comment(form: Mapping[str, Sequence[str]]) -> str | None:
+    """The "Tell us more" text, or None when blank. Raises AnswerProblem when too long."""
+    values = [v.strip() for v in form.get(COMMENT_FIELD, ()) if v.strip()]
+    if not values:
+        return None
+    if len(values) != 1 or len(values[0]) > COMMENT_LIMIT:
+        raise AnswerProblem("answer_not_valid", 400)
+    return values[0]
+
+
+def follow_up_answers(
+    survey_type: str,
+    questions: Sequence[Mapping[str, Any]],
+    form: Mapping[str, Sequence[str]],
+    main_answer: int,
+) -> list[AnswerValue]:
+    """The answers sent from the follow-up page after a one-tap answer: the tapped
+    answer from the link, plus the other questions, which are all optional there
+    (the answer is saved already, so the reader may stop at any point)."""
+    if not questions:
+        return []
+    main, others = questions[0], questions[1:]
+    sent = {**form, field_name(main): [str(main_answer)]}
+    optional = [main, *({**question, "required": False} for question in others)]
+    return form_answers(survey_type, optional, sent)

@@ -9,24 +9,36 @@ Newsletter snippet links (#40) come without the signature, with the reader id
 LianaMailer filled in and campaign/segment tags: /r/<token>?r=<id>&c=..&seg=..&a=..
 (see liana_survey_shared.links).
 
-Records the one-tap answer to the survey's main question by putting it on the
-queue, and shows a plain thank-you page. Answers stay anonymous: only a key
-derived from the reader reference is stored, to count each reader once.
+An answer link opens the follow-up page for the tapped answer, which saves the
+answer itself with a POST (mail scanners only open links, so they never answer),
+and offers the survey's other questions, "Tell us more" and "Contact me". Answers
+go on the queue for the worker. They stay anonymous, with only a key derived from
+the reader reference to count each reader once, unless the survey is set to
+identified answers or the reader ticks "Contact me"; then the LianaMailer contact
+id from the link goes with the answer (liana_survey_shared.contact).
 """
 
 import logging
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 from urllib.parse import parse_qs
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from liana_survey_shared import links
 from liana_survey_shared.config import get_settings
-from liana_survey_shared.messages import AnswerSubmitted, AnswerValue, is_valid_segment
+from liana_survey_shared.contact import answer_contact_ref
+from liana_survey_shared.messages import (
+    AnswerSubmitted,
+    AnswerValue,
+    is_valid_campaign,
+    is_valid_segment,
+)
 from liana_survey_shared.texts import text
 
 from . import domain, pages, repo
@@ -69,12 +81,14 @@ async def answer(
     r: str | None = None,
     s: str | None = None,
     a: str | None = None,
+    c: str | None = None,
     seg: str | None = None,
     ch: Literal["email", "link", "qr"] | None = None,
-    queue: AnswerQueue = Depends(get_answer_queue),
 ) -> HTMLResponse:
-    """Record a one-tap answer from the email and show the thank-you page."""
-    settings = get_settings()
+    """The plain link shows the whole survey. An answer link from an email shows the
+    follow-up page for the tapped answer. Opening it saves nothing: mail scanners
+    open every link in an email, and an answer must come from the reader. The page
+    saves the answer itself (POST, step=tap); see pages.follow_up."""
     tenant_id = await run_in_threadpool(repo.tenant_for_token, link_token)
     if tenant_id is None:
         return _page(pages.problem(NOT_VALID), 404)
@@ -82,53 +96,152 @@ async def answer(
     if survey is None:
         return _page(pages.problem(NOT_VALID), 404)
     channel = ch or ("email" if a is not None else "link")
-    language = survey["language"]
     if r is None and s is None and a is None:
         await run_in_threadpool(repo.record_view, tenant_id, survey["id"], channel)
         return await _survey_page(tenant_id, survey, link_token, channel)
+    fields = {"r": r or "", "s": s or "", "a": a or "", "ch": channel}
+    if c is not None:
+        fields["c"] = c
+    if seg is not None:
+        fields["seg"] = seg
+    checked = await _checked_link(tenant_id, survey, link_token, fields)
+    if isinstance(checked, HTMLResponse):
+        return checked
+    questions = await run_in_threadpool(repo.questions, tenant_id, survey["id"])
+    return _page(_follow_up_page(survey, questions, checked, fields))
+
+
+@dataclass(frozen=True)
+class _LinkAnswer:
+    """An answer link that passed every check."""
+
+    value: int
+    response_key: str
+    answered: bool
+    segment: str
+    campaign: str | None
+
+
+async def _checked_link(
+    tenant_id: UUID, survey: dict, link_token: str, fields: dict[str, str]
+) -> _LinkAnswer | HTMLResponse:
+    """Check an answer link's fields (from the URL or the follow-up form): the
+    reader and signature, the segment, that the survey takes the answer, and the
+    answer itself. Returns the problem page when one fails."""
+    settings = get_settings()
+    language = survey["language"]
+    reader = fields.get("r", "")
     try:
         links.check_link(
             settings.link_signing_secret,
             link_token,
-            r or "",
-            s,
+            reader,
+            fields.get("s") or None,
             unsigned_allowed=survey["newsletter_links"],
         )
     except links.LinkError:
         return _page(pages.problem(text("link_not_complete", language), language), 400)
-    segment = "all" if seg is None else seg
+    segment = fields.get("seg", "all")
     if not is_valid_segment(segment):
         return _page(pages.problem(text("link_not_complete", language), language), 400)
+    # An unknown campaign tag is left out; it never stops the answer.
+    campaign = fields.get("c") or None
+    if campaign is not None and not is_valid_campaign(campaign):
+        campaign = None
     # Not the reader reference itself: anonymous answers keep no link to the reader.
-    response_key = links.response_key(settings.link_signing_secret, link_token, r or "")
+    response_key = links.response_key(settings.link_signing_secret, link_token, reader)
     answered = await run_in_threadpool(repo.answered_before, tenant_id, survey["id"], response_key)
-    full = domain.limit_reached(survey["response_limit"], survey["response_count"]) and not answered
     try:
-        domain.check_open(
-            survey["status"], closes_at=survey["closes_at"], now=datetime.now(UTC), full=full
-        )
-        value = domain.one_tap_answer(survey["main_kind"], a)
+        _survey_open(survey, answered)
+        value = domain.one_tap_answer(survey["main_kind"], fields.get("a"))
     except domain.AnswerProblem as problem:
         return _page(pages.problem(problem.message(language), language), problem.status_code)
+    return _LinkAnswer(value, response_key, answered, segment, campaign)
 
+
+def _follow_up_page(
+    survey: dict,
+    questions: list[dict],
+    checked: _LinkAnswer,
+    fields: dict[str, str],
+    sent: dict | None = None,
+    error: str | None = None,
+) -> str:
+    return pages.follow_up(
+        survey,
+        questions[1:],
+        answer=checked.value,
+        link_fields=fields,
+        comment_box=domain.shows_comment_box(survey, questions),
+        contact_box=domain.shows_contact_me(survey, fields.get("r")),
+        identified=not survey["anonymous"] and bool(fields.get("r")),
+        sent=sent,
+        error=error,
+    )
+
+
+async def _submit_link_answer(
+    tenant_id: UUID, survey: dict, link_token: str, form: dict, queue: AnswerQueue
+) -> Response:
+    """The follow-up page's POST. step=tap saves the tapped answer alone (sent by
+    the page's script as soon as it opens) and answers 204. Otherwise it is the
+    whole form: the tapped answer, the other questions, the comment and "Contact
+    me"; the thank-you page follows. Both replace any earlier answer of the reader
+    (the same key), so the reader still counts once."""
+    language = survey["language"]
+    fields = {name: form[name][0] for name in ("r", "s", "a", "c", "seg", "ch") if form.get(name)}
+    channel = fields.get("ch", "email")
+    if channel not in ("email", "link", "qr"):
+        channel = "email"
+    fields["ch"] = channel
+    checked = await _checked_link(tenant_id, survey, link_token, fields)
+    if isinstance(checked, HTMLResponse):
+        return checked
+    tap = form.get("step", [""])[0] == "tap"
+    main = AnswerValue(question_id=survey["main_id"], number=checked.value)
+    answers, comment, contact_me = [main], None, False
+    if not tap:
+        questions = await run_in_threadpool(repo.questions, tenant_id, survey["id"])
+        try:
+            answers = domain.follow_up_answers(survey["type"], questions, form, checked.value)
+            if domain.shows_comment_box(survey, questions):
+                comment = domain.comment(form)
+        except domain.AnswerProblem as problem:
+            again = _follow_up_page(
+                survey, questions, checked, fields, sent=form, error=problem.message(language)
+            )
+            return _page(again, problem.status_code)
+        contact_me = domain.shows_contact_me(survey, fields.get("r")) and bool(
+            form.get(domain.CONTACT_ME_FIELD)
+        )
+    contact_ref = answer_contact_ref(
+        identified_survey=not survey["anonymous"],
+        survey_offers_opt_in=survey["contact_opt_in"],
+        reader_opted_in=contact_me,
+        contact_ref=fields.get("r"),
+    )
     # A reader's later taps change their answer, not the reach: count their first only.
-    if not answered:
+    if not checked.answered:
         await run_in_threadpool(repo.record_view, tenant_id, survey["id"], channel)
-
     message = AnswerSubmitted(
         tenant_id=tenant_id,
         survey_id=survey["id"],
-        link_token_hash=response_key,
+        link_token_hash=checked.response_key,
         channel=channel,
-        segment=segment,
-        answers=[AnswerValue(question_id=survey["main_id"], number=value)],
+        segment=checked.segment,
+        answers=answers,
+        contact_ref=contact_ref,
+        comment=comment,
+        contact_me=contact_me and contact_ref is not None,
+        campaign=checked.campaign,
     )
     try:
         await queue.publish(message)
     except Exception:
         log.exception("could not queue answer for survey %s", survey["id"])
         return _page(pages.problem(text("try_again", language), language), 503)
-
+    if tap:
+        return Response(status_code=204, headers=PRIVATE)
     return _page(
         pages.thank_you(
             survey["thank_you"], survey["accent_color"], survey["background_color"], language
@@ -169,7 +282,13 @@ async def _survey_page(tenant_id, survey: dict, link_token: str, channel: str) -
     questions = await run_in_threadpool(repo.questions, tenant_id, survey["id"])
     if not questions:
         return _page(pages.problem(text("not_open", language), language), 403)
-    form = pages.survey_form(survey, questions, key=_visit_key(link_token), channel=channel)
+    form = pages.survey_form(
+        survey,
+        questions,
+        key=_visit_key(link_token),
+        channel=channel,
+        comment_box=domain.shows_comment_box(survey, questions),
+    )
     return _page(form)
 
 
@@ -177,7 +296,8 @@ async def _survey_page(tenant_id, survey: dict, link_token: str, channel: str) -
 async def submit(
     link_token: str, request: Request, queue: AnswerQueue = Depends(get_answer_queue)
 ) -> HTMLResponse:
-    """Take the answers sent from the survey link page and show the thank-you page."""
+    """Take the answers sent from the survey link page or from the follow-up page of
+    an answer link, and show the thank-you page."""
     settings = get_settings()
     tenant_id = await run_in_threadpool(repo.tenant_for_token, link_token)
     if tenant_id is None:
@@ -192,9 +312,14 @@ async def submit(
         return _page(pages.problem(text("answer_not_valid", language), language), 413)
     try:
         form = parse_qs(body.decode("utf-8"), keep_blank_values=True, max_num_fields=500)
+    except (UnicodeDecodeError, ValueError):
+        return _page(pages.problem(text("link_not_complete", language), language), 400)
+    if "key" not in form and "a" in form:
+        return await _submit_link_answer(tenant_id, survey, link_token, form, queue)
+    try:
         key = form.get("key", [""])[0]
         reader = _check_visit_key(link_token, key)
-    except (UnicodeDecodeError, ValueError, links.LinkError):
+    except links.LinkError:
         return _page(pages.problem(text("link_not_complete", language), language), 400)
     channel = form.get("ch", ["link"])[0]
     if channel not in ("link", "qr"):
@@ -207,8 +332,10 @@ async def submit(
     except domain.AnswerProblem as problem:
         return _page(pages.problem(problem.message(language), language), problem.status_code)
     questions = await run_in_threadpool(repo.questions, tenant_id, survey["id"])
+    comment_box = domain.shows_comment_box(survey, questions)
     try:
         answers = domain.form_answers(survey["type"], questions, form)
+        comment = domain.comment(form) if comment_box else None
     except domain.AnswerProblem as problem:
         again = pages.survey_form(
             survey,
@@ -217,13 +344,14 @@ async def submit(
             channel=channel,
             sent=form,
             error=problem.message(language),
+            comment_box=comment_box,
         )
         return _page(again, problem.status_code)
     thanks = pages.thank_you(
         survey["thank_you"], survey["accent_color"], survey["background_color"], language
     )
     # Every question is optional and left blank: nothing to save, and no response counted.
-    if not answers:
+    if not answers and comment is None:
         return _page(thanks)
 
     message = AnswerSubmitted(
@@ -232,6 +360,7 @@ async def submit(
         link_token_hash=response_key,
         channel=channel,
         answers=answers,
+        comment=comment,
     )
     try:
         await queue.publish(message)

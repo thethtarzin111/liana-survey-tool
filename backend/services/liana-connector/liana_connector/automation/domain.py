@@ -121,6 +121,52 @@ def contact_request_event(
     }
 
 
+#: The verb of an answer on the contact's timeline (the test event uses it too).
+ANSWER_VERB = "survey_answered"
+#: LianaMailer contact ids are numbers; anything else can't be a contact in Liana.
+_CONTACT_ID = re.compile(r"[0-9]{1,20}")
+#: Sync log reasons for answers that are deliberately not sent.
+NOT_SENT_ANONYMOUS = "Not sent: anonymous answer."
+NOT_SENT_UNKNOWN = "Not sent: contact unknown (r={ref})."
+
+
+def answer_event(
+    survey_id: str,
+    survey_title: str,
+    main_kind: str | None,
+    score: int | None,
+    campaign: str | None,
+    contact_ref: str | None,
+) -> tuple[dict[str, Any], str | None]:
+    """One `data` item for POST /import: a survey_answered event for the contact, and
+    why it must not be sent (None when it may be sent).
+
+    The items are the same each time for the same answer, so a redelivered message
+    or a second tap with the same answer is recognised and not sent twice. Never the
+    answers' texts: only the score, its NPS group, the survey and the campaign."""
+    items: dict[str, str] = {"survey_id": str(survey_id), "survey_name": survey_title}
+    if score is not None:
+        items["score"] = str(score)
+        if main_kind == "nps":
+            items["nps_group"] = nps_group(score)
+    if campaign:
+        items["campaign"] = campaign
+    event: dict[str, Any] = {"events": [{"verb": ANSWER_VERB, "items": items}]}
+    if contact_ref is None:
+        return event, NOT_SENT_ANONYMOUS
+    if not _CONTACT_ID.fullmatch(contact_ref):
+        shown = masked_email(contact_ref)
+        return {"identity": {CONTACT_IDENTITY: contact_ref}, **event}, NOT_SENT_UNKNOWN.format(
+            ref=shown
+        )
+    return {"identity": {CONTACT_IDENTITY: contact_ref}, **event}, None
+
+
+def sends_answers(connection: dict[str, Any] | None) -> bool:
+    """The organisation connected LianaAutomation and left "Survey answers" on."""
+    return connection is not None and merged_settings(connection["settings"])["answers"]
+
+
 def sends_contact_requests(connection: dict[str, Any] | None) -> bool:
     """The organisation connected LianaAutomation and left "Contact me" requests on."""
     return connection is not None and merged_settings(connection["settings"])["contact_requests"]

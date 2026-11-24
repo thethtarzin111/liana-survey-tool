@@ -231,7 +231,7 @@ def send_test_event(
 
 @router.get("/liana-automation/events", response_model=list[SyncEvent])
 def sync_log(
-    status: Annotated[str | None, Query(pattern="^(pending|sent|retrying|failed)$")] = None,
+    status: Annotated[str | None, Query(pattern="^(pending|sent|retrying|failed|skipped)$")] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     db: TenantDB = Depends(tenant_db),
 ) -> list[dict]:
@@ -251,6 +251,8 @@ def retry_event(
         raise HTTPException(404, "Event not found")
     if event["status"] == "sent":
         raise HTTPException(409, "This event was already sent.")
+    if event["status"] == "skipped":
+        raise HTTPException(409, "This answer is not sent on purpose (see the reason).")
     # Checks first: if the connection is gone or broken, the event stays failed and
     # can be retried once it is fixed.
     row, client = _sender(db, build)

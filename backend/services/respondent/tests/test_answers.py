@@ -1,6 +1,7 @@
 """The answer link (#42). Tests marked `db` need a migrated Postgres reached as
 the app role; they delete the surveys they create. The queue is a fake."""
 
+import html
 import os
 import re
 import secrets
@@ -168,14 +169,19 @@ def make_survey():
         closes_at=None,
         response_limit=None,
         language="en",
+        anonymous=True,
+        comment_field=True,
+        contact_opt_in=True,
     ):
         token = secrets.token_urlsafe(16)
         with tenant_connection(DEMO_TENANT) as conn:
             survey_id = conn.execute(
                 """insert into surveys
                      (tenant_id, title, type, status, thank_you, link_token, newsletter_links,
-                      closes_at, response_limit, language)
-                   values (%s, 'Answer test', %s, %s, %s, %s, %s, %s, %s, %s) returning id""",
+                      closes_at, response_limit, language, anonymous, comment_field,
+                      contact_opt_in)
+                   values (%s, 'Answer test', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   returning id""",
                 (
                     DEMO_TENANT,
                     survey_type,
@@ -186,6 +192,9 @@ def make_survey():
                     closes_at,
                     response_limit,
                     language,
+                    anonymous,
+                    comment_field,
+                    contact_opt_in,
                 ),
             ).fetchone()[0]
             main_id = conn.execute(
@@ -212,18 +221,54 @@ def link(token, reader="contact-42", answer=None):
     return parts.path + "?" + parts.query + (f"&a={answer}" if answer is not None else "")
 
 
+_HIDDEN = re.compile(r'<input type="hidden" name="([^"]+)" value="([^"]*)">')
+
+
+def hidden_fields(page_html):
+    """The follow-up page's hidden link fields (r, s, a, c, seg, ch)."""
+    return {name: html.unescape(value) for name, value in _HIDDEN.findall(page_html)}
+
+
+def open_link(client, url):
+    """Open an answer link as the reader's browser does: the follow-up page."""
+    r = client.get(url)
+    assert r.status_code == 200, r.text
+    return r
+
+
+def tap(client, url, **extra):
+    """Open an answer link and let the page save the tapped answer (its script's POST
+    with step=tap). Returns the POST's response."""
+    page = open_link(client, url)
+    path = urlsplit(url).path
+    return client.post(path, data={**hidden_fields(page.text), "step": "tap", **extra})
+
+
+def submit(client, url, **form):
+    """Open an answer link and send the follow-up form with `form`."""
+    page = open_link(client, url)
+    return client.post(urlsplit(url).path, data={**hidden_fields(page.text), **form})
+
+
 @pytest.mark.db
 @needs_db
 def test_a_tap_queues_the_answer_and_shows_the_thank_you_page(client, queue, make_survey):
     survey_id, main_id, token = make_survey()
     r = client.get(link(token, answer=9))
     assert r.status_code == 200
-    assert "Thank you!" in r.text
-    assert "Thanks a lot!" in r.text
+    # Opening the link saves nothing (mail scanners open every link): the page does.
+    assert queue.messages == []
+    assert "Your answer: 9" in r.text
     assert r.headers["cache-control"] == "no-store"
     assert r.headers["referrer-policy"] == "no-referrer"
 
-    [message] = queue.messages
+    saved = tap(client, link(token, answer=9))
+    assert saved.status_code == 204
+    assert saved.headers["cache-control"] == "no-store"
+    thanks = submit(client, link(token, answer=9))
+    assert "Thank you!" in thanks.text and "Thanks a lot!" in thanks.text
+
+    message, _ = queue.messages
     assert (message.tenant_id, message.survey_id) == (DEMO_TENANT, survey_id)
     assert [(a.question_id, a.number) for a in message.answers] == [(main_id, 9)]
     # Anonymous: a key to count the reader once, not the reader reference.
@@ -237,8 +282,8 @@ def test_a_tap_queues_the_answer_and_shows_the_thank_you_page(client, queue, mak
 @needs_db
 def test_the_segment_from_the_link_is_queued(client, queue, make_survey):
     _, _, token = make_survey()
-    assert client.get(link(token, reader="anna", answer=9) + "&seg=members").status_code == 200
-    assert client.get(link(token, reader="ben", answer=9)).status_code == 200
+    assert tap(client, link(token, reader="anna", answer=9) + "&seg=members").status_code == 204
+    assert tap(client, link(token, reader="ben", answer=9)).status_code == 204
     assert [m.segment for m in queue.messages] == ["members", "all"]
 
 
@@ -260,9 +305,9 @@ def test_an_invalid_or_reserved_segment_shows_the_incomplete_link_page(
 @needs_db
 def test_the_same_link_twice_gives_the_same_key(client, queue, make_survey):
     _, _, token = make_survey()
-    client.get(link(token, answer=9))
-    client.get(link(token, answer=3))
-    client.get(link(token, reader="someone-else", answer=3))
+    tap(client, link(token, answer=9))
+    tap(client, link(token, answer=3))
+    tap(client, link(token, reader="someone-else", answer=3))
     keys = [m.link_token_hash for m in queue.messages]
     # The worker saves the first answer for a key and ignores the rest (#23).
     assert keys[0] == keys[1] != keys[2]
@@ -275,7 +320,7 @@ def test_the_same_link_twice_gives_the_same_key(client, queue, make_survey):
 )
 def test_thumbs_and_csat_taps(client, queue, make_survey, kind, survey_type, answer):
     _, _, token = make_survey(kind=kind, survey_type=survey_type)
-    assert client.get(link(token, answer=answer)).status_code == 200
+    assert tap(client, link(token, answer=answer)).status_code == 204
     assert queue.messages[0].answers[0].number == answer
 
 
@@ -327,7 +372,7 @@ def test_wrong_answers_are_refused_before_queueing(client, queue, make_survey):
 def test_a_queue_outage_asks_the_reader_to_try_again(client, queue, make_survey):
     _, _, token = make_survey()
     queue.fail = True
-    r = client.get(link(token, answer=9))
+    r = tap(client, link(token, answer=9))
     assert r.status_code == 503
     assert "Please open the link again" in r.text
 
@@ -376,9 +421,8 @@ def test_a_tap_from_the_newsletter_snippet_is_queued_and_counted_per_reader(
     client, queue, make_survey
 ):
     survey_id, main_id, token = make_survey(newsletter_links=True)
-    r = client.get(snippet_link(token))
-    assert r.status_code == 200
-    assert "Thank you!" in r.text
+    r = tap(client, snippet_link(token))
+    assert r.status_code == 204
     [message] = queue.messages
     assert [(a.question_id, a.number) for a in message.answers] == [(main_id, 9)]
     # The same reader key as a signed link for that contact: counted once either way.
@@ -451,7 +495,7 @@ def test_a_full_survey_takes_no_new_readers_but_lets_readers_change_their_answer
     assert "all the answers it needs" in r.text
     assert queue.messages == []
 
-    assert client.get(link(token, reader="anna", answer=7)).status_code == 200
+    assert tap(client, link(token, reader="anna", answer=7)).status_code == 204
     assert len(queue.messages) == 1
 
 
@@ -462,7 +506,9 @@ def test_readers_get_pages_in_the_survey_language(client, queue, make_survey):
     r = client.get(link(token, answer=9))
     assert r.status_code == 200
     assert '<html lang="fi">' in r.text
-    assert "Kiitos!" in r.text and "Vastauksesi on tallennettu." in r.text
+    assert "Vastauksesi: 9" in r.text and "Kerro lisää" in r.text
+    thanks = submit(client, link(token, answer=9))
+    assert "Kiitos!" in thanks.text and "Vastauksesi on tallennettu." in thanks.text
 
     _, _, closed = make_survey(status="closed", language="sv")
     r = client.get(link(closed, answer=9))
@@ -492,10 +538,13 @@ def test_a_reader_counts_as_one_view_however_often_they_tap(client, queue, make_
             (DEMO_TENANT, survey_id, links.response_key(secret, token, "anna")),
         )
 
-    assert client.get(link(token, reader="anna", answer=7)).status_code == 200
+    assert tap(client, link(token, reader="anna", answer=7)).status_code == 204
     assert views(survey_id) == {}
 
-    assert client.get(link(token, reader="ben", answer=9) + "&ch=qr").status_code == 200
+    # Opening the link is not a view yet (a scanner would count): saving the answer is.
+    open_link(client, link(token, reader="ben", answer=9) + "&ch=qr")
+    assert views(survey_id) == {}
+    assert tap(client, link(token, reader="ben", answer=9) + "&ch=qr").status_code == 204
     assert views(survey_id) == {"qr": 1}
     assert [m.channel for m in queue.messages] == ["email", "qr"]
 
@@ -829,3 +878,136 @@ def test_a_blank_survey_of_optional_questions_shows_thanks_and_saves_nothing(
     r = client.post(f"/r/{token}", data={"key": key})
     assert r.status_code == 200 and "Thanks a lot!" in r.text
     assert queue.messages == []
+
+
+# --- The follow-up page and identified answers (demo review, bugs 1-3) -------------
+
+
+def test_the_comment_box_is_only_for_surveys_without_a_text_question():
+    from respondent_service.domain import shows_comment_box, shows_contact_me
+
+    survey = {"comment_field": True, "contact_opt_in": True}
+    assert shows_comment_box(survey, THUMBS[:2])
+    assert not shows_comment_box(survey, THUMBS)  # it asks "Anything else?" itself
+    assert not shows_comment_box({**survey, "comment_field": False}, THUMBS[:2])
+    # "Contact me" needs a contact: only links with r=, never the plain link or QR code.
+    assert shows_contact_me(survey, "4084399")
+    assert not shows_contact_me(survey, None)
+    assert not shows_contact_me({**survey, "contact_opt_in": False}, "4084399")
+
+
+def test_follow_up_questions_are_all_optional_and_keep_the_tapped_answer():
+    from respondent_service.domain import follow_up_answers
+
+    required = [THUMBS[0], {**THUMBS[1], "required": True}]
+    # Nothing else answered: the tapped answer alone, though reasons are "required".
+    [main] = follow_up_answers("thumbs", required, {}, 0)
+    assert (main.question_id, main.number) == (Q_MAIN, 0)
+    # A different main answer in the form is ignored: the link's answer counts.
+    answers = follow_up_answers("thumbs", required, form(main=["2"], reasons=["Too long"]), 0)
+    assert [(a.number, a.choices) for a in answers] == [(0, None), (None, ["Too long"])]
+
+
+@pytest.mark.db
+@needs_db
+def test_the_follow_up_page_offers_the_comment_and_contact_me(client, queue, make_survey):
+    _, _, token = make_survey()
+    page = client.get(link(token, answer=3)).text
+    assert 'name="comment"' in page and "Tell us more" in page
+    assert 'name="contact_me"' in page and "Contact me about this by email" in page
+    # Anonymous survey: the reader is not told their answer is linked to them.
+    assert "linked to your contact details" not in page
+
+    _, _, plain = make_survey(comment_field=False, contact_opt_in=False)
+    page = client.get(link(plain, answer=3)).text
+    assert 'name="comment"' not in page and 'name="contact_me"' not in page
+
+
+@pytest.mark.db
+@needs_db
+def test_the_follow_up_form_updates_the_same_answer_with_comment_and_contact_me(
+    client, queue, make_survey
+):
+    survey_id, main_id, token = make_survey(newsletter_links=True)
+    url = snippet_link(token, reader="4084400", answer=3)
+    assert tap(client, url).status_code == 204
+    thanks = submit(client, url, comment="  Too many emails  ", contact_me="1")
+    assert thanks.status_code == 200 and "Thank you!" in thanks.text
+
+    saved, sent = queue.messages
+    # The same reader key: the worker replaces the tap with the form (one response).
+    assert saved.link_token_hash == sent.link_token_hash
+    assert (saved.contact_ref, saved.contact_me, saved.comment) == (None, False, None)
+    assert [(a.question_id, a.number) for a in sent.answers] == [(main_id, 3)]
+    assert (sent.contact_ref, sent.contact_me, sent.comment) == ("4084400", True, "Too many emails")
+    assert sent.campaign == "spring" and sent.segment == "members"
+
+
+@pytest.mark.db
+@needs_db
+def test_an_anonymous_answer_keeps_no_contact_without_contact_me(client, queue, make_survey):
+    _, _, token = make_survey(newsletter_links=True)
+    submit(client, snippet_link(token, reader="4084399", answer=9), comment="Great")
+    [message] = queue.messages
+    assert (message.contact_ref, message.contact_me) == (None, False)
+    assert "4084399" not in message.model_dump_json()
+
+
+@pytest.mark.db
+@needs_db
+def test_an_identified_survey_ties_the_answer_to_the_contact(client, queue, make_survey):
+    _, _, token = make_survey(newsletter_links=True, anonymous=False)
+    url = snippet_link(token, reader="4084399", answer=9)
+    assert "linked to your contact details" in client.get(url).text
+    tap(client, url)
+    [message] = queue.messages
+    assert (message.contact_ref, message.contact_me, message.campaign) == (
+        "4084399",
+        False,
+        "spring",
+    )
+
+
+@pytest.mark.db
+@needs_db
+def test_contact_me_from_a_link_without_a_contact_is_ignored(client, queue, make_survey):
+    # A hand-made POST: the page never offers it without r=.
+    _, _, token = make_survey()
+    page = client.get(link(token, answer=3)).text
+    fields = {**hidden_fields(page), "r": "", "s": "", "contact_me": "1"}
+    assert client.post(f"/r/{token}", data=fields).status_code == 400
+    assert queue.messages == []
+
+
+@pytest.mark.db
+@needs_db
+def test_a_bad_campaign_tag_is_left_out_not_refused(client, queue, make_survey):
+    _, _, token = make_survey()
+    assert tap(client, link(token, answer=9) + "&c=Not%20a%20tag").status_code == 204
+    assert queue.messages[0].campaign is None
+
+
+@pytest.mark.db
+@needs_db
+def test_a_too_long_comment_shows_the_follow_up_form_again(client, queue, make_survey):
+    _, _, token = make_survey()
+    r = submit(client, link(token, answer=3), comment="x" * 5001)
+    assert r.status_code == 400
+    assert 'name="comment"' in r.text and "could not be read" in r.text
+    assert queue.messages == []
+
+
+@pytest.mark.db
+@needs_db
+def test_the_plain_link_page_has_the_comment_box_but_no_contact_me(client, queue, make_survey):
+    _, main_id, token = make_survey()
+    page = client.get(f"/r/{token}").text
+    assert 'name="comment"' in page
+    assert 'name="contact_me"' not in page
+    key = re.search(r'name="key" value="([^"]+)"', page).group(1)
+    sent = {"key": key, f"q-{main_id}": "8", "comment": "Nice survey", "contact_me": "1"}
+    r = client.post(f"/r/{token}", data=sent)
+    assert r.status_code == 200
+    [message] = queue.messages
+    assert message.comment == "Nice survey"
+    assert (message.contact_ref, message.contact_me) == (None, False)

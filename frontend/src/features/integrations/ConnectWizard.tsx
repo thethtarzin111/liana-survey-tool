@@ -231,7 +231,8 @@ export function ConnectWizard({ connection, demoAvailable, onChange, onEventSent
       {step === 4 ? (
         <Step n={4} title="What to send">
           <p className="integrations-hint">
-            Only identified answers can be sent: Liana needs a contact. Anonymous answers always stay in the survey tool.
+            Only answers with a contact can be sent: from a survey set to identified answers, or where the reader
+            ticked “Contact me”. Anonymous answers stay in the survey tool; the sync log lists them as “Not sent”.
           </p>
           <div className="wizard-switches">
             {SEND_OPTIONS.map((o) => (

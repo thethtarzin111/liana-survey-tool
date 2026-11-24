@@ -57,3 +57,22 @@ def test_a_new_responses_digest_needs_at_least_one_new_response():
     assert NewResponsesDigest.model_validate_json(msg.model_dump_json()) == msg
     with pytest.raises(ValidationError):
         NewResponsesDigest(new_responses=0, **fields)
+
+
+def test_answers_carry_a_valid_campaign_tag_and_a_short_comment():
+    from uuid import uuid4
+
+    import pydantic
+
+    from liana_survey_shared.messages import AnswerSubmitted
+
+    fields = {"tenant_id": uuid4(), "survey_id": uuid4(), "link_token_hash": "k", "answers": []}
+    answer = AnswerSubmitted(**fields, campaign="test-november-customer-survey", comment="Hi")
+    assert (answer.campaign, answer.comment, answer.contact_me) == (
+        "test-november-customer-survey",
+        "Hi",
+        False,
+    )
+    for bad in ({"campaign": "Not a tag"}, {"comment": "x" * 5001}):
+        with pytest.raises(pydantic.ValidationError):
+            AnswerSubmitted(**fields, **bad)
