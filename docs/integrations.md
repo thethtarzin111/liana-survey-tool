@@ -44,28 +44,6 @@ stored anywhere new.
 - HMAC-SHA256 signing is deprecated and ends 31 Dec 2026; do not implement it.
 - `POST /import` with `no_duplicates`, so a retried message is not recorded twice.
 
-## Integrations page: connecting LianaAutomation
-
-The admin connects their own LianaAutomation account on the Integrations page, in
-five steps: credentials (OAuth client ID and secret, scope `automation-api`), test
-connection (`/pingpong`), channel (`/channel/list`, `/channel/create`), what to send,
-and a test event (`/import` for a made-up `@example.com` contact). The connector's
-HTTP API does the calls (`liana_connector/automation`), because only the connector
-talks to Liana.
-
-- The secret is encrypted with `INTEGRATION_SECRET_KEY` before it is stored; the
-  page only ever shows its last 4 characters.
-- Only `*.lianacloud.com` hosts are accepted, so a saved host cannot make the
-  backend send the secret anywhere else. In dev mode the host `demo` is a built-in
-  fake LianaAutomation (client `demo-client`, secret `demo-secret`).
-- Every event is a row in `integration_events`: the sync log, with Retry for failed
-  ones. A retry sends the same data with `no_duplicates`, so Liana never counts it
-  twice.
-- Errors: 401 gets a new token and one retry; 400 fails without retry; 404 marks
-  the connection as broken; 5xx and timeouts fail so they can be retried.
-- Not built yet: the worker writing an event for each identified answer (outbox)
-  and the connector sending them in batches with back-off.
-
 ## Switching adapters
 `LIANA_ADAPTER=mock` (default) or `LIANA_ADAPTER=lianaautomation` in `.env`.
 Credentials go in `.env` locally or GitHub secrets in CI, never in the repo.
