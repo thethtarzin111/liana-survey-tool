@@ -148,6 +148,19 @@ test('an error is shown on the card, and disconnecting asks first', async () => 
   expect(await screen.findByRole('button', { name: 'Connect LianaAutomation' })).toBeInTheDocument();
 });
 
+test('every way to share a survey is listed with its status (#73)', async () => {
+  renderPage();
+  for (const [title, badge] of [
+    ['LianaMailer', 'Ready'],
+    ['Share link and QR code', 'Ready'],
+    ['Website embed', 'Planned'],
+    ['Export and webhooks', 'Webhooks later'],
+  ]) {
+    const card = (await screen.findByRole('heading', { name: title })).closest('.integrations-card') as HTMLElement;
+    expect(within(card).getByText(badge)).toBeInTheDocument();
+  }
+});
+
 test('without demo mode only Liana hosts are offered', async () => {
   status = { ...status, demo_available: false };
   renderPage();
