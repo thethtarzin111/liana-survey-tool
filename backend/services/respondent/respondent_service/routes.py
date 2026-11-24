@@ -234,6 +234,7 @@ async def _submit_link_answer(
         comment=comment,
         contact_me=contact_me and contact_ref is not None,
         campaign=checked.campaign,
+        main_only=tap,
     )
     try:
         await queue.publish(message)

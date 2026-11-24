@@ -484,3 +484,32 @@ def test_nothing_is_passed_on_when_nothing_changed(make_survey):
     body = message(survey_id, nps(main, 9))
     assert len(record_answer(body).events) == 1
     assert record_answer(body).events == ()  # the same message again: kept
+
+
+@pytest.mark.db
+@needs_db
+def test_opening_the_link_again_keeps_the_follow_up_answers(make_survey):
+    # From review: the follow-up page saves the tapped answer on every open; that must
+    # not wipe the reasons the reader sent with the follow-up form before.
+    survey_id, main, reasons = make_survey()
+    now = datetime.now(UTC)
+    record_answer(message(survey_id, nps(main, 9), at=now, main_only=True))
+    record_answer(
+        message(
+            survey_id,
+            [*nps(main, 9), AnswerValue(question_id=reasons, choices=["Price"])],
+            at=now + timedelta(seconds=1),
+        )
+    )
+    record_answer(message(survey_id, nps(main, 9), at=now + timedelta(seconds=2), main_only=True))
+    assert [(number, choices) for _, number, choices in stored(survey_id)] == [
+        (9, None),
+        (None, ["Price"]),
+    ]
+    # A changed tap changes only the main answer and the totals.
+    record_answer(message(survey_id, nps(main, 4), at=now + timedelta(seconds=3), main_only=True))
+    assert [(number, choices) for _, number, choices in stored(survey_id)] == [
+        (4, None),
+        (None, ["Price"]),
+    ]
+    assert totals(survey_id) == (1, {"4": 1})

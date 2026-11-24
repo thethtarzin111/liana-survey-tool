@@ -1011,3 +1011,13 @@ def test_the_plain_link_page_has_the_comment_box_but_no_contact_me(client, queue
     [message] = queue.messages
     assert message.comment == "Nice survey"
     assert (message.contact_ref, message.contact_me) == (None, False)
+
+
+@pytest.mark.db
+@needs_db
+def test_the_pages_save_replaces_only_the_tapped_answer(client, queue, make_survey):
+    _, _, token = make_survey()
+    tap(client, link(token, answer=9))
+    submit(client, link(token, answer=9), comment="More please")
+    tapped, sent = queue.messages
+    assert tapped.main_only is True and sent.main_only is False

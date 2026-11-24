@@ -56,6 +56,9 @@ class AnswerSubmitted(Message):
     comment: str | None = Field(default=None, max_length=5000)
     # The reader ticked "Contact me about this by email" (needs a contact_ref).
     contact_me: bool = False
+    # The follow-up page saving the tapped answer alone (step=tap): it replaces only
+    # the answers in this message, so the reader's earlier follow-up answers stay.
+    main_only: bool = False
     # The newsletter's campaign tag from the link (c=), passed on to LianaAutomation.
     campaign: str | None = None
 

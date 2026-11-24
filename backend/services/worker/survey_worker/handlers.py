@@ -211,7 +211,15 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> tuple[str, UUID | N
         "select question_id, value_number from answers where response_id = %s", (response_id,)
     ).fetchall()
     old_count = _main_count(main, old_answers)
-    conn.execute("delete from answers where response_id = %s", (response_id,))
+    if msg.main_only:
+        # The follow-up page saving the tapped answer again (the reader opened the
+        # link again): their other answers from the follow-up form stay.
+        conn.execute(
+            "delete from answers where response_id = %s and question_id = any(%s)",
+            (response_id, [answer.question_id for answer in msg.answers]),
+        )
+    else:
+        conn.execute("delete from answers where response_id = %s", (response_id,))
     conn.execute(
         """update responses set submitted_at = %s, contact_ref = coalesce(%s, contact_ref),
                                 comment = coalesce(%s, comment)
