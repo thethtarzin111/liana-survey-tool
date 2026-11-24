@@ -77,9 +77,35 @@ talks to Liana.
 - Not built yet: the worker writing an event for each identified answer (outbox)
   and the connector sending them in batches with back-off.
 
+## "Contact me" requests to LianaAutomation (#72)
+
+With `LIANA_ADAPTER=lianaautomation`, each `ContactRequested` message becomes a
+`survey_contact_request` event on the contact's timeline, sent through the
+organisation's own connection from the Integrations page:
+
+```json
+{"identity": {"lianamailer_id": "<contact_ref>"},
+ "events": [{"verb": "survey_contact_request",
+             "items": {"survey_id": "…", "contact_request_id": "…", "requested_at": "…"}}]}
+```
+
+- Skipped when the organisation has not connected LianaAutomation or switched
+  "Contact me" requests off.
+- Every request is a row in the sync log (`integration_events`). A redelivered
+  message reuses its row and is not sent again once it was sent.
+- Not tested yet, or no channel: the row is failed with the reason, and the admin
+  presses Retry after fixing it.
+- 5xx and timeouts: the row is `retrying` and the port's `TemporaryError` is raised,
+  so the connector retries with back-off (#58). Bad data, a wrong host or wrong
+  credentials: the row is failed, the connection shows the error, and the message
+  goes to the dead-letter queue (`DeliveryFailed`).
+- To check with Liana: the identity name (`lianamailer_id`). The survey tool never
+  stores email addresses, so a contact is matched on its LianaMailer contact id.
+
 ## Switching adapters
-`LIANA_ADAPTER=mock` (default) or `LIANA_ADAPTER=lianaautomation` in `.env`.
-Credentials go in `.env` locally or GitHub secrets in CI, never in the repo.
+`LIANA_ADAPTER=mock` (default) or `LIANA_ADAPTER=lianaautomation` in `.env`. The
+LianaAutomation credentials are not in `.env`: each organisation saves its own on the
+Integrations page, encrypted with `INTEGRATION_SECRET_KEY`.
 
 ## Test environments Liana gave the team
 LianaCloud account (staging), LianaMailer (testing) and LianaMonitor (staging).

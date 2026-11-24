@@ -91,16 +91,63 @@ def import_body(channel_id: str, data: list[dict[str, Any]]) -> dict[str, Any]:
     return {"channel": channel_id, "no_duplicates": True, "data": data}
 
 
+#: The verb of a "Contact me" request on the contact's timeline.
+CONTACT_REQUEST_VERB = "survey_contact_request"
+#: The identity a real contact is matched on. The survey tool never stores email
+#: addresses (docs/gdpr.md): contact_ref is the LianaMailer contact id from the
+#: newsletter link. Check this identity name with Liana on the test account.
+CONTACT_IDENTITY = "lianamailer_id"
+
+
+def contact_request_event(
+    contact_ref: str, survey_id: str, contact_request_id: str, requested_at: datetime
+) -> dict[str, Any]:
+    """One `data` item for POST /import: a reader asked to be contacted.
+
+    contact_request_id makes each request unique, so no_duplicates drops only a
+    redelivered copy of the same request."""
+    return {
+        "identity": {CONTACT_IDENTITY: contact_ref},
+        "events": [
+            {
+                "verb": CONTACT_REQUEST_VERB,
+                "items": {
+                    "survey_id": str(survey_id),
+                    "contact_request_id": str(contact_request_id),
+                    "requested_at": requested_at.isoformat(timespec="seconds"),
+                },
+            }
+        ],
+    }
+
+
+def sends_contact_requests(connection: dict[str, Any] | None) -> bool:
+    """The organisation connected LianaAutomation and left "Contact me" requests on."""
+    return connection is not None and merged_settings(connection["settings"])["contact_requests"]
+
+
+def not_ready(connection: dict[str, Any]) -> str | None:
+    """Why events can't be sent through this connection now, or None. The admin fixes
+    it on the Integrations page, then presses Retry in the sync log."""
+    if connection["status"] != "connected":
+        return "LianaAutomation is not connected. Test the connection, then press Retry."
+    if not connection["channel_id"]:
+        return "No channel chosen. Choose one, then press Retry."
+    return None
+
+
 def contact_of(payload: dict[str, Any]) -> str | None:
-    """The contact's email in a stored event, for the sync log."""
+    """The contact in a stored event (email, or the contact id), for the sync log."""
     identity = payload.get("identity") or {}
-    return identity.get("email")
+    return identity.get("email") or identity.get(CONTACT_IDENTITY)
 
 
-def masked_email(email: str | None) -> str | None:
-    """Shortened to "su…@example.com": enough to recognise a test contact, not a whole
-    address."""
-    if not email or "@" not in email:
+def masked_email(contact: str | None) -> str | None:
+    """Shortened to "su…@example.com" (or "C-…" for a contact id): enough to recognise
+    a contact, not the whole address or id."""
+    if not contact:
         return None
-    name, domain = email.split("@", 1)
+    if "@" not in contact:
+        return f"{contact[:2]}…"
+    name, domain = contact.split("@", 1)
     return f"{name[:2]}…@{domain}"
