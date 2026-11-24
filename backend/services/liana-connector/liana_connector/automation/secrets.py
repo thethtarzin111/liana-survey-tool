@@ -8,9 +8,29 @@ import hashlib
 
 from cryptography.fernet import Fernet, InvalidToken
 
+#: The value in config.py and .env.example: public, so only allowed in local development.
+DEV_KEY = "change-me-integration-secret-key"
+#: The key is hashed into the Fernet key, which is only as strong as a long random value.
+MIN_KEY_LENGTH = 32
+
 
 class UnreadableSecret(Exception):
     """The saved secret was encrypted with another key."""
+
+
+class WeakKey(RuntimeError):
+    """INTEGRATION_SECRET_KEY is the public default or too short outside local development."""
+
+
+def check_key(key: str, auth_mode: str) -> str:
+    """The key, if it may be used. Outside AUTH_MODE=dev it must be set to a long random
+    value, so customers' secrets are never encrypted with a key that is in the repo."""
+    if auth_mode != "dev" and (key == DEV_KEY or len(key) < MIN_KEY_LENGTH):
+        raise WeakKey(
+            "Set INTEGRATION_SECRET_KEY to a random value of at least "
+            f"{MIN_KEY_LENGTH} characters (for example: openssl rand -base64 48)."
+        )
+    return key
 
 
 def _fernet(key: str) -> Fernet:

@@ -54,15 +54,24 @@ HTTP API does the calls (`liana_connector/automation`), because only the connect
 talks to Liana.
 
 - The secret is encrypted with `INTEGRATION_SECRET_KEY` before it is stored; the
-  page only ever shows its last 4 characters.
+  page only ever shows its last 4 characters. Outside `AUTH_MODE=dev` the connector
+  API refuses to start (and to save secrets) when the key is the default from the
+  repo or shorter than 32 characters.
 - Only `*.lianacloud.com` hosts are accepted, so a saved host cannot make the
   backend send the secret anywhere else. In dev mode the host `demo` is a built-in
-  fake LianaAutomation (client `demo-client`, secret `demo-secret`).
+  fake LianaAutomation (client `demo-client`, secret `demo-secret`). Outside dev
+  mode a saved demo connection is refused when it is used, so it can never record
+  "Sent" for an event that did not leave the server.
 - Every event is a row in `integration_events`: the sync log, with Retry for failed
   ones. A retry sends the same data with `no_duplicates`, so Liana never counts it
-  twice.
-- Errors: 401 gets a new token and one retry; 400 fails without retry; 404 marks
-  the connection as broken; 5xx and timeouts fail so they can be retried.
+  twice, and it first moves the row to `pending` in one statement, so a double
+  click sends once.
+- Errors: 401 gets a new token and one retry; 400 and a non-JSON answer fail
+  without retry; 404 marks the connection as broken; 5xx, timeouts and failed
+  connections (DNS, outage) fail so they can be retried, without marking a correct
+  connection as broken.
+- Not built yet: a role check. Any signed-in member of the organisation can
+  connect, disconnect or retry; with real authentication only admins should.
 - Not built yet: the worker writing an event for each identified answer (outbox)
   and the connector sending them in batches with back-off.
 

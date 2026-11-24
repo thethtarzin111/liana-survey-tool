@@ -7,10 +7,13 @@ from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.rows import dict_row
 
 from liana_connector.api import app
+from liana_connector.automation import repo, routes, secrets
 from liana_connector.automation.client import ConfigError
 from liana_connector.automation.routes import client_factory
+from liana_survey_shared.config import Settings
 from liana_survey_shared.db import ping, tenant_connection
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
@@ -117,6 +120,43 @@ def test_failed_event_can_be_retried(api):
     assert (retried["status"], retried["attempts"], retried["last_error"]) == ("sent", 2, None)
     assert api.post(f"{URL}/events/{failed.json()['id']}/retry").status_code == 409
     assert api.post(f"{URL}/events/{uuid4()}/retry").status_code == 404
+
+
+def test_a_double_click_on_retry_sends_once(api):
+    api.put(f"{URL}/liana-automation", json=DEMO)
+    api.patch(f"{URL}/liana-automation", json={"channel_id": "demo-1"})
+    failed = api.post(f"{URL}/liana-automation/test-event", json={"email": "fail@example.com"})
+    event_id = UUID(failed.json()["id"])
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.row_factory = dict_row
+        assert repo.claim_event(conn, event_id)["status"] == "pending"  # the first click
+    second = api.post(f"{URL}/events/{event_id}/retry")
+    assert (
+        second.status_code == 409 and second.json()["detail"] == "This event is already being sent."
+    )
+
+
+def test_a_demo_connection_sends_nothing_outside_dev_mode(api, monkeypatch):
+    api.put(f"{URL}/liana-automation", json=DEMO)
+    monkeypatch.setattr(routes, "demo_allowed", lambda: False)
+    tested = api.post(f"{URL}/liana-automation/test")
+    assert (
+        tested.status_code == 409 and "only works in local development" in tested.json()["detail"]
+    )
+    assert api.get(URL).json()["liana_automation"]["status"] == "error"
+
+
+def test_secrets_are_not_saved_with_the_default_key_outside_dev(api, monkeypatch):
+    monkeypatch.setattr(
+        routes,
+        "get_settings",
+        lambda: Settings(auth_mode="oidc", integration_secret_key=secrets.DEV_KEY),
+    )
+    saved = api.put(
+        f"{URL}/liana-automation",
+        json={"host": "rest.automation.lianacloud.com", "client_id": "x", "client_secret": "y"},
+    )
+    assert saved.status_code == 500 and "INTEGRATION_SECRET_KEY" in saved.json()["detail"]
 
 
 def test_a_wrong_host_marks_the_connection_broken(api):

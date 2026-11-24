@@ -9,7 +9,8 @@ Every failure becomes one of four errors, which decide what the caller does:
     401 from the API   -> token refreshed and the call retried once, then AuthError
     400                -> PermanentError: bad data, do not retry
     404                -> ConfigError: wrong host, stop sending
-    5xx, timeout, down -> TemporaryError: retry later
+    5xx, timeout, no connection -> TemporaryError: retry later
+    200 that isn't JSON -> PermanentError (token service: TemporaryError)
 """
 
 import itertools
@@ -17,6 +18,8 @@ import time
 from typing import Any, Protocol
 
 import httpx
+
+from .domain import DEMO_HOST
 
 TOKEN_URL = "https://tokens.lianacloud.com/token"
 STAGING_TOKEN_URL = "https://tokens.stg.lianacloud.com/token"
@@ -122,9 +125,16 @@ class LianaClient:
             raise TemporaryError(f"Liana's token service answered {res.status_code}. Try again.")
         if res.status_code != 200:
             raise AuthError(f"Liana's token service answered {res.status_code}.")
-        body = res.json()
-        self._token = body["access_token"]
-        self._expires = self.clock() + float(body.get("expires_in", 900))
+        try:
+            body = res.json()
+            token = body["access_token"]
+            expires_in = float(body.get("expires_in", 900))
+        except (ValueError, KeyError, TypeError, AttributeError) as error:
+            raise TemporaryError(
+                "Liana's token service gave an unexpected answer. Try again."
+            ) from error
+        self._token = token
+        self._expires = self.clock() + expires_in
         return self._token
 
     def _post(self, path: str, body: dict[str, Any]) -> Any:
@@ -138,7 +148,12 @@ class LianaClient:
             except httpx.TimeoutException as error:
                 raise TemporaryError("Liana did not answer in time. Try again.") from error
             except httpx.ConnectError as error:
-                raise ConfigError("Could not connect to the host. Check the host name.") from error
+                # A DNS blip or an outage looks the same as a wrong host, so this is
+                # temporary: it never marks a correct connection as broken. A wrong
+                # host shows up as this message on every try, or as a 404.
+                raise TemporaryError(
+                    "Could not connect to the host. Check the host name, or try again later."
+                ) from error
             except httpx.HTTPError as error:
                 raise TemporaryError("The call to Liana failed. Try again.") from error
             if res.status_code == 401 and attempt == 1:
@@ -154,7 +169,14 @@ class LianaClient:
                 raise TemporaryError(f"Liana answered {res.status_code}. Try again later.")
             if res.status_code >= 300:
                 raise PermanentError(f"Liana answered {res.status_code}: {res.text[:300]}")
-            return res.json() if res.content else None
+            if not res.content:
+                return None
+            try:
+                return res.json()
+            except ValueError as error:
+                raise PermanentError(
+                    f"Liana answered {path} with something that is not JSON."
+                ) from error
         raise AssertionError("unreachable")
 
     def ping(self) -> None:
@@ -221,3 +243,14 @@ class DemoLianaClient:
         for item in body.get("data", []):
             if "fail" in str((item.get("identity") or {}).get("email", "")):
                 raise TemporaryError("Liana answered 503. Try again later. (demo)")
+
+
+def build_client(host: str, client_id: str, secret: str, *, allow_demo: bool) -> AutomationClient:
+    """The client for a saved connection. The demo host works only when allowed (dev
+    mode): a demo row copied to another environment must never record "Sent" for events
+    that never left the server."""
+    if host == DEMO_HOST:
+        if not allow_demo:
+            raise ConfigError("The demo host only works in local development. Connect a real host.")
+        return DemoLianaClient(client_id, secret)
+    return LianaClient(host, client_id, secret)

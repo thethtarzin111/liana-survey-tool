@@ -501,6 +501,7 @@ paths:
       responses:
         '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/LianaConnection' } } } }
         '422': { description: Host not allowed, or no secret saved yet }
+        '500': { description: 'INTEGRATION_SECRET_KEY is the default or too short (only allowed in dev mode)' }
     patch:
       tags: [integrations]
       summary: Choose the channel and what to send (wizard steps 3 and 4)
@@ -531,7 +532,7 @@ paths:
       responses:
         '200': { description: Tested, content: { application/json: { schema: { $ref: '#/components/schemas/LianaConnection' } } } }
         '404': { description: Not connected }
-        '409': { description: The saved secret can no longer be read; save the credentials again }
+        '409': { description: 'The saved secret can no longer be read, or a demo connection is used outside dev mode' }
   /api/v1/integrations/liana-automation/channels:
     get:
       tags: [integrations]
@@ -592,7 +593,7 @@ paths:
       responses:
         '200': { description: Sent or failed again, content: { application/json: { schema: { $ref: '#/components/schemas/SyncEvent' } } } }
         '404': { description: Event not found }
-        '409': { description: Already sent }
+        '409': { description: Already sent, or already being sent (a double click) }
   /api/v1/results/performance:
     get:
       tags: [results]

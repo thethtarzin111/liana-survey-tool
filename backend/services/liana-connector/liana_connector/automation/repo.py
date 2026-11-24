@@ -47,8 +47,8 @@ def save_credentials(
             on conflict (tenant_id, provider) do update set
               host = excluded.host,
               client_id = excluded.client_id,
-              secret_encrypted = coalesce(%(secret)s, integrations.secret_encrypted),
-              secret_hint = coalesce(%(hint)s, integrations.secret_hint),
+              secret_encrypted = excluded.secret_encrypted,
+              secret_hint = excluded.secret_hint,
               channel_id = case when integrations.host = excluded.host
                                 then integrations.channel_id end,
               channel_name = case when integrations.host = excluded.host
@@ -99,7 +99,19 @@ def add_event(
 
 def get_event(conn: psycopg.Connection, event_id: UUID) -> dict[str, Any] | None:
     return conn.execute(
-        f"select {_EVENT} from integration_events where id = %s", (event_id,)
+        f"select {_EVENT} from integration_events where id = %s and provider = %s",
+        (event_id, PROVIDER),
+    ).fetchone()
+
+
+def claim_event(conn: psycopg.Connection, event_id: UUID) -> dict[str, Any] | None:
+    """Move a failed or retrying event to pending for one retry. None when another
+    request got it first, or it was sent meanwhile."""
+    return conn.execute(
+        f"""update integration_events set status = 'pending'
+            where id = %s and provider = %s and status in ('failed', 'retrying')
+            returning {_EVENT}""",
+        (event_id, PROVIDER),
     ).fetchone()
 
 

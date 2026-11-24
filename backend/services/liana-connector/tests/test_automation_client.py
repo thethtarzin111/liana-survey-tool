@@ -14,6 +14,7 @@ from liana_connector.automation.client import (
     LianaClient,
     PermanentError,
     TemporaryError,
+    build_client,
     token_url_for,
 )
 
@@ -21,10 +22,11 @@ from liana_connector.automation.client import (
 class FakeLiana:
     """Answers the token URL and the API; `answers` are status codes for API calls in order."""
 
-    def __init__(self, answers=(), body=None, token_status=200):
+    def __init__(self, answers=(), body=None, token_status=200, token_body=None):
         self.answers = list(answers)
         self.body = body if body is not None else {"ok": True}
         self.token_status = token_status
+        self.token_body = token_body
         self.tokens = 0
         self.calls = []
 
@@ -33,6 +35,8 @@ class FakeLiana:
             self.tokens += 1
             form = dict(x.split("=") for x in request.content.decode().split("&"))
             assert form["grant_type"] == "client_credentials" and form["scope"] == "automation-api"
+            if self.token_body is not None:
+                return httpx.Response(200, text=self.token_body)
             return httpx.Response(
                 self.token_status, json={"access_token": f"t{self.tokens}", "expires_in": 900}
             )
@@ -40,6 +44,10 @@ class FakeLiana:
         status = self.answers.pop(0) if self.answers else 200
         if status == "timeout":
             raise httpx.ReadTimeout("slow", request=request)
+        if status == "no connection":
+            raise httpx.ConnectError("getaddrinfo failed", request=request)
+        if status == "not json":
+            return httpx.Response(200, text="<html>maintenance</html>")
         return httpx.Response(status, json=self.body if status == 200 else {"error": "x"})
 
 
@@ -87,11 +95,30 @@ def test_a_401_gets_a_new_token_and_is_retried_once():
         (500, TemporaryError),
         (503, TemporaryError),
         ("timeout", TemporaryError),
+        # A DNS blip or outage must not mark a correct connection as broken.
+        ("no connection", TemporaryError),
+        ("not json", PermanentError),
     ],
 )
 def test_answers_are_classified(answer, error):
     with pytest.raises(error):
         client(FakeLiana(answers=[answer])).import_events({"channel": "1", "data": []})
+
+
+def test_an_unexpected_token_answer_is_temporary():
+    for body in ("<html>", "{}", "[1]"):
+        with pytest.raises(TemporaryError):
+            client(FakeLiana(token_body=body)).ping()
+
+
+def test_the_demo_host_only_works_when_allowed():
+    assert isinstance(
+        build_client("demo", "demo-client", "demo-secret", allow_demo=True), DemoLianaClient
+    )
+    with pytest.raises(ConfigError):
+        build_client("demo", "demo-client", "demo-secret", allow_demo=False)
+    real = build_client("rest.automation.lianacloud.com", "id", "s", allow_demo=False)
+    assert isinstance(real, LianaClient)
 
 
 def test_wrong_credentials_at_the_token_service():
@@ -205,3 +232,12 @@ def test_secrets_round_trip_and_need_the_same_key():
     assert secrets.decrypt(token, "key-1") == "my-secret"
     with pytest.raises(secrets.UnreadableSecret):
         secrets.decrypt(token, "key-2")
+
+
+def test_the_default_or_a_short_key_is_refused_outside_dev():
+    assert secrets.check_key(secrets.DEV_KEY, "dev") == secrets.DEV_KEY
+    for weak in (secrets.DEV_KEY, "short", "x" * 31):
+        with pytest.raises(secrets.WeakKey):
+            secrets.check_key(weak, "oidc")
+    strong = "k" * 32
+    assert secrets.check_key(strong, "oidc") == strong

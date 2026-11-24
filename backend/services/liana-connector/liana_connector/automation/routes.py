@@ -13,7 +13,7 @@ from liana_survey_shared.web.auth import CurrentUser, current_user
 from liana_survey_shared.web.db import TenantDB, tenant_db
 
 from . import domain, repo, secrets
-from .client import AutomationClient, DemoLianaClient, LianaClient, LianaError
+from .client import AutomationClient, LianaError, build_client
 from .schemas import (
     Channel,
     Connection,
@@ -30,19 +30,27 @@ router = APIRouter(prefix="/api/v1/integrations", tags=["integrations"])
 ClientFactory = Callable[[str, str, str], AutomationClient]
 
 
+def demo_allowed() -> bool:
+    return get_settings().auth_mode == "dev"
+
+
 def client_factory() -> ClientFactory:
-    """Builds the client for a host. Tests replace this dependency."""
+    """Builds the client for a host; the demo host only in dev mode. Tests replace this."""
+    allow_demo = demo_allowed()
 
     def build(host: str, client_id: str, secret: str) -> AutomationClient:
-        if host == domain.DEMO_HOST:
-            return DemoLianaClient(client_id, secret)
-        return LianaClient(host, client_id, secret)
+        return build_client(host, client_id, secret, allow_demo=allow_demo)
 
     return build
 
 
-def demo_allowed() -> bool:
-    return get_settings().auth_mode == "dev"
+def _key() -> str:
+    """INTEGRATION_SECRET_KEY, refused outside dev mode if it is the default or short."""
+    settings = get_settings()
+    try:
+        return secrets.check_key(settings.integration_secret_key, settings.auth_mode)
+    except secrets.WeakKey as error:
+        raise HTTPException(500, str(error)) from None
 
 
 def _connection(row: dict[str, Any]) -> dict[str, Any]:
@@ -63,13 +71,15 @@ def _saved(db: TenantDB) -> dict[str, Any]:
 
 def _client(row: dict[str, Any], build: ClientFactory, db: TenantDB) -> AutomationClient:
     try:
-        secret = secrets.decrypt(row["secret_encrypted"], get_settings().integration_secret_key)
+        secret = secrets.decrypt(row["secret_encrypted"], _key())
+        return build(row["host"], row["client_id"], secret)
     except secrets.UnreadableSecret:
         message = "The saved secret can no longer be read. Enter the credentials again."
-        with db() as conn:
-            repo.update(conn, status="error", last_error=message)
-        raise HTTPException(409, message) from None
-    return build(row["host"], row["client_id"], secret)
+    except LianaError as error:  # e.g. a demo connection outside dev mode
+        message = str(error)
+    with db() as conn:
+        repo.update(conn, status="error", last_error=message)
+    raise HTTPException(409, message)
 
 
 @router.get("", response_model=IntegrationsStatus)
@@ -98,7 +108,7 @@ def save_credentials(
         raise HTTPException(422, str(error)) from None
     encrypted = hint = None
     if body.client_secret:
-        encrypted = secrets.encrypt(body.client_secret, get_settings().integration_secret_key)
+        encrypted = secrets.encrypt(body.client_secret, _key())
         hint = domain.secret_hint(body.client_secret)
     with db() as conn:
         existing = repo.get(conn)
@@ -223,6 +233,11 @@ def retry_event(
         raise HTTPException(404, "Event not found")
     if event["status"] == "sent":
         raise HTTPException(409, "This event was already sent.")
+    with db() as conn:
+        # Atomic, so a double click sends once: only one request moves it to pending.
+        event = repo.claim_event(conn, event_id)
+    if event is None:
+        raise HTTPException(409, "This event is already being sent.")
     return _send(event, db, build)
 
 
