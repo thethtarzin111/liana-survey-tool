@@ -35,10 +35,9 @@ class Settings(BaseSettings):
     dev_user_name: str = "Anna Virtanen"
     dev_user_email: str = "anna.virtanen@example.org"
 
+    # mock = log "Contact me" requests only. lianaautomation = send them through each
+    # organisation's own connection from the Integrations page.
     liana_adapter: str = "mock"
-    lianaautomation_base_url: str = "https://rest.automation.lianacloud.com/api/v1"
-    lianaautomation_client_id: str = ""
-    lianaautomation_client_secret: str = ""
     # mock = log the email only. No real mail adapter yet.
     notification_mail_adapter: str = "mock"
     # Encrypts the LianaAutomation client secrets saved on the Integrations page.

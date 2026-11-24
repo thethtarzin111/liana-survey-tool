@@ -100,6 +100,17 @@ def add_event(
     ).fetchone()
 
 
+def event_for_request(conn: psycopg.Connection, contact_request_id: UUID) -> dict[str, Any] | None:
+    """The sync log row of a "Contact me" request, so a redelivered message reuses it."""
+    return conn.execute(
+        f"""select {_EVENT} from integration_events
+            where provider = %s and verb = 'survey_contact_request'
+              and payload -> 'events' -> 0 -> 'items' ->> 'contact_request_id' = %s
+            order by created_at limit 1""",
+        (PROVIDER, str(contact_request_id)),
+    ).fetchone()
+
+
 def get_event(conn: psycopg.Connection, event_id: UUID) -> dict[str, Any] | None:
     return conn.execute(
         f"select {_EVENT} from integration_events where id = %s and provider = %s",
