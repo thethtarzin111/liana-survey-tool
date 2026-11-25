@@ -137,7 +137,7 @@ export function ResponsesTab({ surveyId, segment, scale }: Props) {
       <Icon path={icons.info} size={16} />
       <span>
         Anonymised. No names or emails are shown. Emails and phone numbers typed into comments are hidden automatically.
-        People who asked to be contacted are in <Link to="/contact-requests">Contact requests</Link>.
+        People who asked to be contacted are sent to LianaAutomation (see <Link to="/integrations">Integrations</Link>).
       </span>
     </p>
   );

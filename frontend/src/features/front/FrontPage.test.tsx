@@ -59,7 +59,6 @@ test('a new account sees getting started above an empty dashboard', async () => 
   const yours = region('Your surveys');
   expect(within(yours).getByText('No surveys yet')).toBeInTheDocument();
   expect(within(yours).getByRole('link', { name: 'Browse templates' })).toHaveAttribute('href', '/templates');
-  expect(within(region('Asked to be contacted')).getByText(/Contact me/)).toBeInTheDocument();
 });
 
 test('getting started ticks the steps a user has done until answers arrive', async () => {
@@ -147,7 +146,7 @@ test('news and inspiration list the articles when the flag is on', async () => {
   renderPage([]);
   expect(await screen.findByRole('heading', { name: 'News and inspiration' })).toBeInTheDocument();
   const news = await screen.findByRole('region', { name: 'Recent news' });
-  expect(within(news).getAllByRole('listitem')).toHaveLength(4);
+  expect(within(news).getAllByRole('listitem')).toHaveLength(3);
   expect(within(news).getByRole('link', { name: 'View all ↗' })).toBeInTheDocument();
   expect(within(region('Get inspired')).getByText(/Close the loop with LianaAutomation/)).toBeInTheDocument();
 });

@@ -66,6 +66,10 @@ DEMO_PASSWORD=$(random 20)
 EOF
   umask 022
 fi
+# Added later: servers set up before the Integrations page get the key on the next run.
+if ! grep -q '^INTEGRATION_SECRET_KEY=' "$CONF_DIR/secrets"; then
+  echo "INTEGRATION_SECRET_KEY=$(random 64)" >> "$CONF_DIR/secrets"
+fi
 # shellcheck source=/dev/null
 . "$CONF_DIR/secrets"
 
@@ -91,6 +95,8 @@ AUTH_MODE=dev
 PUBLIC_BASE_URL=https://${SITE_ADDRESS}
 APP_BASE_URL=https://${SITE_ADDRESS}
 LINK_SIGNING_SECRET=${LINK_SIGNING_SECRET}
+INTEGRATION_SECRET_KEY=${INTEGRATION_SECRET_KEY}
+LIANA_ADAPTER=lianaautomation
 PYTHONUNBUFFERED=1
 EOF
 cat > "$CONF_DIR/owner.env" <<EOF

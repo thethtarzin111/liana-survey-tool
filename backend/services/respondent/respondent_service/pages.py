@@ -1,7 +1,9 @@
-"""The server-rendered pages readers see: the thank-you and problem pages (#42) and
-the survey link page (#105), which works as a plain HTML form. A small script adds
+"""The server-rendered pages readers see: the thank-you and problem pages (#42),
+the survey link page (#105) and the follow-up page after a one-tap answer from an
+email. All work as plain HTML forms. On the survey link page a small script adds
 the progress bar (#8), splits the questions into pages and asks thumbs reasons
-only after "Not for me"; without JavaScript the form still works.
+only after "Not for me". On the follow-up page a script saves the tapped answer
+as soon as the page opens; without JavaScript the reader presses Submit.
 
 The survey description keeps its line breaks and a small Markdown subset:
 **bold**, *italic* or _italic_, and [links](https://example.org).
@@ -18,7 +20,7 @@ from typing import Any
 
 from liana_survey_shared.texts import language_or_default, text
 
-from .domain import field_name
+from .domain import COMMENT_FIELD, COMMENT_LIMIT, CONTACT_ME_FIELD, field_name
 
 _HEX = re.compile(r"#[0-9A-Fa-f]{6}")
 #: Questions per page on the survey link page. The builder preview uses the same number.
@@ -107,6 +109,10 @@ _STYLES = """
                    background: var(--accent); transition: width .2s ease; }
   .progress-text { color: #696F77; font-size: 13px; white-space: nowrap; }
   fieldset[hidden] { display: none; }
+  .saved { margin-top: 8px; color: #696F77; }
+  .notice { margin-top: 12px; color: #696F77; font-size: 14px; }
+  .check { display: flex; gap: 10px; align-items: center; }
+  .check input { margin: 0; width: 18px; height: 18px; accent-color: var(--accent); }
   @media (prefers-reduced-motion: reduce) { .progress-fill { transition: none; } }
   @media (max-width: 520px) {
     body { align-items: flex-start; }
@@ -259,6 +265,37 @@ _SCRIPT = """
 """
 
 
+# The follow-up page saves the tapped answer as soon as it opens, with a POST that
+# mail scanners do not send (they only open links). Without JavaScript the reader
+# presses Submit instead. Submit sends the whole form, which replaces the answer
+# saved here (the same reader key), so it never counts twice.
+_FOLLOW_UP_SCRIPT = """
+(function () {
+  var form = document.querySelector('form.follow-up');
+  var status = document.querySelector('[data-tap-status]');
+  if (!form || !status || !window.fetch || !window.URLSearchParams) return;
+  var data = new URLSearchParams();
+  ['r', 's', 'a', 'c', 'seg', 'ch'].forEach(function (name) {
+    var field = form.elements[name];
+    if (field) data.append(name, field.value);
+  });
+  data.append('step', 'tap');
+  status.textContent = status.getAttribute('data-saving');
+  fetch(window.location.pathname, {
+    method: 'POST',
+    body: data,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  }).then(function (response) {
+    if (!response.ok) throw new Error(String(response.status));
+    status.textContent = status.getAttribute('data-saved');
+  }).catch(function () {
+    status.textContent = status.getAttribute('data-failed');
+  });
+})();
+"""
+
+
 def description_html(description: str) -> str:
     """The survey description as escaped HTML with **bold**, *italic*, _italic_ and
     [links](https://...). Line breaks stay in the text; the page keeps them with CSS.
@@ -354,11 +391,14 @@ def survey_form(
     channel: str,
     sent: Mapping[str, Sequence[str]] | None = None,
     error: str | None = None,
+    comment_box: bool = False,
 ) -> str:
     """The whole survey for a reader who came from a plain link or QR code (#105).
 
     `key` is the signed visit key the answers are sent back with; `sent` and
-    `error` show the reader's answers again with what to fix."""
+    `error` show the reader's answers again with what to fix. `comment_box` adds
+    the optional "Tell us more" box as the last question. There is no "Contact me"
+    box: these readers have no contact to tie a request to."""
     language = survey["language"]
     sent = sent or {}
     title = reader_title(survey)
@@ -387,6 +427,8 @@ def survey_form(
         parts.append(
             _question(survey["type"], question, sent.get(field_name(question), ()), language)
         )
+    if comment_box:
+        parts.append(_comment_box(sent, language))
     parts.append(
         '<p class="step-error" role="alert" hidden>'
         f"{html.escape(text('answer_required', language))}</p>"
@@ -408,6 +450,115 @@ def survey_form(
         survey["background_color"],
         language,
         _SCRIPT,
+    )
+
+
+def _comment_box(sent: Mapping[str, Sequence[str]], language: str | None) -> str:
+    """The optional "Tell us more" box (surveys.comment_field)."""
+    value = html.escape(sent[COMMENT_FIELD][0]) if sent.get(COMMENT_FIELD) else ""
+    optional = html.escape(text("optional", language))
+    return (
+        '<fieldset data-kind="long_text">'
+        f'<legend id="{COMMENT_FIELD}-label">{html.escape(text("comment", language))}'
+        f' <span class="optional">{optional}</span></legend>'
+        f'<textarea name="{COMMENT_FIELD}" maxlength="{COMMENT_LIMIT}"'
+        f' aria-labelledby="{COMMENT_FIELD}-label">{value}</textarea></fieldset>'
+    )
+
+
+def _contact_me_box(sent: Mapping[str, Sequence[str]], language: str | None) -> str:
+    """The "Contact me about this by email" opt-in (surveys.contact_opt_in)."""
+    checked = " checked" if sent.get(CONTACT_ME_FIELD) else ""
+    return (
+        f'<label class="check"><input type="checkbox" name="{CONTACT_ME_FIELD}" value="1"'
+        f"{checked}>{html.escape(text('contact_me', language))}</label>"
+    )
+
+
+def answer_label(main_kind: str | None, answer: int, language: str | None) -> str:
+    """The tapped answer as the reader saw it: "9", "4 Satisfied" or "Loved it"."""
+    if main_kind == "thumbs":
+        keys = ("thumbs_down", "thumbs_ok", "thumbs_up")
+        return text(keys[answer], language) if 0 <= answer < len(keys) else str(answer)
+    if main_kind == "rating":
+        return f"{answer} {text(f'csat_{answer}', language)}"
+    return str(answer)
+
+
+def follow_up(
+    survey: Mapping[str, Any],
+    questions: Sequence[Mapping[str, Any]],
+    *,
+    answer: int,
+    link_fields: Mapping[str, str],
+    comment_box: bool,
+    contact_box: bool,
+    identified: bool,
+    sent: Mapping[str, Sequence[str]] | None = None,
+    error: str | None = None,
+) -> str:
+    """The page an answer link from an email opens (Bug 3 of the demo review).
+
+    Opening the link saves nothing, so a mail scanner that opens every link does not
+    answer. The script saves the tapped `answer` (a POST with step=tap) as soon as
+    the page shows; without JavaScript the reader presses Submit. Below it are the
+    survey's other questions, the "Tell us more" box and the "Contact me" box, all
+    optional. Submit sends them with the same link fields, which updates the same
+    response instead of adding one.
+
+    `questions` are the survey's questions after the main one. `link_fields` are
+    sent back as hidden fields (r, s, a, c, seg, ch)."""
+    language = survey["language"]
+    sent = sent or {}
+    title = reader_title(survey)
+    label = answer_label(survey.get("main_kind"), answer, language)
+    parts = ['<main class="survey">']
+    if title:
+        parts.append(f"<h1>{html.escape(title)}</h1>")
+    parts.append(
+        f"<p><strong>{html.escape(text('your_answer', language).format(answer=label))}</strong></p>"
+    )
+    parts.append(
+        '<p class="saved" role="status" data-tap-status'
+        f' data-saving="{html.escape(text("tap_saving", language))}"'
+        f' data-saved="{html.escape(text("tap_saved", language))}"'
+        f' data-failed="{html.escape(text("tap_failed", language))}">'
+        f"{html.escape(text('tap_confirm', language))}</p>"
+    )
+    if error:
+        parts.append(f'<p class="error" role="alert">{html.escape(error)}</p>')
+    parts.append('<form method="post" class="follow-up">')
+    for name, value in link_fields.items():
+        parts.append(
+            f'<input type="hidden" name="{html.escape(name)}" value="{html.escape(value)}">'
+        )
+    for question in questions:
+        optional = {**question, "required": False}
+        if survey["type"] == "thumbs" and question["kind"] == "reasons" and answer != 0:
+            continue  # thumbs reasons only after "Not for me"
+        parts.append(
+            _question(survey["type"], optional, sent.get(field_name(question), ()), language)
+        )
+    if comment_box:
+        parts.append(_comment_box(sent, language))
+    if contact_box:
+        parts.append(_contact_me_box(sent, language))
+    parts.append(
+        '<div class="actions">'
+        f'<button type="submit" class="submit">{html.escape(text("submit", language))}</button>'
+        "</div>"
+    )
+    parts.append("</form>")
+    if identified:
+        parts.append(f'<p class="notice">{html.escape(text("identified_notice", language))}</p>')
+    parts.append("</main>")
+    return _document(
+        title or text("survey_heading", language),
+        "\n".join(parts),
+        survey["accent_color"],
+        survey["background_color"],
+        language,
+        _FOLLOW_UP_SCRIPT,
     )
 
 

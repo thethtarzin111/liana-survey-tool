@@ -146,3 +146,14 @@ test('surveys without a language show English', () => {
   renderCard({ ...survey, language: undefined });
   expect(screen.getByLabelText('Survey language')).toHaveValue('en');
 });
+
+test('a survey can be set to identified answers from newsletter links', async () => {
+  renderCard({ ...survey, anonymous: true });
+  expect(screen.getByText(/Answers are anonymous\. Readers who tick “Contact me”/)).toBeInTheDocument();
+  fireEvent.click(screen.getByLabelText(/Identified answers from newsletter links/));
+  expect(screen.getByText(/linked to the reader’s contact/)).toBeInTheDocument();
+  fireEvent.click(save());
+
+  expect(await screen.findByText('Settings saved')).toBeInTheDocument();
+  expect(sentBody()).toEqual({ anonymous: false });
+});

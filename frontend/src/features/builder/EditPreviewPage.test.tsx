@@ -61,6 +61,10 @@ async function server(input: RequestInfo | URL, init?: RequestInit): Promise<Res
     renumber();
     return new Response(null, { status: 204 });
   }
+  if (path === '/api/v1/templates' && method === 'POST') {
+    if (!questions.length) return Response.json({ detail: 'Add a question before you save the survey as a template.' }, { status: 409 });
+    return Response.json({ id: 'tpl1', type: survey.type, featured: false, own: true, thank_you: '', questions: [], ...body }, { status: 201 });
+  }
   throw new Error(`Unexpected ${method} ${path}`);
 }
 
@@ -381,6 +385,43 @@ test('live surveys get Share instead of Publish', async () => {
   renderPage();
   expect(await screen.findByRole('link', { name: 'Share' })).toHaveAttribute('href', '/surveys/s1/live');
   expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument();
+});
+
+test('Save as template saves the draft first, then saves the survey as a template', async () => {
+  renderPage();
+  fireEvent.change(await screen.findByLabelText('Name (only you see this)'), { target: { value: 'Member NPS 2026' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save as template' }));
+  const dialog = await screen.findByRole('alertdialog', { name: 'Save “Member NPS 2026” as a template' });
+  expect(survey.title).toBe('Member NPS 2026');
+  expect(within(dialog).getByRole('textbox', { name: /Template name/ })).toHaveValue('Member NPS 2026');
+
+  fireEvent.change(within(dialog).getByRole('textbox', { name: /Description/ }), { target: { value: 'Spring check' } });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save template' }));
+  expect(await screen.findByText('“Member NPS 2026” is saved in Templates.')).toBeInTheDocument();
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  const calls = fetchMock.mock.calls.map(([input, init]) => `${init?.method ?? 'GET'} ${String(input)}`);
+  expect(calls.indexOf(`PATCH ${SURVEY_URL}`)).toBeLessThan(calls.indexOf('POST /api/v1/templates'));
+  const post = fetchMock.mock.calls.find(([input]) => String(input) === '/api/v1/templates');
+  expect(JSON.parse(String(post?.[1]?.body))).toEqual({ survey_id: 's1', name: 'Member NPS 2026', description: 'Spring check' });
+});
+
+test('a name error stops Save as template', async () => {
+  renderPage();
+  fireEvent.change(await screen.findByLabelText('Name (only you see this)'), { target: { value: '  ' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save as template' }));
+  expect(await screen.findByText('Give your survey a name')).toBeInTheDocument();
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  expect(fetchMock.mock.calls.some(([input]) => String(input) === '/api/v1/templates')).toBe(false);
+});
+
+test('Save as template shows why a survey without questions cannot be saved', async () => {
+  questions = [];
+  renderPage();
+  await screen.findByLabelText('Name (only you see this)');
+  fireEvent.click(screen.getByRole('button', { name: 'Save as template' }));
+  const dialog = await screen.findByRole('alertdialog', { name: 'Save “Member NPS” as a template' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save template' }));
+  expect(await within(dialog).findByRole('alert')).toHaveTextContent('Add a question before you save the survey as a template.');
 });
 
 test('a published survey is saved with Save changes and stays live', async () => {

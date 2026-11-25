@@ -150,3 +150,42 @@ def test_without_rabbitmq_a_due_email_goes_straight_to_the_mock_mail(monkeypatch
     )
     asyncio.run(local_gateway.DirectAnswerQueue(events).publish(message))
     assert [email.subject for email in events.mail.sent] == ["Poll: 1 new response"]
+
+
+def test_without_rabbitmq_saved_answers_and_contact_requests_reach_the_connector(monkeypatch):
+    import asyncio
+    from uuid import uuid4
+
+    import survey_worker.handlers as handlers
+    from liana_connector.adapters.mock.adapter import MockContactEvents
+    from liana_survey_shared.messages import AnswerRecorded, AnswerSubmitted, ContactRequested
+
+    tenant = get_settings().dev_tenant_id
+    recorded = AnswerRecorded(
+        tenant_id=tenant,
+        survey_id=uuid4(),
+        response_id=uuid4(),
+        survey_title="Poll",
+        contact_ref="4084400",
+    )
+    request = ContactRequested(
+        tenant_id=tenant, survey_id=uuid4(), contact_request_id=uuid4(), contact_ref="4084400"
+    )
+    monkeypatch.setattr(
+        handlers, "record_answer", lambda body: handlers.Recorded(True, None, (recorded, request))
+    )
+    events = local_gateway.DirectLianaEvents()
+    events.contacts = MockContactEvents()
+    message = AnswerSubmitted(tenant_id=tenant, survey_id=uuid4(), link_token_hash="k", answers=[])
+    asyncio.run(local_gateway.DirectAnswerQueue(events).publish(message))
+    assert events.contacts.answers == [recorded]
+    assert events.contacts.sent == [request]
+
+    # A failed delivery (the sync log shows it) never fails the reader's answer.
+    class Broken(MockContactEvents):
+        def send_answer_recorded(self, event):
+            raise RuntimeError("Liana is down")
+
+    events.contacts = Broken()
+    asyncio.run(local_gateway.DirectAnswerQueue(events).publish(message))
+    assert events.contacts.sent == [request]

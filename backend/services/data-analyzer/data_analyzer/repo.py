@@ -235,8 +235,10 @@ with picked as (
                  else a.value_text end
      from answers a where a.response_id = r.id and a.question_id = picked.reasons
      limit 1) as reason,
-    (select a.value_text from answers a
-     where a.response_id = r.id and a.question_id = picked.comment limit 1) as raw_comment
+    -- The survey's own text question, else the "Tell us more" box (responses.comment).
+    coalesce((select a.value_text from answers a
+              where a.response_id = r.id and a.question_id = picked.comment limit 1),
+             r.comment) as raw_comment
   from responses r cross join picked
   where r.survey_id = %(survey)s
     and (%(stored)s::text[] is null or r.segment = any(%(stored)s))
