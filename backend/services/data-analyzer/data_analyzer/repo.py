@@ -226,6 +226,7 @@ with picked as (
      order by position limit 1) as comment
 ), base as (
   select r.id, r.submitted_at, r.segment,
+    r.contact_requested, r.contact_ref, r.contact_email,
     (select a.value_number::integer from answers a
      where a.response_id = r.id and a.question_id = picked.scale limit 1) as answer,
     (select case when a.value_choices is not null
@@ -249,6 +250,7 @@ with picked as (
   from masked
   where (%(search)s::text is null or comment ilike %(search)s)
     and (%(group)s::integer[] is null or answer = any(%(group)s))
+    and (not %(contact)s or contact_requested)
 )
 """
 
@@ -258,9 +260,10 @@ def _filter_params(
     stored: tuple[str, ...] | None,
     search: str | None,
     group: tuple[int, ...] | None,
+    contact: bool = False,
 ) -> dict[str, Any]:
     """The parameters of `_FILTERED`. `search` is a plain string: its LIKE characters are
-    escaped here."""
+    escaped here. `contact` keeps only the readers who asked to be contacted."""
     pattern = None
     if search:
         escaped = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
@@ -271,6 +274,7 @@ def _filter_params(
         "stored": list(stored) if stored is not None else None,
         "search": pattern,
         "group": list(group) if group is not None else None,
+        "contact": contact,
         "scale": list(SCALE_KINDS),
         "text": list(TEXT_KINDS),
     }
@@ -294,18 +298,21 @@ def responses(
     group: tuple[int, ...] | None,
     limit: int,
     offset: int,
+    contact: bool = False,
 ) -> tuple[int, list[dict[str, Any]]]:
     """The matching responses, newest first, and how many match in all.
 
     `stored` limits to those stored segments (None for no limit), `search` looks in the
-    masked comment and `group` keeps the main answers in it."""
-    params = _filter_params(survey_id, stored, search, group)
+    masked comment, `group` keeps the main answers in it and `contact` only the
+    readers who asked to be contacted."""
+    params = _filter_params(survey_id, stored, search, group, contact)
     total = conn.execute(
         _FILTERED + "select count(*)::integer as n from filtered", params
     ).fetchone()["n"]
     rows = conn.execute(
         _FILTERED
-        + """select id, submitted_at, segment, answer, reason, comment, was_masked
+        + """select id, submitted_at, segment, answer, reason, comment, was_masked,
+                    contact_requested, contact_ref, contact_email
              from filtered order by submitted_at desc, id desc
              limit %(limit)s offset %(offset)s""",
         {**params, "limit": limit, "offset": offset},
@@ -318,7 +325,8 @@ def response_detail(
 ) -> dict[str, Any] | None:
     """One response with every question of its survey in order (text masked), or None."""
     response = conn.execute(
-        "select id, submitted_at, segment from responses where id = %s and survey_id = %s",
+        """select id, submitted_at, segment, contact_requested, contact_ref, contact_email
+           from responses where id = %s and survey_id = %s""",
         (response_id, survey_id),
     ).fetchone()
     if response is None:
@@ -341,6 +349,7 @@ def responses_export(
     stored: tuple[str, ...] | None,
     search: str | None,
     group: tuple[int, ...] | None,
+    contact: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The questions in order, and every matching response (newest first) with its masked
     answers in `answers`, a dict by question id."""
@@ -350,7 +359,7 @@ def responses_export(
     rows = conn.execute(
         _FILTERED
         + "select id, submitted_at, segment from filtered order by submitted_at desc, id desc",
-        _filter_params(survey_id, stored, search, group),
+        _filter_params(survey_id, stored, search, group, contact),
     ).fetchall()
     by_response: dict[UUID, dict[UUID, dict[str, Any]]] = {row["id"]: {} for row in rows}
     for answer in conn.execute(

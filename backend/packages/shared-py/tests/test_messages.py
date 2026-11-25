@@ -76,3 +76,15 @@ def test_answers_carry_a_valid_campaign_tag_and_a_short_comment():
     for bad in ({"campaign": "Not a tag"}, {"comment": "x" * 5001}):
         with pytest.raises(pydantic.ValidationError):
             AnswerSubmitted(**fields, **bad)
+
+
+def test_a_contact_request_needs_a_contact_id_or_an_address():
+    from uuid import uuid4
+
+    from liana_survey_shared.messages import ContactRequested
+
+    fields = {"tenant_id": uuid4(), "survey_id": uuid4(), "contact_request_id": uuid4()}
+    assert ContactRequested(**fields, contact_ref="4084400").contact_email is None
+    assert ContactRequested(**fields, contact_email="anna@example.org").contact_ref is None
+    with pytest.raises(ValidationError):
+        ContactRequested(**fields)

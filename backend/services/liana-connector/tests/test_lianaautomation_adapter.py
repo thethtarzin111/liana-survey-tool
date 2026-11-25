@@ -1,6 +1,7 @@
-"""The LianaAutomation adapter: "Contact me" requests through the organisation's own
-connection, with a fake client. Needs a migrated Postgres reached as the app role; each
-test removes the connection and the events it made, so run them on a test database."""
+"""The LianaAutomation adapter: answers and "Contact me" requests through the
+organisation's own connection, with a fake client and a fake LianaMailer. Needs a
+migrated Postgres reached as the app role; each test removes the connection and the
+events it made, so run them on a test database."""
 
 import os
 from datetime import UTC, datetime
@@ -13,9 +14,11 @@ from liana_connector.adapters.lianaautomation.adapter import (
     DeliveryFailed,
     LianaAutomationContactEvents,
 )
+from liana_connector.adapters.lianamailer.directory import NotSetUp
 from liana_connector.automation import domain, repo, secrets
-from liana_connector.automation.client import ConfigError, TemporaryError
+from liana_connector.automation.client import ConfigError, PermanentError, TemporaryError
 from liana_connector.factory import build_contact_events
+from liana_connector.ports.contact_directory import ContactNotFound
 from liana_connector.ports.contact_events import TemporaryError as RetryLater
 from liana_survey_shared.config import Settings
 from liana_survey_shared.db import ping, tenant_connection
@@ -47,6 +50,25 @@ class FakeClient:
         if self.failures:
             raise self.failures.pop(0)
         self.imports.append(body)
+        return 'HTTP 200 {"succeed": true}'
+
+
+class FakeDirectory:
+    """A fake LianaMailer: contact.<id>@example.com, except the ids in `missing`.
+    Counts the lookups, to check the cache."""
+
+    def __init__(self, missing=("999",)):
+        self.missing = set(missing)
+        self.lookups = []
+
+    def email_for(self, contact_id):
+        self.lookups.append(contact_id)
+        if contact_id in self.missing:
+            raise ContactNotFound(contact_id)
+        return f"contact.{contact_id}@example.com"
+
+
+DIRECTORY = FakeDirectory()
 
 
 def a_request(**changes) -> ContactRequested:
@@ -54,7 +76,7 @@ def a_request(**changes) -> ContactRequested:
         "tenant_id": DEMO_TENANT,
         "survey_id": uuid4(),
         "contact_request_id": uuid4(),
-        "contact_ref": "C-1100",
+        "contact_ref": "4084400",
         "created_at": datetime(2026, 11, 24, 12, 0, tzinfo=UTC),
     }
     return ContactRequested(**{**fields, **changes})
@@ -65,6 +87,7 @@ def _clean():
         conn.execute("delete from integrations")
         conn.execute("delete from integration_events where verb = 'survey_contact_request'")
         conn.execute("delete from integration_events where not test")
+        conn.execute("delete from lianamailer_contacts")
 
 
 @pytest.fixture
@@ -96,10 +119,13 @@ def _log():
         return repo.events(conn, None, 50), repo.get(conn)
 
 
-def test_the_event_identifies_the_contact_by_its_id_not_an_email():
-    event = domain.contact_request_event("C-1100", "s1", "r1", datetime(2026, 11, 24, tzinfo=UTC))
+def test_a_request_is_stored_with_the_id_to_look_up_or_the_typed_address():
+    assert domain.contact_identity("4084400", None) == {"lianamailer_id": "4084400"}
+    assert domain.contact_identity(None, "anna@example.org") == {"email": "anna@example.org"}
+    identity = domain.contact_identity("4084400", None)
+    event = domain.contact_request_event(identity, "s1", "r1", datetime(2026, 11, 24, tzinfo=UTC))
     assert event == {
-        "identity": {"lianamailer_id": "C-1100"},
+        "identity": {"lianamailer_id": "4084400"},
         "events": [
             {
                 "verb": "survey_contact_request",
@@ -111,7 +137,7 @@ def test_the_event_identifies_the_contact_by_its_id_not_an_email():
             }
         ],
     }
-    assert domain.masked_email(domain.contact_of(event)) == "C-…"
+    assert domain.masked_email(domain.contact_of(event)) == "40…"
 
 
 def test_the_factory_builds_the_adapter_from_the_secret_key():
@@ -135,7 +161,9 @@ def test_a_demo_connection_is_refused_outside_dev_mode(connect):
     with tenant_connection(DEMO_TENANT) as conn:
         conn.execute("update integrations set host = 'demo'")
     with pytest.raises(DeliveryFailed):
-        LianaAutomationContactEvents(KEY, allow_demo=False).send_contact_requested(a_request())
+        LianaAutomationContactEvents(
+            KEY, allow_demo=False, directory=DIRECTORY
+        ).send_contact_requested(a_request())
     [row], connection = _log()
     assert row["status"] == "failed" and "local development" in row["last_error"]
     assert connection["status"] == "error"
@@ -145,9 +173,13 @@ def test_a_demo_connection_is_refused_outside_dev_mode(connect):
 def test_nothing_is_sent_without_a_connection_or_with_the_switch_off(connect):
     _clean()
     fake = FakeClient()
-    LianaAutomationContactEvents(KEY, build=fake).send_contact_requested(a_request())
+    LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake).send_contact_requested(
+        a_request()
+    )
     connect(contact_requests=False)
-    LianaAutomationContactEvents(KEY, build=fake).send_contact_requested(a_request())
+    LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake).send_contact_requested(
+        a_request()
+    )
     assert fake.imports == [] and _log()[0] == []
 
 
@@ -155,14 +187,15 @@ def test_nothing_is_sent_without_a_connection_or_with_the_switch_off(connect):
 def test_a_request_is_sent_once_and_logged(connect):
     connect()
     fake = FakeClient()
-    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter = LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake)
     request = a_request()
     adapter.send_contact_requested(request)
     adapter.send_contact_requested(request)  # redelivered: not sent twice
 
     [body] = fake.imports
     assert body["channel"] == "7" and body["no_duplicates"] is True
-    assert body["data"][0]["identity"] == {"lianamailer_id": "C-1100"}
+    # LianaAutomation matches contacts by email: the address LianaMailer gave.
+    assert body["data"][0]["identity"] == {"email": "contact.4084400@example.com"}
     [row], _ = _log()
     assert (row["verb"], row["status"], row["attempts"], row["test"]) == (
         "survey_contact_request",
@@ -176,7 +209,9 @@ def test_a_request_is_sent_once_and_logged(connect):
 def test_an_untested_connection_logs_a_failed_event_to_retry_later(connect):
     connect(status="disconnected")
     fake = FakeClient()
-    LianaAutomationContactEvents(KEY, build=fake).send_contact_requested(a_request())
+    LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake).send_contact_requested(
+        a_request()
+    )
     [row], _ = _log()
     assert row["status"] == "failed" and "Test the connection" in row["last_error"]
     assert fake.imports == []
@@ -186,7 +221,7 @@ def test_an_untested_connection_logs_a_failed_event_to_retry_later(connect):
 def test_a_temporary_error_is_retried_on_the_same_row(connect):
     connect()
     fake = FakeClient(failures=[TemporaryError("Liana answered 503. Try again later.")])
-    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter = LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake)
     request = a_request()
     with pytest.raises(RetryLater):
         adapter.send_contact_requested(request)
@@ -204,7 +239,9 @@ def test_a_wrong_host_fails_and_marks_the_connection(connect):
     connect()
     fake = FakeClient(failures=[ConfigError("Not found (404): check the host.")])
     with pytest.raises(DeliveryFailed):
-        LianaAutomationContactEvents(KEY, build=fake).send_contact_requested(a_request())
+        LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake).send_contact_requested(
+            a_request()
+        )
     [row], connection = _log()
     assert row["status"] == "failed"
     assert (connection["status"], connection["last_error"]) == (
@@ -277,29 +314,36 @@ def test_anonymous_answers_and_unknown_contacts_are_not_sent():
     event, not_sent = domain.answer_event("s1", "x", "nps", 9, None, None)
     assert not_sent == "Not sent: anonymous answer." and "identity" not in event
     _, not_sent = domain.answer_event("s1", "x", "nps", 9, None, "contact-42")
-    assert not_sent == "Not sent: contact unknown (r=co\u2026)."
+    assert not_sent == "Not sent: contact not found in LianaMailer (r=contact-42)."
 
 
 @needs_db
 def test_an_identified_answer_is_sent_once(connect, response):
     connect()
     fake = FakeClient()
-    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter = LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake)
     adapter.send_answer_recorded(an_answer(response))
     adapter.send_answer_recorded(an_answer(response))  # the follow-up form, same answer
 
     [body] = fake.imports
-    assert body["data"][0]["identity"] == {"lianamailer_id": "4084399"}
+    assert body["data"][0]["identity"] == {"email": "contact.4084399@example.com"}
     assert body["data"][0]["events"][0]["items"]["nps_group"] == "promoter"
     [row], _ = _log()
     assert (row["verb"], row["status"], row["attempts"]) == ("survey_answered", "sent", 1)
+    # Liana's answer is kept for the sync log's Details.
+    assert row["liana_response"] == 'HTTP 200 {"succeed": true}'
+    # The address went to Liana but is not kept in the sync log: the row has the
+    # contact id and a shortened address (from review).
+    assert row["payload"]["identity"] == {"lianamailer_id": "4084399"}
+    assert row["contact_hint"] == "co…@example.com"
+    assert "contact.4084399@example.com" not in str(row)
 
 
 @needs_db
 def test_a_changed_answer_updates_its_row_and_is_sent_again(connect, response):
     connect()
     fake = FakeClient()
-    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter = LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake)
     adapter.send_answer_recorded(an_answer(response, score=9))
     adapter.send_answer_recorded(an_answer(response, score=3))
     assert [b["data"][0]["events"][0]["items"]["score"] for b in fake.imports] == ["9", "3"]
@@ -311,13 +355,13 @@ def test_a_changed_answer_updates_its_row_and_is_sent_again(connect, response):
 def test_an_anonymous_answer_is_listed_as_not_sent(connect, response):
     connect()
     fake = FakeClient()
-    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter = LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake)
     adapter.send_answer_recorded(an_answer(response, contact_ref=None))
     [row], _ = _log()
     assert (row["status"], row["last_error"]) == ("skipped", "Not sent: anonymous answer.")
     assert fake.imports == []
 
-    # The reader then ticks "Contact me": the answer gets a contact and is sent.
+    # The same response with a contact (e.g. a hand-made message): it is sent.
     adapter.send_answer_recorded(an_answer(response))
     [row], _ = _log()
     assert (row["status"], row["last_error"]) == ("sent", None)
@@ -328,9 +372,13 @@ def test_an_anonymous_answer_is_listed_as_not_sent(connect, response):
 def test_no_answer_rows_without_a_connection_or_with_answers_off(connect, response):
     _clean()
     fake = FakeClient()
-    LianaAutomationContactEvents(KEY, build=fake).send_answer_recorded(an_answer(response))
+    LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake).send_answer_recorded(
+        an_answer(response)
+    )
     connect(answers=False)
-    LianaAutomationContactEvents(KEY, build=fake).send_answer_recorded(an_answer(response))
+    LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake).send_answer_recorded(
+        an_answer(response)
+    )
     assert fake.imports == [] and _log()[0] == []
 
 
@@ -338,7 +386,9 @@ def test_no_answer_rows_without_a_connection_or_with_answers_off(connect, respon
 def test_an_answer_waits_as_failed_until_the_connection_is_ready(connect, response):
     connect(status="disconnected")
     fake = FakeClient()
-    LianaAutomationContactEvents(KEY, build=fake).send_answer_recorded(an_answer(response))
+    LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake).send_answer_recorded(
+        an_answer(response)
+    )
     [row], _ = _log()
     assert row["status"] == "failed" and "Test the connection" in row["last_error"]
     assert fake.imports == []
@@ -348,7 +398,7 @@ def test_an_answer_waits_as_failed_until_the_connection_is_ready(connect, respon
 def test_a_failed_answer_is_sent_when_it_is_delivered_again(connect, response):
     connect()
     fake = FakeClient(failures=[TemporaryError("Liana answered 503. Try again later.")])
-    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter = LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake)
     with pytest.raises(RetryLater):
         adapter.send_answer_recorded(an_answer(response))
     adapter.send_answer_recorded(an_answer(response))
@@ -363,7 +413,7 @@ def test_a_failed_answer_is_sent_when_it_is_delivered_again(connect, response):
 def test_a_request_still_retrying_after_the_last_attempt_becomes_failed(connect):
     connect()
     fake = FakeClient(failures=[TemporaryError("Liana answered 503. Try again later.")])
-    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter = LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake)
     request = a_request()
     with pytest.raises(RetryLater):
         adapter.send_contact_requested(request)
@@ -379,7 +429,7 @@ def test_a_request_still_retrying_after_the_last_attempt_becomes_failed(connect)
 def test_an_answer_still_retrying_after_the_last_attempt_becomes_failed(connect, response):
     connect()
     fake = FakeClient(failures=[TemporaryError("Liana answered 503. Try again later.")])
-    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    adapter = LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=fake)
     with pytest.raises(RetryLater):
         adapter.send_answer_recorded(an_answer(response))
     adapter.give_up(an_answer(response), "timeout")
@@ -393,9 +443,136 @@ def test_an_answer_still_retrying_after_the_last_attempt_becomes_failed(connect,
 @needs_db
 def test_giving_up_leaves_a_sent_event_alone(connect):
     connect()
-    adapter = LianaAutomationContactEvents(KEY, build=FakeClient())
+    adapter = LianaAutomationContactEvents(KEY, directory=DIRECTORY, build=FakeClient())
     request = a_request()
     adapter.send_contact_requested(request)
     adapter.give_up(request, "late")
     [row], _ = _log()
     assert (row["status"], row["last_error"]) == ("sent", None)
+
+
+# --- Email addresses from LianaMailer, and Liana's answer -----------------------------
+
+
+@needs_db
+def test_a_contact_lianamailer_does_not_know_is_not_sent(connect, response):
+    connect()
+    fake = FakeClient()
+    adapter = LianaAutomationContactEvents(KEY, directory=FakeDirectory(), build=fake)
+    adapter.send_answer_recorded(an_answer(response, contact_ref="999"))
+    [row], _ = _log()
+    assert (row["status"], row["last_error"]) == (
+        "skipped",
+        "Not sent: contact not found in LianaMailer (r=999).",
+    )
+    assert fake.imports == []
+
+
+@needs_db
+def test_without_lianamailer_the_answer_waits_as_failed_and_is_sent_later(connect, response):
+    connect()
+    fake = FakeClient()
+    LianaAutomationContactEvents(KEY, directory=NotSetUp(), build=fake).send_answer_recorded(
+        an_answer(response)
+    )
+    [row], _ = _log()
+    assert row["status"] == "failed" and "LIANAMAILER_API_HOST" in row["last_error"]
+    assert row["payload"]["identity"] == {"lianamailer_id": "4084399"}
+    assert fake.imports == []
+
+    # Once LianaMailer is set up, the same answer (redelivered) goes out.
+    adapter = LianaAutomationContactEvents(KEY, directory=FakeDirectory(), build=fake)
+    adapter.send_answer_recorded(an_answer(response))
+    [row], _ = _log()
+    assert row["status"] == "sent" and len(fake.imports) == 1
+
+
+@needs_db
+def test_an_address_is_looked_up_once_a_day_not_on_every_tap(connect, response):
+    connect()
+    directory = FakeDirectory()
+    adapter = LianaAutomationContactEvents(KEY, directory=directory, build=FakeClient())
+    adapter.send_answer_recorded(an_answer(response, score=9))
+    adapter.send_answer_recorded(an_answer(response, score=9))
+    adapter.send_answer_recorded(an_answer(response, score=7))
+    assert directory.lookups == ["4084399"]
+
+
+@needs_db
+def test_a_contact_request_keeps_the_address_on_the_response(connect, response):
+    connect()
+    _, response_id = response
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            "update responses set contact_requested = true, contact_ref = '4084400' where id = %s",
+            (response_id,),
+        )
+    adapter = LianaAutomationContactEvents(KEY, directory=FakeDirectory(), build=FakeClient())
+    adapter.send_contact_requested(a_request(response_id=response_id))
+    with tenant_connection(DEMO_TENANT) as conn:
+        email = conn.execute(
+            "select contact_email from responses where id = %s", (response_id,)
+        ).fetchone()[0]
+    assert email == "contact.4084400@example.com"
+
+
+@needs_db
+def test_a_request_from_the_public_page_uses_the_typed_address(connect, response):
+    connect()
+    _, response_id = response
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            """update responses set contact_requested = true,
+                      contact_email = 'anna@example.org' where id = %s""",
+            (response_id,),
+        )
+    fake, directory = FakeClient(), FakeDirectory()
+    adapter = LianaAutomationContactEvents(KEY, directory=directory, build=fake)
+    adapter.send_contact_requested(
+        a_request(contact_ref=None, contact_email="anna@example.org", response_id=response_id)
+    )
+    [body] = fake.imports
+    assert body["data"][0]["identity"] == {"email": "anna@example.org"}
+    assert directory.lookups == []
+    # The sync log points at the response; the address itself stays only there.
+    [row], _ = _log()
+    assert row["payload"]["identity"] == {"survey_response_id": str(response_id)}
+    assert "anna@example.org" not in str(row)
+    assert row["contact_hint"] == "an…@example.org"
+
+
+@needs_db
+def test_an_event_liana_did_not_accept_is_failed_with_its_answer(connect, response):
+    connect()
+    refused = PermanentError(
+        "Liana did not accept the event: unknown identity",
+        'HTTP 200 {"succeed": false, "message": "unknown identity"}',
+    )
+    adapter = LianaAutomationContactEvents(
+        KEY, directory=FakeDirectory(), build=FakeClient(failures=[refused])
+    )
+    with pytest.raises(DeliveryFailed):
+        adapter.send_answer_recorded(an_answer(response))
+    [row], _ = _log()
+    assert (row["status"], row["last_error"]) == (
+        "failed",
+        "Liana did not accept the event: unknown identity",
+    )
+    assert row["liana_response"] == 'HTTP 200 {"succeed": false, "message": "unknown identity"}'
+
+
+@needs_db
+def test_an_address_in_lianas_refusal_is_hidden_in_the_sync_log(connect, response):
+    connect()
+    refused = PermanentError(
+        "Liana did not accept the event: Invalid email contact.4084399@example.com",
+        'HTTP 200 {"succeed": false, "message": "Invalid email contact.4084399@example.com"}',
+    )
+    adapter = LianaAutomationContactEvents(
+        KEY, directory=FakeDirectory(), build=FakeClient(failures=[refused])
+    )
+    with pytest.raises(DeliveryFailed):
+        adapter.send_answer_recorded(an_answer(response))
+    [row], connection = _log()
+    assert row["last_error"] == "Liana did not accept the event: Invalid email [email]"
+    assert "contact.4084399@example.com" not in str(row)

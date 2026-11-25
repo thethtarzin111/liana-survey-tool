@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 _SEGMENT = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
 # The Results API uses these as filter values for "No segment" and "Other".
@@ -49,13 +49,17 @@ class AnswerSubmitted(Message):
     segment: str = "all"
     channel: Literal["email", "link", "qr"] = "link"
     answers: list[AnswerValue]
-    # The LianaMailer contact id from the link, only when the answer may be linked
-    # to the contact (liana_survey_shared.contact.answer_contact_ref).
+    # The LianaMailer contact id from a newsletter link (r=): the answer is identified
+    # (liana_survey_shared.contact). None for the public link and the QR code.
     contact_ref: str | None = None
     # The "Tell us more" box, for surveys without a text question of their own.
     comment: str | None = Field(default=None, max_length=5000)
-    # The reader ticked "Contact me about this by email" (needs a contact_ref).
+    # The reader ticked "Contact me about this by email" (needs a contact_ref or a
+    # contact_email).
     contact_me: bool = False
+    # Public page only: the address a reader who ticked "Contact me" typed. Readers
+    # from a newsletter link have a contact_ref instead.
+    contact_email: str | None = Field(default=None, max_length=254)
     # The follow-up page saving the tapped answer alone (step=tap): it replaces only
     # the answers in this message, so the reader's earlier follow-up answers stay.
     main_only: bool = False
@@ -102,7 +106,19 @@ class ContactRequested(Message):
     type: Literal["contact.requested"] = "contact.requested"
     survey_id: UUID
     contact_request_id: UUID
-    contact_ref: str
+    # Who asked: the LianaMailer contact id (newsletter link) or the address typed on
+    # the public page. At least one of them.
+    contact_ref: str | None = None
+    contact_email: str | None = None
+    # The response the request belongs to; the connector stores the contact's email
+    # address on it once LianaMailer gave it.
+    response_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def _has_a_contact(self) -> "ContactRequested":
+        if not (self.contact_ref or self.contact_email):
+            raise ValueError("a contact request needs contact_ref or contact_email")
+        return self
 
 
 class NewResponsesDigest(Message):

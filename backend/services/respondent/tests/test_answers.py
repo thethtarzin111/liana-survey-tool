@@ -271,11 +271,10 @@ def test_a_tap_queues_the_answer_and_shows_the_thank_you_page(client, queue, mak
     message, _ = queue.messages
     assert (message.tenant_id, message.survey_id) == (DEMO_TENANT, survey_id)
     assert [(a.question_id, a.number) for a in message.answers] == [(main_id, 9)]
-    # Anonymous: a key to count the reader once, not the reader reference.
+    # The key counts the reader once; the link's reader is the answer's contact.
     secret = get_settings().link_signing_secret
     assert message.link_token_hash == links.response_key(secret, token, "contact-42")
-    assert "contact-42" not in message.model_dump_json()
-    assert message.contact_ref is None
+    assert message.contact_ref == "contact-42"
 
 
 @pytest.mark.db
@@ -428,7 +427,8 @@ def test_a_tap_from_the_newsletter_snippet_is_queued_and_counted_per_reader(
     # The same reader key as a signed link for that contact: counted once either way.
     secret = get_settings().link_signing_secret
     assert message.link_token_hash == links.response_key(secret, token, "12345")
-    assert "12345" not in message.model_dump_json()
+    # A newsletter answer is identified by the reader's LianaMailer contact id.
+    assert message.contact_ref == "12345"
 
 
 @pytest.mark.db
@@ -890,10 +890,8 @@ def test_the_comment_box_is_only_for_surveys_without_a_text_question():
     assert shows_comment_box(survey, THUMBS[:2])
     assert not shows_comment_box(survey, THUMBS)  # it asks "Anything else?" itself
     assert not shows_comment_box({**survey, "comment_field": False}, THUMBS[:2])
-    # "Contact me" needs a contact: only links with r=, never the plain link or QR code.
-    assert shows_contact_me(survey, "4084399")
-    assert not shows_contact_me(survey, None)
-    assert not shows_contact_me({**survey, "contact_opt_in": False}, "4084399")
+    assert shows_contact_me(survey)
+    assert not shows_contact_me({**survey, "contact_opt_in": False})
 
 
 def test_follow_up_questions_are_all_optional_and_keep_the_tapped_answer():
@@ -915,8 +913,9 @@ def test_the_follow_up_page_offers_the_comment_and_contact_me(client, queue, mak
     page = client.get(link(token, answer=3)).text
     assert 'name="comment"' in page and "Tell us more" in page
     assert 'name="contact_me"' in page and "Contact me about this by email" in page
-    # Anonymous survey: the reader is not told their answer is linked to them.
-    assert "linked to your contact details" not in page
+    # The link names the reader: no email field, and the page says the answer is linked.
+    assert 'name="contact_email"' not in page
+    assert "linked to your contact details" in page
 
     _, _, plain = make_survey(comment_field=False, contact_opt_in=False)
     page = client.get(link(plain, answer=3)).text
@@ -937,7 +936,8 @@ def test_the_follow_up_form_updates_the_same_answer_with_comment_and_contact_me(
     saved, sent = queue.messages
     # The same reader key: the worker replaces the tap with the form (one response).
     assert saved.link_token_hash == sent.link_token_hash
-    assert (saved.contact_ref, saved.contact_me, saved.comment) == (None, False, None)
+    # Identified from the first tap; the form keeps the contact and adds the request.
+    assert (saved.contact_ref, saved.contact_me, saved.comment) == ("4084400", False, None)
     assert [(a.question_id, a.number) for a in sent.answers] == [(main_id, 3)]
     assert (sent.contact_ref, sent.contact_me, sent.comment) == ("4084400", True, "Too many emails")
     assert sent.campaign == "spring" and sent.segment == "members"
@@ -945,27 +945,14 @@ def test_the_follow_up_form_updates_the_same_answer_with_comment_and_contact_me(
 
 @pytest.mark.db
 @needs_db
-def test_an_anonymous_answer_keeps_no_contact_without_contact_me(client, queue, make_survey):
+def test_a_newsletter_answer_keeps_its_contact_without_contact_me(client, queue, make_survey):
     _, _, token = make_survey(newsletter_links=True)
-    submit(client, snippet_link(token, reader="4084399", answer=9), comment="Great")
-    [message] = queue.messages
-    assert (message.contact_ref, message.contact_me) == (None, False)
-    assert "4084399" not in message.model_dump_json()
-
-
-@pytest.mark.db
-@needs_db
-def test_an_identified_survey_ties_the_answer_to_the_contact(client, queue, make_survey):
-    _, _, token = make_survey(newsletter_links=True, anonymous=False)
     url = snippet_link(token, reader="4084399", answer=9)
-    assert "linked to your contact details" in client.get(url).text
     tap(client, url)
-    [message] = queue.messages
-    assert (message.contact_ref, message.contact_me, message.campaign) == (
-        "4084399",
-        False,
-        "spring",
-    )
+    submit(client, url, comment="Great")  # "Contact me" left unticked
+    tapped, sent = queue.messages
+    assert (tapped.contact_ref, sent.contact_ref) == ("4084399", "4084399")
+    assert (sent.contact_me, sent.contact_email) == (False, None)
 
 
 @pytest.mark.db
@@ -999,18 +986,52 @@ def test_a_too_long_comment_shows_the_follow_up_form_again(client, queue, make_s
 
 @pytest.mark.db
 @needs_db
-def test_the_plain_link_page_has_the_comment_box_but_no_contact_me(client, queue, make_survey):
+def test_the_plain_link_page_asks_for_an_email_with_contact_me(client, queue, make_survey):
     _, main_id, token = make_survey()
     page = client.get(f"/r/{token}").text
     assert 'name="comment"' in page
-    assert 'name="contact_me"' not in page
+    assert 'name="contact_me"' in page and 'name="contact_email"' in page
+    assert "linked to your contact details" not in page
     key = re.search(r'name="key" value="([^"]+)"', page).group(1)
     sent = {"key": key, f"q-{main_id}": "8", "comment": "Nice survey", "contact_me": "1"}
+
+    # Ticked without an address: the form again, saying what is missing.
     r = client.post(f"/r/{token}", data=sent)
+    assert r.status_code == 400
+    assert "Enter your email address so we can contact you" in r.text
+    assert 'name="comment"' in r.text and "Nice survey" in r.text
+    assert queue.messages == []
+
+    r = client.post(f"/r/{token}", data={**sent, "contact_email": " Anna@Example.org "})
     assert r.status_code == 200
     [message] = queue.messages
     assert message.comment == "Nice survey"
-    assert (message.contact_ref, message.contact_me) == (None, False)
+    assert (message.contact_ref, message.contact_me, message.contact_email) == (
+        None,
+        True,
+        "anna@example.org",
+    )
+
+
+@pytest.mark.db
+@needs_db
+def test_an_address_without_contact_me_is_not_kept(client, queue, make_survey):
+    _, main_id, token = make_survey()
+    page = client.get(f"/r/{token}").text
+    key = re.search(r'name="key" value="([^"]+)"', page).group(1)
+    client.post(
+        f"/r/{token}", data={"key": key, f"q-{main_id}": "8", "contact_email": "anna@example.org"}
+    )
+    [message] = queue.messages
+    assert (message.contact_me, message.contact_email) == (False, None)
+
+
+@pytest.mark.db
+@needs_db
+def test_no_contact_me_box_when_the_survey_does_not_offer_it(client, queue, make_survey):
+    _, _, token = make_survey(contact_opt_in=False)
+    page = client.get(f"/r/{token}").text
+    assert 'name="contact_me"' not in page and 'name="contact_email"' not in page
 
 
 @pytest.mark.db

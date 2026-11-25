@@ -50,3 +50,20 @@
 .wizard-inline .field { flex: 1 1 240px; min-width: 0; }
 .wizard-ok { margin: 0; color: var(--color-brand-dark); font-weight: 600; }
 .wizard-error { margin: 0; color: var(--color-error-text); }
+
+.sync-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
+.sync-details summary { cursor: pointer; color: var(--color-brand-dark); font-size: var(--text-hint); }
+.sync-details pre {
+  max-width: 36rem;
+  max-height: 16rem;
+  overflow: auto;
+  margin: 0;
+  padding: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--color-surface-muted);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: var(--text-small);
+}
+.sync-details-label { margin: 8px 0 4px; font-size: var(--text-hint); font-weight: 600; }

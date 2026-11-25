@@ -30,6 +30,9 @@ const CHIPS: Record<Scale, { group: string; label: string }[]> = {
   ],
 };
 
+/** Every survey, with or without a scale: the readers who ticked “Contact me”. */
+export const CONTACT_CHIP = { group: 'contact', label: 'Asked to be contacted' };
+
 type Page = { key: string; rows: ResponseRow[]; total: number };
 
 const answerText = (row: ResponseRow, scale: Scale | null) =>
@@ -53,7 +56,7 @@ export function ResponsesTab({ surveyId, segment, scale }: Props) {
   const [openId, setOpenId] = useState<string | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
 
-  const chips = scale ? CHIPS[scale] : [];
+  const chips = [...(scale ? CHIPS[scale] : []), CONTACT_CHIP];
   // A group from a stale or shared link that this survey has no chip for is never sent.
   const group = chips.some((c) => c.group === urlGroup) ? urlGroup : '';
   useEffect(() => {
@@ -112,7 +115,7 @@ export function ResponsesTab({ surveyId, segment, scale }: Props) {
     <div className="responses-toolbar">
       <SearchInput label="Search comments" placeholder="Search comments…" value={draft} onChange={setDraft} onSearch={(v) => set({ q: v.trim() })} />
       {chips.length ? (
-        <div className="responses-chips" role="group" aria-label="Answer group">
+        <div className="responses-chips" role="group" aria-label="Show">
           <ToggleChip selected={!group} onChange={() => set({ group: '' })}>All answers</ToggleChip>
           {chips.map((c) => (
             <ToggleChip key={c.group} selected={group === c.group} onChange={(on) => set({ group: on ? c.group : '' })}>
@@ -136,8 +139,10 @@ export function ResponsesTab({ surveyId, segment, scale }: Props) {
     <p className="responses-notice">
       <Icon path={icons.info} size={16} />
       <span>
-        Anonymised. No names or emails are shown. Emails and phone numbers typed into comments are hidden automatically.
-        People who asked to be contacted are sent to LianaAutomation (see <Link to="/integrations">Integrations</Link>).
+        Anonymised: no names or emails are shown, except the email address of people who asked to be contacted.
+        Emails and phone numbers typed into comments are hidden automatically. Filter by “Asked to be contacted” to see
+        people who want a reply; they are also sent to LianaAutomation (see{' '}
+        <Link to="/integrations">Integrations</Link>).
       </span>
     </p>
   );
@@ -200,6 +205,12 @@ export function ResponsesTab({ surveyId, segment, scale }: Props) {
                     <button type="button" className="response-open" onClick={(e) => open(r.id, e.currentTarget)}>
                       {r.display_id}
                     </button>
+                    {r.contact_requested ? (
+                      <span className="response-contact">
+                        <Tag>Contact me</Tag>
+                        {r.contact ? <span className="response-contact-email">{r.contact}</span> : null}
+                      </span>
+                    ) : null}
                   </td>
                   <td data-label="Received">
                     <time dateTime={r.submitted_at} title={new Date(r.submitted_at).toLocaleString('en-GB')}>

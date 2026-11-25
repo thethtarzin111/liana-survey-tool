@@ -11,7 +11,7 @@ const LANGUAGES: { value: SurveyLanguage; label: string }[] = [
   { value: 'sv', label: 'Svenska' },
 ];
 
-type Form = { day: string; limit: string; notify: boolean; language: SurveyLanguage; identified: boolean };
+type Form = { day: string; limit: string; notify: boolean; language: SurveyLanguage };
 
 function formFor(survey: Survey): Form {
   return {
@@ -19,7 +19,6 @@ function formFor(survey: Survey): Form {
     limit: survey.response_limit != null ? String(survey.response_limit) : '',
     notify: survey.notify_on_response ?? false,
     language: survey.language ?? 'en',
-    identified: survey.anonymous === false,
   };
 }
 
@@ -48,8 +47,7 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
     form.day !== saved.day ||
     form.limit.trim() !== saved.limit ||
     form.notify !== saved.notify ||
-    form.language !== saved.language ||
-    form.identified !== saved.identified;
+    form.language !== saved.language;
   const errors = { day: dayError(form.day, saved.day), limit: limitError(form.limit) };
 
   async function save(event: FormEvent) {
@@ -64,7 +62,6 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
       if (form.limit.trim() !== saved.limit) changes.response_limit = form.limit.trim() ? Number(form.limit) : null;
       if (form.notify !== saved.notify) changes.notify_on_response = form.notify;
       if (form.language !== saved.language) changes.language = form.language;
-      if (form.identified !== saved.identified) changes.anonymous = !form.identified;
       const updated = await api.updateSurvey(survey.id, changes);
       onSaved(updated);
       setSaved(formFor(updated));
@@ -118,16 +115,10 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
           checked={form.notify}
           onChange={(e) => setForm({ ...form, notify: e.target.checked })}
         />
-        <Checkbox
-          label="Identified answers from newsletter links"
-          hint="Answers from a LianaMailer newsletter keep the reader’s contact ID and are sent to LianaAutomation. Readers are told so on the answer page."
-          checked={form.identified}
-          onChange={(e) => setForm({ ...form, identified: e.target.checked })}
-        />
         <p className="settings-privacy">
-          {form.identified
-            ? 'Answers from newsletter links are linked to the reader’s contact. Answers from the public link and QR code stay anonymous.'
-            : 'Answers are anonymous. Readers who tick “Contact me” share their contact so you can follow up.'}
+          Answers from a LianaMailer newsletter are linked to the reader’s contact and sent to LianaAutomation; the
+          answer page tells the reader. Answers from the public link and QR code are anonymous, unless the reader ticks
+          “Contact me” and leaves an email address.
         </p>
         {problem ? <p className="publish-error" role="alert">{problem}</p> : null}
         <div>

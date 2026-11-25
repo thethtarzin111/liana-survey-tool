@@ -49,8 +49,8 @@ function LianaAutomationCard({
       <div>
         <h2 className="integrations-card-title">LianaAutomation</h2>
         <p className="integrations-hint">
-          Answers from newsletter links become events on the contact when the survey is set to identified answers
-          or the reader ticks “Contact me”, so segments and automations can react to them. Other answers stay
+          Answers from newsletter links and “Contact me” requests become events on the contact (matched by email
+          address), so segments and automations can react to them. Answers from the public link and QR code stay
           anonymous in the survey tool.
         </p>
       </div>
@@ -99,8 +99,7 @@ function LianaAutomationCard({
         <dd>{c.channel_id ? `${c.channel_name} (ID ${c.channel_id})` : 'Not chosen yet'}</dd>
         <dt>Events</dt>
         <dd>
-          {sent} sent{failed ? `, ${failed} failed` : ''}
-          {skipped ? `, ${skipped} not sent` : ''}
+          {sent} sent, {failed} failed, {skipped} not sent
         </dd>
         <dt>Changed</dt>
         <dd>{when(c.updated_at)}</dd>
@@ -119,10 +118,6 @@ function LianaAutomationCard({
           />
         ))}
       </div>
-      <p className="integrations-hint">
-        Sending real answers comes with the next step (the outbox and queue). Today the switches are saved and test
-        events can be sent.
-      </p>
       {message ? (
         <p className={message.ok ? 'wizard-ok' : 'wizard-error'} role={message.ok ? 'status' : 'alert'}>
           {message.text}
@@ -187,7 +182,7 @@ function LianaAutomationCard({
   );
 }
 
-function LianaMailerCard() {
+function LianaMailerCard({ apiSetUp }: { apiSetUp: boolean }) {
   return (
     <Card padded className="integrations-card">
       <div className="integrations-card-head">
@@ -196,8 +191,13 @@ function LianaMailerCard() {
       </div>
       <p className="integrations-hint">
         Put a survey’s rating block in a newsletter. Each number is a link; LianaMailer fills in every recipient’s
-        contact ID when it sends, so each reader counts once. Answers stay anonymous unless the survey is set to
-        identified answers or the reader ticks “Contact me”. There is never an email address in the link.
+        contact ID when it sends, so each reader counts once and their answer is linked to their contact. There is
+        never an email address in the link.
+      </p>
+      <p className={apiSetUp ? 'integrations-hint' : 'wizard-error'}>
+        {apiSetUp
+          ? 'Contact lookup: on. The server finds each reader’s email address in LianaMailer before an event goes to LianaAutomation.'
+          : 'Contact lookup: not set up. Events for newsletter readers wait in the sync log as failed until the server has the LianaMailer API settings (LIANAMAILER_API_HOST, _USER, _SECRET); then press Retry.'}
       </p>
       <p className="integrations-hint">
         Open a live survey and copy its <strong>newsletter snippet</strong>.
@@ -218,7 +218,7 @@ function ShareLinkCard() {
       </div>
       <p className="integrations-hint">
         Every live survey has a public link and a QR code, for social media posts, posters or automation steps. No
-        login needed, and answers stay anonymous.
+        login needed, and answers stay anonymous unless the reader ticks “Contact me” and leaves an email address.
       </p>
       <p className="integrations-hint">
         Open a live survey and find them under <strong>Share outside email</strong>.
@@ -349,7 +349,7 @@ export function IntegrationsPage() {
         />
       )}
       <div className="integrations-grid">
-        <LianaMailerCard />
+        <LianaMailerCard apiSetUp={status.lianamailer_set_up} />
         <ShareLinkCard />
         <WebsiteEmbedCard />
         <ExportCard />

@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
+from liana_survey_shared.contact import InvalidEmail, clean_email
 from liana_survey_shared.messages import AnswerValue
 from liana_survey_shared.scoring import CSAT_SCALE, NPS_SCALE, THUMBS_SCALE
 from liana_survey_shared.texts import text
@@ -21,8 +22,10 @@ THUMBS_NOT_FOR_ME = 0
 #: The "Tell us more" box's form field and longest text (as a long_text answer).
 COMMENT_FIELD = "comment"
 COMMENT_LIMIT = 5000
-#: The "Contact me about this by email" box's form field.
+#: The "Contact me about this by email" box's form field, and the address field next
+#: to it on pages without a contact id (the public link and the QR code).
 CONTACT_ME_FIELD = "contact_me"
+CONTACT_EMAIL_FIELD = "contact_email"
 
 
 class AnswerProblem(Exception):
@@ -152,10 +155,32 @@ def shows_comment_box(survey: Mapping[str, Any], questions: Sequence[Mapping[str
     return bool(survey["comment_field"]) and not has_text_question(questions)
 
 
-def shows_contact_me(survey: Mapping[str, Any], reader_ref: str | None) -> bool:
-    """The "Contact me" box: only on links that say who the reader is (r=). The plain
-    link and the QR code have no contact to tie a request to."""
-    return bool(survey["contact_opt_in"]) and bool(reader_ref)
+def shows_contact_me(survey: Mapping[str, Any]) -> bool:
+    """The "Contact me" box, when the survey offers it (contact_opt_in)."""
+    return bool(survey["contact_opt_in"])
+
+
+def asks_contact_email(reader_ref: str | None) -> bool:
+    """Whether "Contact me" needs an email address: only without a contact id (r=).
+    For a newsletter reader the connector gets the address from LianaMailer."""
+    return not reader_ref
+
+
+def contact_request(
+    survey: Mapping[str, Any], form: Mapping[str, Sequence[str]], reader_ref: str | None
+) -> tuple[bool, str | None]:
+    """Whether the reader asked to be contacted, and the address they typed (None when
+    they come from a newsletter link). Raises AnswerProblem "contact_email_needed"
+    when "Contact me" is ticked on a page without a contact id and the address is
+    missing or not an address."""
+    if not shows_contact_me(survey) or not any(v.strip() for v in form.get(CONTACT_ME_FIELD, ())):
+        return False, None
+    if not asks_contact_email(reader_ref):
+        return True, None
+    try:
+        return True, clean_email(next(iter(form.get(CONTACT_EMAIL_FIELD, ())), ""))
+    except InvalidEmail:
+        raise AnswerProblem("contact_email_needed", 400) from None
 
 
 def comment(form: Mapping[str, Sequence[str]]) -> str | None:

@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
@@ -87,16 +88,22 @@ def delete(conn: psycopg.Connection) -> bool:
     return conn.execute("delete from integrations where provider = %s", (PROVIDER,)).rowcount > 0
 
 
-_EVENT = """id, verb, payload, test, status, attempts, last_error, created_at, sent_at"""
+_EVENT = """id, response_id, verb, payload, test, status, attempts, last_error, liana_response,
+            contact_hint, created_at, sent_at"""
 
 
 def add_event(
-    conn: psycopg.Connection, tenant_id: UUID, verb: str, payload: dict, test: bool
+    conn: psycopg.Connection,
+    tenant_id: UUID,
+    verb: str,
+    payload: dict,
+    test: bool,
+    response_id: UUID | None = None,
 ) -> dict[str, Any]:
     return conn.execute(
-        f"""insert into integration_events (tenant_id, provider, verb, payload, test)
-            values (%s, %s, %s, %s, %s) returning {_EVENT}""",
-        (tenant_id, PROVIDER, verb, Jsonb(payload), test),
+        f"""insert into integration_events (tenant_id, provider, verb, payload, test, response_id)
+            values (%s, %s, %s, %s, %s, %s) returning {_EVENT}""",
+        (tenant_id, PROVIDER, verb, Jsonb(payload), test, response_id),
     ).fetchone()
 
 
@@ -194,16 +201,83 @@ def claim_event(conn: psycopg.Connection, event_id: UUID) -> dict[str, Any] | No
 
 
 def finish_event(
-    conn: psycopg.Connection, event_id: UUID, status: str, error: str | None
+    conn: psycopg.Connection,
+    event_id: UUID,
+    status: str,
+    error: str | None,
+    response: str | None = None,
 ) -> dict[str, Any]:
-    """Count one attempt and store its outcome."""
+    """Count one attempt and store its outcome, with LianaAutomation's answer (status
+    and body) when there was one."""
     return conn.execute(
         f"""update integration_events
             set status = %(status)s, attempts = attempts + 1, last_error = %(error)s,
+                liana_response = coalesce(%(response)s, liana_response),
                 sent_at = case when %(status)s = 'sent' then now() else sent_at end
             where id = %(id)s returning {_EVENT}""",
-        {"status": status, "error": error, "id": event_id},
+        {"status": status, "error": error, "response": response, "id": event_id},
     ).fetchone()
+
+
+def mark_event(
+    conn: psycopg.Connection, event_id: UUID, status: str, reason: str | None
+) -> dict[str, Any]:
+    """Set the status without counting an attempt: nothing was sent (e.g. the
+    contact's email address could not be looked up)."""
+    return conn.execute(
+        f"""update integration_events set status = %s, last_error = %s
+            where id = %s returning {_EVENT}""",
+        (status, reason, event_id),
+    ).fetchone()
+
+
+def set_contact_hint(conn: psycopg.Connection, event_id: UUID, hint: str | None) -> None:
+    """The contact, shortened ("te…@example.com"), for the sync log. Never the address."""
+    conn.execute("update integration_events set contact_hint = %s where id = %s", (hint, event_id))
+
+
+# --- LianaMailer contact ids and email addresses ---------------------------------
+
+
+def cached_email(conn: psycopg.Connection, contact_id: str, max_age: timedelta) -> str | None:
+    """The address LianaMailer gave for this contact id lately, or None."""
+    row = conn.execute(
+        """select email from lianamailer_contacts
+           where contact_id = %s and fetched_at > now() - %s""",
+        (contact_id, max_age),
+    ).fetchone()
+    return row["email"] if row else None
+
+
+def cache_email(conn: psycopg.Connection, contact_id: str, email: str, max_age: timedelta) -> None:
+    """Remember the address for a while; forget addresses older than that."""
+    conn.execute("delete from lianamailer_contacts where fetched_at <= now() - %s", (max_age,))
+    conn.execute(
+        """insert into lianamailer_contacts (tenant_id, contact_id, email)
+           values (app_tenant_id(), %s, %s)
+           on conflict (tenant_id, contact_id) do update
+             set email = excluded.email, fetched_at = now()""",
+        (contact_id, email),
+    )
+
+
+def response_email(conn: psycopg.Connection, response_id: str) -> str | None:
+    """The address a reader who asked to be contacted left on their response."""
+    row = conn.execute(
+        "select contact_email from responses where id = %s and contact_requested",
+        (response_id,),
+    ).fetchone()
+    return row["contact_email"] if row else None
+
+
+def save_contact_email(conn: psycopg.Connection, response_id: UUID, email: str) -> None:
+    """The address of a reader who asked to be contacted, for Results -> Responses.
+    Only on responses with "Contact me": other answers never keep an address."""
+    conn.execute(
+        """update responses set contact_email = %s
+           where id = %s and contact_requested and contact_email is distinct from %s""",
+        (email, response_id, email),
+    )
 
 
 def events(conn: psycopg.Connection, status: str | None, limit: int) -> list[dict[str, Any]]:

@@ -81,8 +81,9 @@ def record_answer(body: bytes, connect: Connect = tenant_connection) -> Recorded
     - the owner's "new responses" email when a new reader's answer makes one due;
     - AnswerRecorded for every saved or changed answer, so the connector can send
       it to LianaAutomation (or say in the sync log why not);
-    - ContactRequested when the reader ticked "Contact me" and the answer has a
-      contact: the contact request is created here, once per response."""
+    - ContactRequested when the reader ticked "Contact me": the request is saved on
+      the response (Results -> Responses, "Asked to be contacted") and as a contact
+      request here, once per response, whether or not it reaches LianaAutomation."""
     msg = parse(body)
     digest = None
     events: list[Message] = []
@@ -93,7 +94,7 @@ def record_answer(body: bytes, connect: Connect = tenant_connection) -> Recorded
                 digest = claim_digest(conn, msg.survey_id, after_new_response=True)
             if response_id is not None:
                 events.append(_recorded(conn, msg, response_id))
-                if msg.contact_me and msg.contact_ref:
+                if msg.contact_me:
                     request = _request_contact(conn, msg, response_id)
                     if request is not None:
                         events.append(request)
@@ -135,13 +136,19 @@ def _recorded(conn: psycopg.Connection, msg: AnswerSubmitted, response_id: UUID)
 def _request_contact(
     conn: psycopg.Connection, msg: AnswerSubmitted, response_id: UUID
 ) -> ContactRequested | None:
-    """Create the response's contact request, or None if it already has one."""
+    """Create the response's contact request, or None if it already has one or there
+    is no way to reach the reader (no contact id, no address)."""
+    contact_ref, contact_email = conn.execute(
+        "select contact_ref, contact_email from responses where id = %s", (response_id,)
+    ).fetchone()
+    if not (contact_ref or contact_email):
+        return None
     row = conn.execute(
         """insert into contact_requests (tenant_id, survey_id, response_id, contact_ref)
            values (%s, %s, %s, %s)
            on conflict (response_id) do nothing
            returning id""",
-        (msg.tenant_id, msg.survey_id, response_id, msg.contact_ref),
+        (msg.tenant_id, msg.survey_id, response_id, contact_ref),
     ).fetchone()
     if row is None:
         return None
@@ -149,7 +156,9 @@ def _request_contact(
         tenant_id=msg.tenant_id,
         survey_id=msg.survey_id,
         contact_request_id=row[0],
-        contact_ref=msg.contact_ref,
+        contact_ref=contact_ref,
+        contact_email=contact_email,
+        response_id=response_id,
     )
 
 
@@ -175,8 +184,9 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> tuple[str, UUID | N
     inserted = conn.execute(
         """insert into responses
              (tenant_id, survey_id, submitted_at, link_token_hash, contact_ref, channel, segment,
-              comment)
-           values (%s, %s, %s, %s, %s, %s, %s, %s)
+              comment, contact_requested, contact_requested_at, contact_email)
+           values (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                   case when %s then %s::timestamptz end, %s)
            on conflict (survey_id, link_token_hash) do nothing
            returning id""",
         (
@@ -188,6 +198,10 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> tuple[str, UUID | N
             msg.channel,
             msg.segment,
             msg.comment,
+            msg.contact_me,
+            msg.contact_me,
+            msg.created_at,
+            msg.contact_email if msg.contact_me else None,
         ),
     ).fetchone()
     if inserted is not None:
@@ -221,10 +235,25 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> tuple[str, UUID | N
     else:
         conn.execute("delete from answers where response_id = %s", (response_id,))
     conn.execute(
-        """update responses set submitted_at = %s, contact_ref = coalesce(%s, contact_ref),
-                                comment = coalesce(%s, comment)
-           where id = %s""",
-        (msg.created_at, msg.contact_ref, msg.comment, response_id),
+        # Nothing here takes a contact or a "Contact me" away: an unticked box on a
+        # later form, or a later tap, keeps the earlier request.
+        """update responses set
+             submitted_at = %(at)s,
+             contact_ref = coalesce(%(ref)s, contact_ref),
+             comment = coalesce(%(comment)s, comment),
+             contact_requested = contact_requested or %(asked)s,
+             contact_requested_at = coalesce(contact_requested_at,
+                                             case when %(asked)s then %(at)s::timestamptz end),
+             contact_email = coalesce(%(email)s, contact_email)
+           where id = %(id)s""",
+        {
+            "at": msg.created_at,
+            "ref": msg.contact_ref,
+            "comment": msg.comment,
+            "asked": msg.contact_me,
+            "email": msg.contact_email if msg.contact_me else None,
+            "id": response_id,
+        },
     )
     _save_answers(conn, msg, response_id)
     change = dict(new_count)

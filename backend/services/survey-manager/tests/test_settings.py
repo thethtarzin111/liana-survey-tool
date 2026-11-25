@@ -112,22 +112,3 @@ def test_settings_are_saved_cleared_and_copied(client):
         assert r.json()["notify_on_response"] is True
     finally:
         client.delete(url)
-
-
-@pytest.mark.parametrize("body", [{"anonymous": "no"}, {"anonymous": None}, {"anonymous": 0}])
-def test_the_identified_answers_setting_takes_only_true_or_false(client, body):
-    app.dependency_overrides[tenant_db] = lambda: None
-    assert client.patch(f"/api/v1/surveys/{uuid4()}", json=body).status_code == 422
-
-
-@pytest.mark.db
-@needs_db
-def test_a_survey_can_be_set_to_identified_answers(client):
-    survey = client.post("/api/v1/surveys", json={"type": "nps", "title": "Identified test"}).json()
-    url = f"/api/v1/surveys/{survey['id']}"
-    try:
-        assert survey["anonymous"] is True  # anonymous by default
-        assert client.patch(url, json={"anonymous": False}).json()["anonymous"] is False
-        assert client.get(url).json()["anonymous"] is False
-    finally:
-        client.delete(url)

@@ -57,6 +57,8 @@ export function App() {
             <Route path="/surveys/:id/live" element={<LivePage />} />
             <Route path="/results" element={<ResultsPage />} />
             <Route path="/responses" element={<Navigate to="/results?tab=responses" replace />} />
+            {/* The old Contact requests page: its requests are a filter in Responses now. */}
+            <Route path="/contact-requests" element={<Navigate to="/results?tab=responses&group=contact" replace />} />
             <Route path="/templates" element={<TemplatesPage />} />
             <Route path="/integrations" element={<IntegrationsPage />} />
             <Route path="/support" element={<SupportPage />} />

@@ -44,8 +44,14 @@ Read `README.md` and `docs/architecture.md` first.
   `ports/` and an adapter in `adapters/`. `mock` is the default adapter.
 
 ## Privacy (GDPR)
-- Answers are anonymous by default. Store a contact reference only in
-  identified mode after opt-in. Never store recipient e-mail addresses.
+- Answers from the public link and the QR code are anonymous. An answer from a
+  newsletter link is identified by the reader's LianaMailer contact id
+  (`responses.contact_ref`), and the answer page tells the reader so.
+- Store an e-mail address only for a reader who asked to be contacted
+  (`responses.contact_email`), and in the connector's one-day LianaMailer
+  lookup cache (`lianamailer_contacts`). Nowhere else: not on other answers,
+  not in logs, and in the front end only on those readers' rows in Results.
+  See `docs/gdpr.md`.
 - Use demo data only (Example Members Association, Anna Virtanen). No real
   people, no real Liana customer data, no staging logins in the repo.
 

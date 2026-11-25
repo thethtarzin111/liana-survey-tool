@@ -1,52 +1,34 @@
 import pytest
 
-from liana_survey_shared.contact import (
-    ContactRefError,
-    answer_contact_ref,
-    contact_ref_to_store,
-)
+from liana_survey_shared.contact import InvalidEmail, answer_contact_ref, clean_email
 
 
-def test_answers_stay_anonymous_without_both_opt_ins():
-    # The survey must offer the opt-in and the reader must tick it.
-    assert contact_ref_to_store(False, True, "lm-contact-42") is None
-    assert contact_ref_to_store(True, False, "lm-contact-42") is None
-    assert contact_ref_to_store(False, False, None) is None
-
-
-def test_an_opted_in_reader_is_linked_by_contact_reference():
-    assert contact_ref_to_store(True, True, "  lm-contact-42 ") == "lm-contact-42"
+def test_an_answer_from_a_newsletter_link_keeps_its_contact_id():
+    assert answer_contact_ref(" 4084399 ") == "4084399"
 
 
 @pytest.mark.parametrize("ref", [None, "", "   "])
-def test_opting_in_needs_a_reference(ref):
-    with pytest.raises(ContactRefError):
-        contact_ref_to_store(True, True, ref)
+def test_without_a_contact_id_the_answer_is_anonymous(ref):
+    assert answer_contact_ref(ref) is None
 
 
 @pytest.mark.parametrize("ref", ["anna.virtanen@example.org", "x <a@b.fi>"])
-def test_email_addresses_are_never_stored(ref):
-    with pytest.raises(ContactRefError, match="never an e-mail address"):
-        contact_ref_to_store(True, True, ref)
+def test_an_email_address_is_never_taken_as_a_contact_id(ref):
+    assert answer_contact_ref(ref) is None
 
 
-def ref(identified=False, offered=True, ticked=False, contact="4084399"):
-    return answer_contact_ref(
-        identified_survey=identified,
-        survey_offers_opt_in=offered,
-        reader_opted_in=ticked,
-        contact_ref=contact,
-    )
+def test_a_typed_email_address_is_trimmed_and_lower_cased():
+    assert clean_email("  Anna.Virtanen@Example.org ") == "anna.virtanen@example.org"
 
 
-def test_answers_stay_anonymous_unless_identified_or_contact_me():
-    assert ref() is None
-    assert ref(ticked=True) == "4084399"
-    assert ref(offered=False, ticked=True) is None  # ticked a box the survey does not offer
-    assert ref(identified=True) == "4084399"
+@pytest.mark.parametrize(
+    "value", [None, "", "anna", "anna@", "anna@example", "a b@example.org", "a@b@example.org"]
+)
+def test_an_address_nobody_can_be_reached_at_is_refused(value):
+    with pytest.raises(InvalidEmail):
+        clean_email(value)
 
 
-def test_without_a_usable_contact_the_answer_stays_anonymous():
-    assert ref(identified=True, contact=None) is None
-    assert ref(identified=True, contact="  ") is None
-    assert ref(ticked=True, contact="anna@example.com") is None
+def test_an_overlong_address_is_refused():
+    with pytest.raises(InvalidEmail):
+        clean_email("a" * 250 + "@example.org")

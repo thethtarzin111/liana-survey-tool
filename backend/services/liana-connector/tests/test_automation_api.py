@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
 
 from liana_connector.api import app
 from liana_connector.automation import repo, routes, secrets
@@ -273,3 +274,54 @@ def test_answers_not_sent_on_purpose_cannot_be_retried(api):
     skipped = api.get(f"{URL}/liana-automation/events", params={"status": "skipped"}).json()
     assert [e["status"] for e in skipped] == ["skipped"]
     assert api.get(URL).json()["events"] == {"skipped": 1}
+
+
+class Directory:
+    """A fake LianaMailer for Retry: contact.<id>@example.com, 999 is unknown."""
+
+    def email_for(self, contact_id):
+        from liana_connector.ports.contact_directory import ContactNotFound
+
+        if contact_id == "999":
+            raise ContactNotFound(contact_id)
+        return f"contact.{contact_id}@example.com"
+
+
+def _waiting_answer(contact_id):
+    """A survey_answered row that failed before its address could be looked up."""
+    payload = {
+        "identity": {"lianamailer_id": contact_id},
+        "events": [{"verb": "survey_answered", "items": {"survey_id": "s1", "score": "9"}}],
+    }
+    with tenant_connection(DEMO_TENANT) as conn:
+        return conn.execute(
+            """insert into integration_events (tenant_id, verb, payload, test, status, last_error)
+               values (%s, 'survey_answered', %s, true, 'failed', 'LianaMailer is not set up')
+               returning id""",
+            (DEMO_TENANT, Jsonb(payload)),
+        ).fetchone()[0]
+
+
+def test_retry_looks_the_contacts_address_up_before_sending(api):
+    api.put(f"{URL}/liana-automation", json=DEMO)
+    api.patch(f"{URL}/liana-automation", json={"channel_id": "demo-1"})
+    app.dependency_overrides[routes.contact_directory] = Directory
+    sent = api.post(f"{URL}/events/{_waiting_answer('4084399')}/retry").json()
+    assert sent["status"] == "sent"
+    # Sent with the address; the sync log keeps the contact id and a shortened address.
+    assert sent["payload"]["identity"] == {"lianamailer_id": "4084399"}
+    assert "contact.4084399@example.com" not in str(sent)
+    assert sent["contact"] == "co…@example.com"
+    assert sent["liana_response"].startswith("HTTP 200 ")
+
+    unknown = api.post(f"{URL}/events/{_waiting_answer('999')}/retry").json()
+    assert (unknown["status"], unknown["last_error"]) == (
+        "skipped",
+        "Not sent: contact not found in LianaMailer (r=999).",
+    )
+
+
+def test_the_status_says_whether_lianamailer_is_set_up(api):
+    assert api.get(URL).json()["lianamailer_set_up"] is False
+    app.dependency_overrides[routes.contact_directory] = Directory
+    assert api.get(URL).json()["lianamailer_set_up"] is True

@@ -178,6 +178,9 @@ def test_rows_newest_first_with_masking(survey):
         "comment": "Mail me at [hidden] thanks",
         "masked": True,
         "segment_label": "Members",
+        # It has a contact id, but did not ask to be contacted: stays anonymised.
+        "contact_requested": False,
+        "contact": None,
     }
     by_id = {row["id"]: row for row in body["rows"]}
     second = by_id[str(made[1])]
@@ -453,3 +456,34 @@ def test_the_tell_us_more_box_is_the_comment_of_surveys_without_a_text_question(
         assert (row["comment"], row["masked"]) == ("Mail me at [hidden]", True)
     finally:
         _delete(survey_id)
+
+
+@pytest.mark.db
+@needs_db
+def test_asked_to_be_contacted_shows_only_those_readers_with_their_address(survey):
+    survey_id, made = survey
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            """update responses set contact_requested = true, contact_requested_at = now(),
+                      contact_email = 'test.mikko@example.com' where id = %s""",
+            (made[1],),
+        )
+        # LianaMailer has not given the address yet: the contact id stands in.
+        conn.execute(
+            """update responses set contact_requested = true, contact_requested_at = now(),
+                      contact_ref = '4084400' where id = %s""",
+            (made[5],),
+        )
+    body = responses(survey_id, group="contact").json()
+    assert body["total"] == 2
+    assert [(r["id"], r["contact_requested"], r["contact"]) for r in body["rows"]] == [
+        (str(made[5]), True, "LianaMailer contact 4084400"),
+        (str(made[1]), True, "test.mikko@example.com"),
+    ]
+    # Everyone else stays anonymised in the full list.
+    rows = responses(survey_id).json()["rows"]
+    assert {r["contact"] for r in rows if r["id"] not in (str(made[1]), str(made[5]))} == {None}
+    assert detail(survey_id, made[1]).json()["contact"] == "test.mikko@example.com"
+    assert detail(survey_id, made[0]).json()["contact"] is None
+    # The CSV follows the filter.
+    assert len(export(survey_id, group="contact").text.splitlines()) == 3  # header, 2 rows

@@ -92,6 +92,26 @@ repository secret**, add the three secrets exactly as printed. Then
 **Actions > Deploy demo > Run workflow**. After that, every merge to `main`
 deploys automatically once CI passes.
 
+### LianaMailer API (optional)
+
+LianaAutomation matches contacts by email, so the app looks newsletter readers'
+email addresses up in LianaMailer before it sends their events. Add these
+repository secrets the same way (the API user, secret and realm come from Liana):
+
+| Secret | Example |
+|---|---|
+| `LIANAMAILER_API_HOST` | `rest.lianamailer.com` |
+| `LIANAMAILER_API_USER` | the API user id |
+| `LIANAMAILER_API_SECRET` | the API secret |
+| `LIANAMAILER_API_REALM` | `EUR` (the default when left out) |
+
+The next deploy puts them in the release's `.env`, readable only by the app user.
+Or set them in `/etc/lianasurvey/app.env` on the server (they win over the
+secrets), then `sudo systemctl restart lianasurvey`. Without them the Integrations
+page says "Contact lookup: not set up", and newsletter readers' events wait in the
+sync log as failed until they are set (then press Retry). A value must not
+contain a single quote.
+
 ## 4. Share it
 
 Send Liana and the students the address with the logins. You can give

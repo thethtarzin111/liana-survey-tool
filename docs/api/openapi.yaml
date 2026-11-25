@@ -628,10 +628,17 @@ paths:
     post:
       tags: [integrations]
       summary: Send a failed event again, with the same data
+      description: >-
+        An event still waiting for the contact's email address (stored with a LianaMailer contact
+        id because the lookup failed earlier) gets the address from the LianaMailer API first. A
+        contact LianaMailer does not know makes the event skipped ("Not sent: contact not found in
+        LianaMailer"). The event is sent only when LianaAutomation's answer accepts it: a 200
+        whose body reports refused events is failed. The answer is stored on the event
+        (liana_response).
       parameters:
         - { name: event_id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
-        '200': { description: Sent or failed again, content: { application/json: { schema: { $ref: '#/components/schemas/SyncEvent' } } } }
+        '200': { description: 'Sent, failed again, or skipped (contact not found)', content: { application/json: { schema: { $ref: '#/components/schemas/SyncEvent' } } } }
         '404': { description: Event not found }
         '409': { description: 'Already sent, already being sent (a double click), or not sent on purpose (skipped: an anonymous answer or an unknown contact)' }
   /api/v1/results/performance:
@@ -713,6 +720,7 @@ paths:
           description: >-
             Answer group of the survey's first scale question. Thumbs: not-for-me, good, loved-it.
             NPS: detractors, passives, promoters. Rating: low (1-2), neutral (3), high (4-5).
+            Any survey: contact, the readers who asked to be contacted ("Asked to be contacted").
           schema: { type: string }
         - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
         - { name: offset, in: query, required: false, schema: { type: integer, minimum: 0, default: 0 } }
@@ -752,6 +760,7 @@ paths:
           description: >-
             Answer group of the survey's first scale question. Thumbs: not-for-me, good, loved-it.
             NPS: detractors, passives, promoters. Rating: low (1-2), neutral (3), high (4-5).
+            Any survey: contact, the readers who asked to be contacted ("Asked to be contacted").
           schema: { type: string }
       responses:
         '200':
@@ -793,15 +802,17 @@ paths:
         opens; without JavaScript the reader presses Submit. The follow-up page also has the
         survey's other questions (all optional there), the "Tell us more" box (comment_field, when
         the survey has no text question) and the "Contact me" box (contact_opt_in).
-        Answers stay anonymous: only a key derived from the reader is stored, so each reader counts
-        once. Only when the survey is set to identified answers (anonymous false) or the reader
-        ticks "Contact me" does the reader reference go with the answer, as the LianaMailer contact
-        id (never an email address). A reader's later answer replaces their earlier one (#126).
+        An answer link's reader (r, the LianaMailer contact id) is the answer's contact: the answer
+        is identified and sent to LianaAutomation, and the page says so. Ticking "Contact me" there
+        needs no email address (the connector looks it up in LianaMailer). A key derived from the
+        reader counts each reader once; a reader's later answer replaces their earlier one (#126),
+        never removing the contact or a "Contact me".
         Without r, s and a (the plain public link, copied or from the QR code), returns the survey
         link page (#105): the reader title (custom surveys: the survey title), the description,
-        every question and the "Tell us more" box, as an HTML form that posts to the same address.
-        No "Contact me" there: these readers have no contact. Each visit gets a new signed visit
-        key. The visit counts toward the ch channel's views.
+        every question, the "Tell us more" box and the "Contact me" box with an email field, as an
+        HTML form that posts to the same address. These answers are anonymous unless the reader
+        ticks "Contact me" and gives an address. Each visit gets a new signed visit key. The visit
+        counts toward the ch channel's views.
         Pages are sent with Cache-Control no-store and Referrer-Policy no-referrer. Once the survey
         is found, its fixed texts (headings, buttons, default and error messages) are in the
         survey's language.
@@ -855,7 +866,8 @@ paths:
                 seg: { type: string, description: 'Follow-up page: the segment tag' }
                 step: { type: string, enum: [tap], description: 'Follow-up page: save the tapped answer alone (204)' }
                 comment: { type: string, maxLength: 5000, description: 'The optional "Tell us more" box' }
-                contact_me: { type: string, description: '"Contact me about this by email" ticked (follow-up page with a reader only)' }
+                contact_me: { type: string, description: '"Contact me about this by email" ticked' }
+                contact_email: { type: string, maxLength: 254, description: 'Survey link page only: required when contact_me is ticked (the form comes back with a 400 otherwise), kept only then' }
               additionalProperties:
                 description: 'q-<question id>: the answer; repeated for each picked option'
                 type: array
@@ -928,7 +940,6 @@ components:
         closes_at: { type: [string, 'null'], format: date-time, description: 'Setting: no answers after this time; must be in the future and include a time zone; null removes it' }
         response_limit: { type: [integer, 'null'], minimum: 1, maximum: 1000000, description: 'Setting: no new readers once this many have answered (a reader can still change their answer); null removes it' }
         notify_on_response: { type: boolean, description: 'Setting: "Notify me of new responses by email". Stored only; the emails are #128' }
-        anonymous: { type: boolean, description: 'Setting: false = identified answers. An answer from a newsletter link keeps the reader''s LianaMailer contact id and is sent to LianaAutomation; the answer page tells the reader. Default true (anonymous unless the reader ticks "Contact me")' }
     Survey:
       type: object
       required: [id, title, description, thank_you, type, status, anonymous, comment_field, show_results, contact_opt_in, accent_color, background_color, logo_url, public_url, published_at, language, opens_at, closes_at, response_limit, notify_on_response, created_at, updated_at]
@@ -1026,12 +1037,13 @@ components:
         updated_at: { type: string, format: date-time }
     IntegrationsStatus:
       type: object
-      required: [liana_automation, events, demo_available]
+      required: [liana_automation, events, demo_available, lianamailer_set_up]
       properties:
         liana_automation:
           oneOf: [{ $ref: '#/components/schemas/LianaConnection' }, { type: 'null' }]
         events: { type: object, additionalProperties: { type: integer }, example: { sent: 12, failed: 1 } }
         demo_available: { type: boolean, description: The demo host can be used (dev mode) }
+        lianamailer_set_up: { type: boolean, description: 'The server has the LianaMailer API settings (LIANAMAILER_API_*), needed to look up newsletter readers'' email addresses' }
     LianaChannel:
       type: object
       required: [id, name]
@@ -1040,15 +1052,17 @@ components:
         name: { type: string }
     SyncEvent:
       type: object
-      required: [id, verb, contact, test, status, attempts, last_error, created_at, sent_at]
+      required: [id, verb, contact, test, status, attempts, last_error, payload, liana_response, created_at, sent_at]
       properties:
         id: { type: string, format: uuid }
         verb: { type: string, example: survey_answered }
-        contact: { type: [string, 'null'], description: 'Shortened email, e.g. su…@example.com' }
+        contact: { type: [string, 'null'], description: 'Shortened email, e.g. su…@example.com (or the contact id until the email address is looked up)' }
         test: { type: boolean }
-        status: { type: string, enum: [pending, sent, retrying, failed, skipped], description: 'skipped: deliberately not sent (an anonymous answer, or an unknown contact); last_error says why' }
+        status: { type: string, enum: [pending, sent, retrying, failed, skipped], description: 'sent: LianaAutomation accepted it. skipped: deliberately not sent (an anonymous answer, or a contact LianaMailer does not know); last_error says why' }
         attempts: { type: integer }
         last_error: { type: [string, 'null'] }
+        payload: { type: object, description: 'The data item for POST /import as stored, for Details: the contact is the LianaMailer contact id (or the response holding a typed address); the email address is added only when it is sent, never stored' }
+        liana_response: { type: [string, 'null'], description: 'LianaAutomation''s answer to the last try: HTTP status and body (shortened, email addresses hidden), for Details' }
         created_at: { type: string, format: date-time }
         sent_at: { type: [string, 'null'], format: date-time }
     ResponsesPage:
@@ -1060,7 +1074,7 @@ components:
           type: array
           items:
             type: object
-            required: [id, display_id, submitted_at, answer, reason, comment, masked, segment_label]
+            required: [id, display_id, submitted_at, answer, reason, comment, masked, segment_label, contact_requested, contact]
             properties:
               id: { type: string, format: uuid }
               display_id: { type: string, example: R-5337A1 }
@@ -1070,13 +1084,17 @@ components:
               comment: { type: [string, 'null'], description: First text question, emails and phone numbers hidden }
               masked: { type: boolean, description: True when something in the comment was hidden }
               segment_label: { type: [string, 'null'], description: Null when segments are off }
+              contact_requested: { type: boolean, description: The reader ticked "Contact me" }
+              contact: { type: [string, 'null'], description: 'Only when contact_requested: the email address, or "LianaMailer contact <id>" until it is looked up. Null for everyone else (anonymised)' }
     ResponseDetail:
       type: object
-      required: [display_id, submitted_at, segment_label, answers]
+      required: [display_id, submitted_at, segment_label, contact_requested, contact, answers]
       properties:
         display_id: { type: string }
         submitted_at: { type: string, format: date-time }
         segment_label: { type: [string, 'null'] }
+        contact_requested: { type: boolean }
+        contact: { type: [string, 'null'], description: As in the responses list }
         answers:
           type: array
           items:

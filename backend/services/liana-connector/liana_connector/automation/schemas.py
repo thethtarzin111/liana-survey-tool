@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -31,6 +31,9 @@ class IntegrationsStatus(BaseModel):
     events: dict[str, int]
     #: Whether the built-in demo host may be used (local development only).
     demo_available: bool
+    #: Whether the server has the LianaMailer API settings, needed to send events for
+    #: newsletter readers (their email address is looked up there).
+    lianamailer_set_up: bool = False
 
 
 class CredentialsIn(BaseModel):
@@ -69,5 +72,9 @@ class SyncEvent(BaseModel):
     status: Literal["pending", "sent", "retrying", "failed", "skipped"]
     attempts: int
     last_error: str | None
+    #: What was (or will be) sent to POST /import, and LianaAutomation's answer
+    #: (HTTP status and body), for the sync log's Details.
+    payload: dict[str, Any]
+    liana_response: str | None = None
     created_at: datetime
     sent_at: datetime | None

@@ -67,9 +67,28 @@ test('a sidebar route renders its page', async () => {
   expect(await screen.findByRole('heading', { name: 'Integrations' })).toBeInTheDocument();
 });
 
-test('the Contact requests page is gone', () => {
+test('the old Contact requests link opens Responses with Asked to be contacted on', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.startsWith('/api/v1/surveys')) {
+        return Response.json([
+          { id: 's1', title: 'Member NPS', type: 'nps', status: 'live', answers: 3, last_answer_at: null, headline: null },
+        ]);
+      }
+      if (path.includes('/responses')) return Response.json({ total: 0, rows: [] });
+      return Response.json({
+        survey_id: 's1', title: 'Member NPS', type: 'nps', status: 'live', closes_at: null, last_answer_at: null,
+        channels: [], segment: 'all', segments: [], responses: 3, views: 0, response_rate: null, completed_all: null,
+        main: null, questions: [], reasons: [], trend: [], by_segment: [],
+      });
+    }),
+  );
   renderAt('/contact-requests');
-  expect(screen.getByText('Page not found.')).toBeInTheDocument();
+  expect(await screen.findByRole('tab', { name: 'Responses 3' })).toHaveAttribute('aria-selected', 'true');
+  expect(await screen.findByRole('button', { name: 'Asked to be contacted' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.queryByText('Page not found.')).toBeNull();
   expect(screen.queryByRole('link', { name: 'Contact requests' })).toBeNull();
 });
 

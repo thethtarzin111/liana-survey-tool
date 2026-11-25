@@ -215,6 +215,21 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.fi: "Ottakaa minuun yhteyttä tästä sähköpostitse",
         Language.sv: "Kontakta mig om detta via e-post",
     },
+    "contact_email": {
+        Language.en: "Your email address",
+        Language.fi: "Sähköpostiosoitteesi",
+        Language.sv: "Din e-postadress",
+    },
+    "contact_email_hint": {
+        Language.en: "Needed only if you want us to contact you.",
+        Language.fi: "Tarvitaan vain, jos haluat, että otamme sinuun yhteyttä.",
+        Language.sv: "Behövs bara om du vill att vi kontaktar dig.",
+    },
+    "contact_email_needed": {
+        Language.en: "Enter your email address so we can contact you, or untick “Contact me”.",
+        Language.fi: "Anna sähköpostiosoitteesi, jotta voimme ottaa yhteyttä, tai poista valinta.",
+        Language.sv: "Ange din e-postadress så att vi kan kontakta dig, eller avmarkera rutan.",
+    },
     "identified_notice": {
         Language.en: "Your answer is linked to your contact details with the sender.",
         Language.fi: "Vastauksesi yhdistetään yhteystietoihisi lähettäjän järjestelmässä.",

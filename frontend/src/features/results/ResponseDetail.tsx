@@ -90,6 +90,11 @@ export function ResponseDetail({ surveyId, responseId, returnTo, onClose }: Prop
                 {detail.segment_label ? ` · ${detail.segment_label}` : ''}
               </p>
             ) : null}
+            {detail?.contact_requested ? (
+              <p className="response-panel-meta">
+                <Tag>Contact me</Tag> {detail.contact ?? ''}
+              </p>
+            ) : null}
           </div>
           <IconButton ref={closeButton} label="Close" icon={icons.close} onClick={onClose} />
         </div>

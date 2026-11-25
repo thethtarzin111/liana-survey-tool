@@ -105,9 +105,6 @@ class SurveyUpdate(BaseModel):
     closes_at: AwareDatetime | None = None
     response_limit: ResponseLimit | None = None
     notify_on_response: StrictBool | None = None
-    # False = identified answers: an answer from a newsletter link keeps the reader's
-    # LianaMailer contact id and goes to LianaAutomation (the reader is told so).
-    anonymous: StrictBool | None = None
     # Language of the fixed texts readers see: en, fi or sv.
     language: Language | None = None
 

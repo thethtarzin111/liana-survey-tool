@@ -256,3 +256,72 @@ def test_the_api_refuses_to_start_with_the_default_key_outside_dev(monkeypatch):
     )
     with pytest.raises(secrets.WeakKey), TestClient(api.app):
         pass
+
+
+# --- Sent only when Liana accepted the event -------------------------------------------
+
+
+def test_an_accepted_import_returns_lianas_answer_for_the_sync_log():
+    fake = FakeLiana(body={"succeed": True, "imported": 1})
+    answer = client(fake).import_events({"channel": "1", "data": []})
+    assert answer == 'HTTP 200 {"succeed":true,"imported":1}'
+
+
+@pytest.mark.parametrize(
+    ("body", "reason"),
+    [
+        ({"succeed": False, "message": "unknown identity"}, "unknown identity"),
+        ({"success": False}, "success is false"),
+        ({"errors": [{"index": 0, "message": "bad email"}]}, "bad email"),
+        ({"imported": 0, "rejected": 1}, "rejected: 1"),
+        ({"results": [{"ok": True}, {"error": "no such contact"}]}, "no such contact"),
+    ],
+)
+def test_a_200_whose_body_refuses_the_event_is_a_permanent_error(body, reason):
+    with pytest.raises(PermanentError, match=reason) as refused:
+        client(FakeLiana(body=body)).import_events({"channel": "1", "data": []})
+    assert refused.value.response.startswith("HTTP 200 ")
+
+
+def test_an_import_answer_that_says_nothing_wrong_is_accepted():
+    for body in ({}, {"ok": True}, {"imported": 2, "failed": 0, "errors": []}, [1, 2]):
+        assert domain.import_problem(body) is None
+
+
+def test_a_refused_call_keeps_lianas_answer():
+    with pytest.raises(PermanentError) as refused:
+        client(FakeLiana(answers=[400])).import_events({"channel": "1", "data": []})
+    assert refused.value.response == 'HTTP 400 {"error":"x"}'
+
+
+def test_email_addresses_in_lianas_answer_are_hidden_before_it_is_kept_or_logged():
+    body = {"succeed": True, "imported": [{"email": "test.anna@example.com", "id": 7}]}
+    answer = client(FakeLiana(body=body)).import_events({"channel": "1", "data": []})
+    assert "test.anna@example.com" not in answer
+    assert '"email":"[email]"' in answer
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (200, {"succeed": False, "message": "Invalid email anna@example.com"}),
+        (200, {"errors": [{"identity": "test.mikko@example.com", "error": "unknown"}]}),
+        (400, {"error": "No contact anna@example.com"}),
+        (409, {"error": "Conflict for anna@example.com"}),
+    ],
+)
+def test_an_address_in_lianas_error_never_reaches_the_sync_log(status, body):
+    # From review: last_error is kept in the sync log, so Liana's own message is
+    # scrubbed too, not only the stored answer.
+    def answer(request):
+        if request.url.host == "tokens.lianacloud.com":
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 900})
+        return httpx.Response(status, json=body)
+
+    http = httpx.Client(transport=httpx.MockTransport(answer))
+    c = LianaClient("rest.automation.lianacloud.com", "id", "secret", http=http)
+    with pytest.raises(PermanentError) as refused:
+        c.import_events({"channel": "1", "data": []})
+    assert "@example.com" not in str(refused.value)
+    assert "@example.com" not in refused.value.response
+    assert "[email]" in refused.value.response
