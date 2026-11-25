@@ -146,7 +146,7 @@ test('news and inspiration list the articles when the flag is on', async () => {
   renderPage([]);
   expect(await screen.findByRole('heading', { name: 'News and inspiration' })).toBeInTheDocument();
   const news = await screen.findByRole('region', { name: 'Recent news' });
-  expect(within(news).getAllByRole('listitem')).toHaveLength(4);
+  expect(within(news).getAllByRole('listitem')).toHaveLength(3);
   expect(within(news).getByRole('link', { name: 'View all ↗' })).toBeInTheDocument();
   expect(within(region('Get inspired')).getByText(/Close the loop with LianaAutomation/)).toBeInTheDocument();
 });
