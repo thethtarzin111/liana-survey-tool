@@ -80,14 +80,15 @@
 
 .sidebar {
   width: var(--sidebar-width); flex: none; overflow: auto;
-  /* Liana's .main-navigation: 0.571em 1.143em 1.143em on a 12px base. */
-  display: flex; flex-direction: column; gap: 2px; padding: 6.86px 13.71px 13.71px;
+  /* Liana's .main-navigation: 0.571em 1.143em 1.143em at 13px. The right side
+     leaves room for the 1px border, so the items are 217.3px wide, as in Liana. */
+  display: flex; flex-direction: column; gap: 2px; padding: 7.43px 13.86px 14.86px 14.86px;
   background: var(--color-surface); border-right: 1px solid var(--color-border);
   /* No line beside the main area's rounded corner. The line starts below it. */
   border-image: linear-gradient(to bottom, transparent var(--radius-card), var(--color-border) var(--radius-card)) 1;
 }
 .sidebar .btn { margin-bottom: 10px; }
-.sidebar-divider { height: 1px; background: var(--color-border); margin: 12px -13.71px; }
+.sidebar-divider { height: 1px; background: var(--color-border); margin: 12px -13.86px 12px -14.86px; }
 .sidebar-footer { display: flex; flex-direction: column; gap: 2px; }
 
 .nav-link {
