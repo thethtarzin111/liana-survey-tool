@@ -12,6 +12,7 @@ class MockContactEvents:
     def __init__(self) -> None:
         self.sent: list[ContactRequested] = []
         self.answers: list[AnswerRecorded] = []
+        self.given_up: list[tuple[AnswerRecorded | ContactRequested, str]] = []
 
     def send_contact_requested(self, event: ContactRequested) -> None:
         self.sent.append(event)
@@ -24,3 +25,7 @@ class MockContactEvents:
             event.survey_id,
             event.contact_ref is not None,
         )
+
+    def give_up(self, event: AnswerRecorded | ContactRequested, reason: str) -> None:
+        self.given_up.append((event, reason))
+        log.info("[mock LianaAutomation] gave up on %s: %s", event.type, reason)

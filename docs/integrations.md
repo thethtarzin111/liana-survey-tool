@@ -76,9 +76,8 @@ talks to Liana.
 - Not built yet: a role check. Any signed-in member of the organisation can
   connect, disconnect or retry; with real authentication only admins should.
 - Not built yet: an outbox (the worker writes the event in the answer's
-  transaction instead of publishing it afterwards) and sending in batches with
-  back-off. Today a message lost between the worker and the connector leaves no
-  sync log row.
+  transaction instead of publishing it afterwards) and sending in batches. Today
+  a message lost between the worker and the connector leaves no sync log row.
 
 ## Answers from newsletter links: the follow-up page
 
@@ -150,11 +149,27 @@ organisation's own connection from the Integrations page:
 - Not tested yet, or no channel: the row is failed with the reason, and the admin
   presses Retry after fixing it.
 - 5xx and timeouts: the row is `retrying` and the port's `TemporaryError` is raised,
-  so the connector retries with back-off (#58). Bad data, a wrong host or wrong
-  credentials: the row is failed, the connection shows the error, and the message
-  goes to the dead-letter queue (`DeliveryFailed`).
+  so the connector retries with back-off (#58, see "Retries" below). Bad data, a
+  wrong host or wrong credentials: the row is failed, the connection shows the
+  error, and the message goes to the dead-letter queue (`DeliveryFailed`).
 - To check with Liana: the identity name (`lianamailer_id`). The survey tool never
   stores email addresses, so a contact is matched on its LianaMailer contact id.
+
+## Retries (#58)
+
+When a port raises `TemporaryError` (LianaAutomation answered 5xx or timed out,
+or the mail server is down), the connector publishes the message to
+`survey.liana-events` again after `retry.backoff_seconds(attempt)`: 2, 4, 8, ...
+seconds, at most 300. The attempt number travels in the `x-attempt` header. The
+original message is acknowledged only after the copy is published, so a crash in
+between redelivers it instead of losing it. The sync log row stays `retrying`
+and is reused by each attempt.
+
+After `retry.MAX_ATTEMPTS` (8) the message goes to `survey.dead-letter`, and the
+port's `give_up()` turns the `retrying` row into `failed` ("Gave up after several
+tries. Last error: …"), so the admin sees Retry instead of a row that waits
+forever. Any other error is not retried: the message goes to the dead-letter
+queue at once. The local gateway without RabbitMQ does not retry.
 
 ## Switching adapters
 `LIANA_ADAPTER=mock` (default) or `LIANA_ADAPTER=lianaautomation` in `.env`. The

@@ -354,3 +354,48 @@ def test_a_failed_answer_is_sent_when_it_is_delivered_again(connect, response):
     adapter.send_answer_recorded(an_answer(response))
     [row], _ = _log()
     assert (row["status"], row["attempts"]) == ("sent", 2)
+
+
+# --- The connector gives up after its last attempt (#58) ------------------------------
+
+
+@needs_db
+def test_a_request_still_retrying_after_the_last_attempt_becomes_failed(connect):
+    connect()
+    fake = FakeClient(failures=[TemporaryError("Liana answered 503. Try again later.")])
+    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    request = a_request()
+    with pytest.raises(RetryLater):
+        adapter.send_contact_requested(request)
+    adapter.give_up(request, "Liana answered 503. Try again later.")
+    [row], _ = _log()
+    assert row["status"] == "failed"
+    assert row["last_error"] == (
+        "Gave up after several tries. Last error: Liana answered 503. Try again later."
+    )
+
+
+@needs_db
+def test_an_answer_still_retrying_after_the_last_attempt_becomes_failed(connect, response):
+    connect()
+    fake = FakeClient(failures=[TemporaryError("Liana answered 503. Try again later.")])
+    adapter = LianaAutomationContactEvents(KEY, build=fake)
+    with pytest.raises(RetryLater):
+        adapter.send_answer_recorded(an_answer(response))
+    adapter.give_up(an_answer(response), "timeout")
+    [row], _ = _log()
+    assert (row["status"], row["last_error"]) == (
+        "failed",
+        "Gave up after several tries. Last error: timeout",
+    )
+
+
+@needs_db
+def test_giving_up_leaves_a_sent_event_alone(connect):
+    connect()
+    adapter = LianaAutomationContactEvents(KEY, build=FakeClient())
+    request = a_request()
+    adapter.send_contact_requested(request)
+    adapter.give_up(request, "late")
+    [row], _ = _log()
+    assert (row["status"], row["last_error"]) == ("sent", None)
