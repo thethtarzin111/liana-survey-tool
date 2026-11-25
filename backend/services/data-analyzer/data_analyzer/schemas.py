@@ -94,6 +94,11 @@ class ResponseRow(BaseModel):
     comment: str | None
     masked: bool
     segment_label: str | None
+    #: The reader ticked "Contact me".
+    contact_requested: bool = False
+    #: Only for those readers: their email address (or LianaMailer contact id until
+    #: it is looked up). Everyone else stays anonymised.
+    contact: str | None = None
 
 
 class ResponsesPage(BaseModel):
@@ -113,4 +118,6 @@ class ResponseDetail(BaseModel):
     display_id: str
     submitted_at: datetime
     segment_label: str | None
+    contact_requested: bool = False
+    contact: str | None = None
     answers: list[ResponseAnswer]

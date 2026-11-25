@@ -119,7 +119,7 @@ test('an API refusal is shown with its reason', async () => {
 
 test('says answers are anonymous and links to results and all surveys', () => {
   renderCard();
-  expect(screen.getByText(/Answers are anonymous. Readers who tick “Contact me” share their contact/)).toBeInTheDocument();
+  expect(screen.getByText(/Answers from the public link and QR code are anonymous, unless the reader ticks “Contact me”/)).toBeInTheDocument();
   expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Go to results' })).toHaveAttribute('href', '/results');
   expect(screen.getByRole('link', { name: 'Back to all surveys' })).toHaveAttribute('href', '/surveys');
@@ -147,13 +147,8 @@ test('surveys without a language show English', () => {
   expect(screen.getByLabelText('Survey language')).toHaveValue('en');
 });
 
-test('a survey can be set to identified answers from newsletter links', async () => {
-  renderCard({ ...survey, anonymous: true });
-  expect(screen.getByText(/Answers are anonymous\. Readers who tick “Contact me”/)).toBeInTheDocument();
-  fireEvent.click(screen.getByLabelText(/Identified answers from newsletter links/));
-  expect(screen.getByText(/linked to the reader’s contact/)).toBeInTheDocument();
-  fireEvent.click(save());
-
-  expect(await screen.findByText('Settings saved')).toBeInTheDocument();
-  expect(sentBody()).toEqual({ anonymous: false });
+test('the privacy note says newsletter answers are linked to the contact', () => {
+  renderCard();
+  expect(screen.getByText(/Answers from a LianaMailer newsletter are linked to the reader’s contact/)).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Identified answers/)).toBeNull();
 });

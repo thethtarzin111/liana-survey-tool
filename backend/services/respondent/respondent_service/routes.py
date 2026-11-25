@@ -12,10 +12,11 @@ LianaMailer filled in and campaign/segment tags: /r/<token>?r=<id>&c=..&seg=..&a
 An answer link opens the follow-up page for the tapped answer, which saves the
 answer itself with a POST (mail scanners only open links, so they never answer),
 and offers the survey's other questions, "Tell us more" and "Contact me". Answers
-go on the queue for the worker. They stay anonymous, with only a key derived from
-the reader reference to count each reader once, unless the survey is set to
-identified answers or the reader ticks "Contact me"; then the LianaMailer contact
-id from the link goes with the answer (liana_survey_shared.contact).
+go on the queue for the worker. An answer from a newsletter link is identified:
+the LianaMailer contact id from the link goes with it (liana_survey_shared.contact)
+and the page says so. Answers from the plain link and the QR code stay anonymous,
+with only a key to count each reader once; a reader there who ticks "Contact me"
+leaves an email address.
 """
 
 import logging
@@ -173,8 +174,9 @@ def _follow_up_page(
         answer=checked.value,
         link_fields=fields,
         comment_box=domain.shows_comment_box(survey, questions),
-        contact_box=domain.shows_contact_me(survey, fields.get("r")),
-        identified=not survey["anonymous"] and bool(fields.get("r")),
+        contact_box=domain.shows_contact_me(survey),
+        email_box=domain.asks_contact_email(answer_contact_ref(fields.get("r"))),
+        identified=answer_contact_ref(fields.get("r")) is not None,
         sent=sent,
         error=error,
     )
@@ -199,27 +201,22 @@ async def _submit_link_answer(
         return checked
     tap = form.get("step", [""])[0] == "tap"
     main = AnswerValue(question_id=survey["main_id"], number=checked.value)
-    answers, comment, contact_me = [main], None, False
+    # A newsletter link names its reader: the answer is identified, with or without
+    # "Contact me", and the follow-up form never takes the contact away.
+    contact_ref = answer_contact_ref(fields.get("r"))
+    answers, comment, contact_me, contact_email = [main], None, False, None
     if not tap:
         questions = await run_in_threadpool(repo.questions, tenant_id, survey["id"])
         try:
             answers = domain.follow_up_answers(survey["type"], questions, form, checked.value)
             if domain.shows_comment_box(survey, questions):
                 comment = domain.comment(form)
+            contact_me, contact_email = domain.contact_request(survey, form, contact_ref)
         except domain.AnswerProblem as problem:
             again = _follow_up_page(
                 survey, questions, checked, fields, sent=form, error=problem.message(language)
             )
             return _page(again, problem.status_code)
-        contact_me = domain.shows_contact_me(survey, fields.get("r")) and bool(
-            form.get(domain.CONTACT_ME_FIELD)
-        )
-    contact_ref = answer_contact_ref(
-        identified_survey=not survey["anonymous"],
-        survey_offers_opt_in=survey["contact_opt_in"],
-        reader_opted_in=contact_me,
-        contact_ref=fields.get("r"),
-    )
     # A reader's later taps change their answer, not the reach: count their first only.
     if not checked.answered:
         await run_in_threadpool(repo.record_view, tenant_id, survey["id"], channel)
@@ -232,7 +229,8 @@ async def _submit_link_answer(
         answers=answers,
         contact_ref=contact_ref,
         comment=comment,
-        contact_me=contact_me and contact_ref is not None,
+        contact_me=contact_me,
+        contact_email=contact_email,
         campaign=checked.campaign,
         main_only=tap,
     )
@@ -289,6 +287,7 @@ async def _survey_page(tenant_id, survey: dict, link_token: str, channel: str) -
         key=_visit_key(link_token),
         channel=channel,
         comment_box=domain.shows_comment_box(survey, questions),
+        contact_box=domain.shows_contact_me(survey),
     )
     return _page(form)
 
@@ -337,6 +336,8 @@ async def submit(
     try:
         answers = domain.form_answers(survey["type"], questions, form)
         comment = domain.comment(form) if comment_box else None
+        # No contact id here: "Contact me" needs the address the reader types.
+        contact_me, contact_email = domain.contact_request(survey, form, None)
     except domain.AnswerProblem as problem:
         again = pages.survey_form(
             survey,
@@ -346,13 +347,14 @@ async def submit(
             sent=form,
             error=problem.message(language),
             comment_box=comment_box,
+            contact_box=domain.shows_contact_me(survey),
         )
         return _page(again, problem.status_code)
     thanks = pages.thank_you(
         survey["thank_you"], survey["accent_color"], survey["background_color"], language
     )
     # Every question is optional and left blank: nothing to save, and no response counted.
-    if not answers and comment is None:
+    if not answers and comment is None and not contact_me:
         return _page(thanks)
 
     message = AnswerSubmitted(
@@ -362,6 +364,8 @@ async def submit(
         channel=channel,
         answers=answers,
         comment=comment,
+        contact_me=contact_me,
+        contact_email=contact_email,
     )
     try:
         await queue.publish(message)

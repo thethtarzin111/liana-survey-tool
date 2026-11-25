@@ -231,8 +231,9 @@ export function ConnectWizard({ connection, demoAvailable, onChange, onEventSent
       {step === 4 ? (
         <Step n={4} title="What to send">
           <p className="integrations-hint">
-            Only answers with a contact can be sent: from a survey set to identified answers, or where the reader
-            ticked “Contact me”. Anonymous answers stay in the survey tool; the sync log lists them as “Not sent”.
+            Only answers with a contact can be sent: answers from newsletter links (the reader’s email address is
+            looked up in LianaMailer) and “Contact me” requests. Anonymous answers stay in the survey tool; the sync
+            log lists them as “Not sent”.
           </p>
           <div className="wizard-switches">
             {SEND_OPTIONS.map((o) => (

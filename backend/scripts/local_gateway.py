@@ -34,11 +34,15 @@ class DirectLianaEvents:
         self.mail = build_notification_mail(get_settings())
 
     async def publish(self, message) -> None:
-        from liana_connector.handlers import handle_event
+        from liana_connector.handlers import deliver
+        from liana_connector.retry import MAX_ATTEMPTS
 
-        # The LianaAutomation adapter calls Liana over HTTP: off the event loop.
+        # Without RabbitMQ nothing would retry later, so this is the last attempt: a
+        # temporary error makes the sync log row failed at once, with Retry, instead
+        # of "retrying" for ever. The LianaAutomation adapter calls Liana over HTTP:
+        # off the event loop.
         await asyncio.to_thread(
-            handle_event, message.model_dump_json().encode(), self.contacts, self.mail
+            deliver, message.model_dump_json().encode(), MAX_ATTEMPTS, self.contacts, self.mail
         )
 
 

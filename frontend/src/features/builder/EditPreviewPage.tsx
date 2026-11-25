@@ -33,7 +33,7 @@ const READER_OPTIONS: { key: keyof ReaderOptions; label: string; tip: string }[]
   {
     key: 'contact_opt_in',
     label: '"Contact me about this by email" opt-in',
-    tip: 'Answers stay anonymous unless the reader ticks it. You choose what happens next in the Follow-up step.',
+    tip: 'Readers who tick it appear under “Asked to be contacted” in Results → Responses, and LianaAutomation gets a survey_contact_request event.',
   },
 ];
 const readerOptionsOf = (s: Survey): ReaderOptions =>

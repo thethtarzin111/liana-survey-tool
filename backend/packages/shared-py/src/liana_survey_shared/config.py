@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     # Use a long random value outside local development; changing it makes saved
     # secrets unreadable (the page then asks for them again).
     integration_secret_key: str = "change-me-integration-secret-key"
+    # LianaMailer REST API (HMAC signing), used by the connector to turn a reader's
+    # contact id into the email address LianaAutomation matches contacts by. Server
+    # settings only, never in the front end. Host e.g. rest.lianamailer.com; "demo"
+    # is a built-in fake for local development (AUTH_MODE=dev). Empty = not set up.
+    lianamailer_api_host: str = ""
+    lianamailer_api_user: str = ""
+    lianamailer_api_secret: str = ""
+    lianamailer_api_realm: str = "EUR"
 
 
 @lru_cache

@@ -256,3 +256,39 @@ def test_the_api_refuses_to_start_with_the_default_key_outside_dev(monkeypatch):
     )
     with pytest.raises(secrets.WeakKey), TestClient(api.app):
         pass
+
+
+# --- Sent only when Liana accepted the event -------------------------------------------
+
+
+def test_an_accepted_import_returns_lianas_answer_for_the_sync_log():
+    fake = FakeLiana(body={"succeed": True, "imported": 1})
+    answer = client(fake).import_events({"channel": "1", "data": []})
+    assert answer == 'HTTP 200 {"succeed":true,"imported":1}'
+
+
+@pytest.mark.parametrize(
+    ("body", "reason"),
+    [
+        ({"succeed": False, "message": "unknown identity"}, "unknown identity"),
+        ({"success": False}, "success is false"),
+        ({"errors": [{"index": 0, "message": "bad email"}]}, "bad email"),
+        ({"imported": 0, "rejected": 1}, "rejected: 1"),
+        ({"results": [{"ok": True}, {"error": "no such contact"}]}, "no such contact"),
+    ],
+)
+def test_a_200_whose_body_refuses_the_event_is_a_permanent_error(body, reason):
+    with pytest.raises(PermanentError, match=reason) as refused:
+        client(FakeLiana(body=body)).import_events({"channel": "1", "data": []})
+    assert refused.value.response.startswith("HTTP 200 ")
+
+
+def test_an_import_answer_that_says_nothing_wrong_is_accepted():
+    for body in ({}, {"ok": True}, {"imported": 2, "failed": 0, "errors": []}, [1, 2]):
+        assert domain.import_problem(body) is None
+
+
+def test_a_refused_call_keeps_lianas_answer():
+    with pytest.raises(PermanentError) as refused:
+        client(FakeLiana(answers=[400])).import_events({"channel": "1", "data": []})
+    assert refused.value.response == 'HTTP 400 {"error":"x"}'

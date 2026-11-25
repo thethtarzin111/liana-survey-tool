@@ -247,8 +247,6 @@ export type SurveySettings = {
   /** "Notify me of new responses by email". */
   notify_on_response: boolean;
   language: SurveyLanguage;
-  /** false = identified answers: newsletter answers keep the reader's LianaMailer contact id. */
-  anonymous: boolean;
 };
 
 /** Branding: colours as "#RRGGBB", and where to load the logo (null when there is none). */
@@ -370,6 +368,8 @@ export type IntegrationsStatus = {
   events: Partial<Record<SyncEvent['status'], number>>;
   /** The built-in demo host can be used (local development). */
   demo_available: boolean;
+  /** The server has the LianaMailer API settings, to look up newsletter readers' email addresses. */
+  lianamailer_set_up: boolean;
 };
 
 export type LianaChannel = { id: string; name: string };
@@ -384,6 +384,9 @@ export type SyncEvent = {
   status: 'pending' | 'sent' | 'retrying' | 'failed' | 'skipped';
   attempts: number;
   last_error: string | null;
+  /** What was (or will be) sent to POST /import, and LianaAutomation's answer (status and body). */
+  payload: Record<string, unknown>;
+  liana_response: string | null;
   created_at: string;
   sent_at: string | null;
 };
@@ -400,6 +403,10 @@ export type ResponseRow = {
   masked: boolean;
   /** Null when the survey has no segments to show. */
   segment_label: string | null;
+  /** The reader ticked “Contact me”. */
+  contact_requested: boolean;
+  /** Only for those readers: their email address (or LianaMailer contact ID until it is looked up). */
+  contact: string | null;
 };
 
 export type ResponsesPage = { total: number; rows: ResponseRow[] };
@@ -408,6 +415,8 @@ export type ResponseDetail = {
   display_id: string;
   submitted_at: string;
   segment_label: string | null;
+  contact_requested: boolean;
+  contact: string | null;
   answers: {
     question_id: string;
     prompt: string;

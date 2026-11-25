@@ -28,10 +28,10 @@ const renderTab = (o: SurveyOverview) =>
   );
 
 describe('OverviewTab extras', () => {
-  it('shows close the loop only on standard surveys, linking to Integrations', () => {
+  it('shows close the loop only on standard surveys, opening the contact requests', () => {
     const { unmount } = renderTab(overview());
     expect(screen.getByRole('heading', { name: 'Close the loop' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open Integrations' })).toHaveAttribute('href', '/integrations');
+    expect(screen.getByRole('button', { name: 'Open contact requests' })).toBeInTheDocument();
     unmount();
     renderTab(overview({ type: 'custom', main: null }));
     expect(screen.queryByRole('heading', { name: 'Close the loop' })).toBeNull();

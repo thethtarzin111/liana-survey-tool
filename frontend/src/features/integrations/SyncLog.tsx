@@ -73,12 +73,22 @@ export function SyncLog({ reload, onChange }: { reload: number; onChange: () => 
       key: 'retry',
       header: 'Actions',
       hideHeader: true,
-      render: (e) =>
-        e.status === 'failed' ? (
-          <Button size="sm" loading={retrying === e.id} onClick={() => void retry(e)}>
-            Retry
-          </Button>
-        ) : null,
+      render: (e) => (
+        <div className="sync-actions">
+          {e.status === 'failed' ? (
+            <Button size="sm" loading={retrying === e.id} onClick={() => void retry(e)}>
+              Retry
+            </Button>
+          ) : null}
+          <details className="sync-details">
+            <summary>Details</summary>
+            <p className="sync-details-label">Sent to LianaAutomation</p>
+            <pre>{JSON.stringify(e.payload, null, 2)}</pre>
+            <p className="sync-details-label">LianaAutomation’s answer</p>
+            <pre>{e.liana_response ?? 'No answer yet.'}</pre>
+          </details>
+        </div>
+      ),
     },
   ];
 

@@ -6,8 +6,9 @@ system only publishes messages to RabbitMQ.
 | Integration | How | Status |
 |---|---|---|
 | Survey in a LianaMailer newsletter | Copy-paste HTML snippet (R06, #40): one link per answer, with LianaMailer's `$id$` placeholder as the reader (so each reader counts once) and campaign/segment tags. Not signed, because a pasted snippet is the same for everyone, so only surveys whose snippet was made accept unsigned links; signed links through the LianaMailer API are #118. | `POST /api/v1/surveys/{id}/snippet`; needs no Liana API |
-| "Contact me" → LianaAutomation | `ContactRequested` message (worker) → connector → LianaAutomation `POST /import` with `no_duplicates` | Through each organisation's connection (`LIANA_ADAPTER=lianaautomation`) |
-| Identified answers → LianaAutomation | `AnswerRecorded` message (worker) → connector → `survey_answered` event | Through each organisation's connection; anonymous answers are listed as "Not sent" |
+| "Contact me" → LianaAutomation | `ContactRequested` message (worker) → connector → LianaAutomation `POST /import` with `no_duplicates` | Through each organisation's connection (`LIANA_ADAPTER=lianaautomation`); the request is also on the response (Results → Responses) |
+| Contact id → email address | Connector → LianaMailer `POST /api/v1/getRecipient` (HMAC) | `LIANAMAILER_API_*` on the server |
+| Newsletter answers → LianaAutomation | `AnswerRecorded` message (worker) → connector → `survey_answered` event, identified by email | Through each organisation's connection; anonymous answers are listed as "Not sent" |
 | "New responses" emails to a survey's owner | `NewResponsesDigest` message (worker → connector) → `NotificationMail` port | Mock adapter (logs the email). No real mail adapter yet |
 | Send surveys through LianaMailer API | `MailDelivery` port + LianaMailer adapter | Placeholder. No LianaMailer API docs yet |
 | Save answers to contact attributes | Through LianaAutomation or LianaMailer API | Not started |
@@ -90,43 +91,96 @@ more" box (`comment_field`, when the survey has no text question; stored in
 `responses.comment`) and the "Contact me" box (`contact_opt_in`). Submit updates
 the same response: the reader still counts once.
 
-The answer keeps the contact id from `r=` only when the survey is set to
-identified answers (Survey settings, `surveys.anonymous` off; the page tells the
-reader) or the reader ticks "Contact me" (`liana_survey_shared.contact`). The
-public link and the QR code have no contact, so their page has no "Contact me".
+An answer from a newsletter link is identified: the contact id from `r=` is stored
+with it (`responses.contact_ref`) whether or not the reader ticks "Contact me", and
+the page tells the reader. The follow-up form never takes the contact (or an earlier
+"Contact me") away. The public link and the QR code have no contact: their answers
+are anonymous, and their page asks for an email address when "Contact me" is ticked.
 
-`AnswerSubmitted` also carries `comment`, `contact_me` and `campaign` (the link's
-`c`, a lowercase tag; an invalid one is left out).
+`AnswerSubmitted` also carries `comment`, `contact_me`, `contact_email` (public page
+only, with "Contact me") and `campaign` (the link's `c`, a lowercase tag; an invalid
+one is left out).
+
+The worker saves "Contact me" on the response (`contact_requested`,
+`contact_requested_at`; the typed address in `contact_email`) in the answer's
+transaction, so a request is never lost, whatever happens with LianaAutomation.
+Results → Responses lists them under the filter "Asked to be contacted" (`?group=contact`),
+with a "Contact me" badge and the contact's email address; every other row stays
+anonymised. The old `/contact-requests` link opens that filter.
 
 After saving, the worker publishes to `survey.liana-events`:
 
 - `AnswerRecorded` for every saved or changed answer: `tenant_id`, `survey_id`,
   `response_id`, `survey_title`, `main_kind`, `score`, `campaign`, `contact_ref`
   (null when anonymous), `type` = `answer.recorded`. Never the answers' texts.
-- `ContactRequested` when the reader ticked "Contact me" and the answer has a
-  contact. The contact request is created in the same transaction, once per
-  response. LianaAutomation is where the customer follows up; the survey tool
-  has no list of contact requests.
+- `ContactRequested` when the reader ticked "Contact me": `contact_ref` (newsletter)
+  or `contact_email` (public page), and `response_id`. A contact request row is made
+  in the same transaction, once per response.
 
-With `LIANA_ADAPTER=lianaautomation` and the organisation's "Survey answers"
-switch on, the connector turns `AnswerRecorded` into one sync log row per response:
+### The contact's email address (LianaMailer API)
+
+LianaAutomation matches contacts by email (the wizard's test event, which arrives,
+uses `{"identity": {"email": …}}`). A newsletter link only has the LianaMailer
+contact id, so right before an event is sent the connector looks the address up:
+
+    POST https://{LIANAMAILER_API_HOST}/api/v1/getRecipient
+    body: [<contact id>, {"include_consents": false, ...}]
+    answer: {"succeed": true, "result": {"recipient": {"email": "…"}}}
+
+signed with HMAC-SHA256 as in https://rest.lianamailer.com/docs/ ("Using HMAC
+signature"): headers `Content-MD5`, `Date` and
+`Authorization: {realm} {user id}:{signature}`, where the signature is the hex HMAC
+of `method, content MD5, content type, date, body, path`, one per line. The code is
+`liana_connector/adapters/lianamailer/directory.py`, behind the `ContactDirectory` port.
+
+Server settings, never in the front end or the repo:
+
+| Variable | What |
+|---|---|
+| `LIANAMAILER_API_HOST` | e.g. `rest.lianamailer.com`; `demo` = a fake for local development (`AUTH_MODE=dev` only) |
+| `LIANAMAILER_API_USER` | The API user id from Liana |
+| `LIANAMAILER_API_SECRET` | The API secret |
+| `LIANAMAILER_API_REALM` | Default `EUR` |
+
+The Integrations page's LianaMailer card says whether the lookup is set up.
+
+- An address is kept for a day (`lianamailer_contacts`), so a second tap does not
+  call the API again (the API allows 4 requests a second).
+- For a "Contact me" request it is also stored on the response, for Results.
+- LianaMailer does not know the id (or it is not a number): the row is "Not sent"
+  (`skipped`), "Not sent: contact not found in LianaMailer (r=…)."
+- Not set up, refused credentials, or LianaMailer down: the row is failed with the
+  reason, and Retry looks the address up again.
+- Not documented by Liana: what getRecipient answers for an unknown id. A 404, a
+  `"succeed": false` or a recipient without an email all count as not found.
+
+### Sending
+
+With `LIANA_ADAPTER=lianaautomation` and the organisation's "Survey answers" switch
+on, the connector turns `AnswerRecorded` into one sync log row per response, the
+same shape as the wizard's test event without its test-only items:
 
 ```json
-{"identity": {"lianamailer_id": "4084399"},
+{"identity": {"email": "test.anna@example.com"},
  "events": [{"verb": "survey_answered",
              "items": {"survey_id": "…", "survey_name": "…", "score": "9",
                        "nps_group": "promoter", "campaign": "november"}}]}
 ```
 
-- Anonymous answer: the row is "Not sent" (`skipped`) with "Not sent: anonymous
-  answer." A contact id that is not a number: "Not sent: contact unknown (r=…)."
-  These rows can't be retried; they show why the answer stayed in the survey tool.
+- No `contact_me` item: "Contact me" is its own event (`survey_contact_request`),
+  so ticking it does not send the answer again. Mikko's detractor answer with
+  "Contact me" gives exactly two events on his timeline.
+- Anonymous answer: "Not sent: anonymous answer." (`skipped`, no Retry).
 - The same answer again (the follow-up form, a second tap) is not sent again. A
   changed answer updates the row and is sent again.
 - Not tested yet, or no channel: failed with the reason, and Retry.
-- Not checked yet: what LianaAutomation does with a contact id it doesn't know.
-  Without the LianaMailer API (#118) the survey tool can't check a contact id
-  itself, so a numeric id that is not a real contact is sent like any other.
+
+**"Sent" means LianaAutomation accepted it.** The connector logs LianaAutomation's
+whole answer (HTTP status and body) and keeps it on the row (`liana_response`, the
+sync log's Details). The API docs the team has do not describe the answer of
+`/import`, so a 200 is checked too: a false `succeed`/`success`/`ok`, an `error` or
+`errors` field, a count of `failed`/`rejected`/`invalid` items, or a per-item result
+with an error makes the row failed, with Retry.
 
 The demo server runs `LIANA_ADAPTER=lianaautomation` (set by `deploy.sh` in the
 release's `.env`), so the sync log there shows real answers.
@@ -138,13 +192,13 @@ With `LIANA_ADAPTER=lianaautomation`, each `ContactRequested` message becomes a
 organisation's own connection from the Integrations page:
 
 ```json
-{"identity": {"lianamailer_id": "<contact_ref>"},
+{"identity": {"email": "<from LianaMailer, or typed on the public page>"},
  "events": [{"verb": "survey_contact_request",
              "items": {"survey_id": "…", "contact_request_id": "…", "requested_at": "…"}}]}
 ```
 
 - Skipped when the organisation has not connected LianaAutomation or switched
-  "Contact me" requests off.
+  "Contact me" requests off. The request stays in Results → Responses either way.
 - Every request is a row in the sync log (`integration_events`). A redelivered
   message reuses its row and is not sent again once it was sent.
 - Not tested yet, or no channel: the row is failed with the reason, and the admin
@@ -153,8 +207,9 @@ organisation's own connection from the Integrations page:
   so the connector retries with back-off (#58, see "Retries" below). Bad data, a
   wrong host or wrong credentials: the row is failed, the connection shows the
   error, and the message goes to the dead-letter queue (`DeliveryFailed`).
-- To check with Liana: the identity name (`lianamailer_id`). The survey tool never
-  stores email addresses, so a contact is matched on its LianaMailer contact id.
+- In LianaAutomation (no code): an automation on `survey_contact_request` that
+  emails the account owner, so they hear about a request without opening the
+  survey tool.
 
 ## Retries (#58)
 

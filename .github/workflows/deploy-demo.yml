@@ -62,10 +62,28 @@ jobs:
 
       - name: Package the release
         if: steps.ready.outputs.ok == 'true'
+        env:
+          # Optional repository secrets: the LianaMailer API, which the connector uses
+          # to look up readers' email addresses for LianaAutomation. deploy.sh puts
+          # them in the release's .env (readable by the app user only). Unset ones are
+          # left out; settings in /etc/lianasurvey/app.env win over these.
+          LIANAMAILER_API_HOST: ${{ secrets.LIANAMAILER_API_HOST }}
+          LIANAMAILER_API_USER: ${{ secrets.LIANAMAILER_API_USER }}
+          LIANAMAILER_API_SECRET: ${{ secrets.LIANAMAILER_API_SECRET }}
+          LIANAMAILER_API_REALM: ${{ secrets.LIANAMAILER_API_REALM }}
         run: |
+          umask 077
+          : > release-settings.env
+          for name in LIANAMAILER_API_HOST LIANAMAILER_API_USER LIANAMAILER_API_SECRET LIANAMAILER_API_REALM; do
+            value="${!name}"
+            if [ -n "$value" ]; then
+              printf "%s='%s'\n" "$name" "$value" >> release-settings.env
+            fi
+          done
           tar czf release.tgz \
             --exclude='__pycache__' --exclude='tests' --exclude='*.egg-info' \
-            backend frontend/dist
+            backend frontend/dist release-settings.env
+          rm release-settings.env
 
       - name: Copy and install on the server
         if: steps.ready.outputs.ok == 'true'

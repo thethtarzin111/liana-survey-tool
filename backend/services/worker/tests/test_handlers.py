@@ -513,3 +513,59 @@ def test_opening_the_link_again_keeps_the_follow_up_answers(make_survey):
         (None, ["Price"]),
     ]
     assert totals(survey_id) == (1, {"4": 1})
+
+
+def contact_state(survey_id):
+    with tenant_connection(DEMO_TENANT) as conn:
+        return conn.execute(
+            """select contact_ref, contact_requested, contact_requested_at is not null,
+                      contact_email
+               from responses where survey_id = %s""",
+            (survey_id,),
+        ).fetchone()
+
+
+@pytest.mark.db
+@needs_db
+def test_contact_me_is_saved_on_the_response_and_never_taken_away(make_survey):
+    survey_id, main, _ = make_survey()
+    now = datetime.now(UTC)
+    record_answer(message(survey_id, nps(main, 3), at=now, contact_ref="4084400"))
+    assert contact_state(survey_id) == ("4084400", False, False, None)
+    record_answer(
+        message(
+            survey_id,
+            nps(main, 3),
+            at=now + timedelta(seconds=1),
+            contact_ref="4084400",
+            contact_me=True,
+        )
+    )
+    assert contact_state(survey_id) == ("4084400", True, True, None)
+    # A later tap without the box, or without the contact, keeps both.
+    record_answer(message(survey_id, nps(main, 4), at=now + timedelta(seconds=2), main_only=True))
+    assert contact_state(survey_id) == ("4084400", True, True, None)
+
+
+@pytest.mark.db
+@needs_db
+def test_a_public_page_request_keeps_the_typed_address(make_survey):
+    survey_id, main, _ = make_survey()
+    recorded = record_answer(
+        message(survey_id, nps(main, 2), contact_me=True, contact_email="anna@example.org")
+    )
+    answered, request = recorded.events
+    assert answered.contact_ref is None  # anonymous: no survey_answered goes out
+    assert (request.contact_ref, request.contact_email) == (None, "anna@example.org")
+    assert request.response_id == response_row(survey_id)[0]
+    assert contact_state(survey_id) == (None, True, True, "anna@example.org")
+    assert contact_requests(survey_id) == [(request.response_id, None)]
+
+
+@pytest.mark.db
+@needs_db
+def test_an_address_without_contact_me_is_not_kept(make_survey):
+    survey_id, main, _ = make_survey()
+    record_answer(message(survey_id, nps(main, 2), contact_email="anna@example.org"))
+    assert contact_state(survey_id) == (None, False, False, None)
+    assert contact_requests(survey_id) == []

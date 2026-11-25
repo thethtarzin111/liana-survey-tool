@@ -20,7 +20,13 @@ from typing import Any
 
 from liana_survey_shared.texts import language_or_default, text
 
-from .domain import COMMENT_FIELD, COMMENT_LIMIT, CONTACT_ME_FIELD, field_name
+from .domain import (
+    COMMENT_FIELD,
+    COMMENT_LIMIT,
+    CONTACT_EMAIL_FIELD,
+    CONTACT_ME_FIELD,
+    field_name,
+)
 
 _HEX = re.compile(r"#[0-9A-Fa-f]{6}")
 #: Questions per page on the survey link page. The builder preview uses the same number.
@@ -113,6 +119,12 @@ _STYLES = """
   .notice { margin-top: 12px; color: #696F77; font-size: 14px; }
   .check { display: flex; gap: 10px; align-items: center; }
   .check input { margin: 0; width: 18px; height: 18px; accent-color: var(--accent); }
+  .contact-email { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .contact-email[hidden], .contact-box[hidden] { display: none; }
+  .contact-email .hint { margin: 0; }
+  input[type=email] { width: 100%; padding: 10px 12px; color: inherit; font: inherit;
+         border: 1px solid #CED3D9; border-radius: 7px; background: #FFFFFF; }
+  input[type=email]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   @media (prefers-reduced-motion: reduce) { .progress-fill { transition: none; } }
   @media (max-width: 520px) {
     body { align-items: flex-start; }
@@ -185,6 +197,7 @@ _SCRIPT = """
       f.classList.remove('is-missing');
     });
     previous.hidden = at === 0;
+    each(form.querySelectorAll('[data-last-page]'), function (el) { el.hidden = !last; });
     next.hidden = last;
     send.hidden = !last;
     stepLabel.hidden = list.length < 2;
@@ -251,6 +264,14 @@ _SCRIPT = """
   });
   form.addEventListener('input', update);
   form.addEventListener('change', update);
+  // The email field next to "Contact me" shows once the box is ticked.
+  var contactMe = form.querySelector('input[name=contact_me]');
+  var contactEmail = form.querySelector('[data-contact-email]');
+  if (contactMe && contactEmail) {
+    var showEmail = function () { contactEmail.hidden = !contactMe.checked; };
+    contactMe.addEventListener('change', showEmail);
+    showEmail();
+  }
 
   // The page's own checks replace the browser's, which cannot reach hidden steps.
   form.noValidate = true;
@@ -392,13 +413,15 @@ def survey_form(
     sent: Mapping[str, Sequence[str]] | None = None,
     error: str | None = None,
     comment_box: bool = False,
+    contact_box: bool = False,
 ) -> str:
     """The whole survey for a reader who came from a plain link or QR code (#105).
 
     `key` is the signed visit key the answers are sent back with; `sent` and
     `error` show the reader's answers again with what to fix. `comment_box` adds
-    the optional "Tell us more" box as the last question. There is no "Contact me"
-    box: these readers have no contact to tie a request to."""
+    the optional "Tell us more" box as the last question, `contact_box` the "Contact
+    me" box with an email field: these readers have no contact id, so a reader who
+    wants a reply leaves an address."""
     language = survey["language"]
     sent = sent or {}
     title = reader_title(survey)
@@ -429,6 +452,13 @@ def survey_form(
         )
     if comment_box:
         parts.append(_comment_box(sent, language))
+    if contact_box:
+        parts.append(
+            # Not a question: the progress bar and the pages leave it out, and the
+            # script shows it with the last page only.
+            '<div class="contact-box" data-last-page>'
+            f"{_contact_me_box(sent, language, with_email=True)}</div>"
+        )
     parts.append(
         '<p class="step-error" role="alert" hidden>'
         f"{html.escape(text('answer_required', language))}</p>"
@@ -466,12 +496,28 @@ def _comment_box(sent: Mapping[str, Sequence[str]], language: str | None) -> str
     )
 
 
-def _contact_me_box(sent: Mapping[str, Sequence[str]], language: str | None) -> str:
-    """The "Contact me about this by email" opt-in (surveys.contact_opt_in)."""
+def _contact_me_box(
+    sent: Mapping[str, Sequence[str]], language: str | None, *, with_email: bool
+) -> str:
+    """The "Contact me about this by email" opt-in (surveys.contact_opt_in). With
+    `with_email`, an address field that the page's script shows once the box is
+    ticked (without JavaScript it is always there); the server requires it then."""
     checked = " checked" if sent.get(CONTACT_ME_FIELD) else ""
-    return (
+    box = (
         f'<label class="check"><input type="checkbox" name="{CONTACT_ME_FIELD}" value="1"'
         f"{checked}>{html.escape(text('contact_me', language))}</label>"
+    )
+    if not with_email:
+        return box
+    value = html.escape(sent[CONTACT_EMAIL_FIELD][0]) if sent.get(CONTACT_EMAIL_FIELD) else ""
+    return (
+        f'{box}<div class="contact-email" data-contact-email>'
+        f'<label for="{CONTACT_EMAIL_FIELD}">{html.escape(text("contact_email", language))}</label>'
+        f'<p class="hint" id="{CONTACT_EMAIL_FIELD}-hint">'
+        f"{html.escape(text('contact_email_hint', language))}</p>"
+        f'<input type="email" id="{CONTACT_EMAIL_FIELD}" name="{CONTACT_EMAIL_FIELD}"'
+        f' maxlength="254" autocomplete="email" value="{value}"'
+        f' aria-describedby="{CONTACT_EMAIL_FIELD}-hint"></div>'
     )
 
 
@@ -494,6 +540,7 @@ def follow_up(
     comment_box: bool,
     contact_box: bool,
     identified: bool,
+    email_box: bool = False,
     sent: Mapping[str, Sequence[str]] | None = None,
     error: str | None = None,
 ) -> str:
@@ -542,7 +589,7 @@ def follow_up(
     if comment_box:
         parts.append(_comment_box(sent, language))
     if contact_box:
-        parts.append(_contact_me_box(sent, language))
+        parts.append(_contact_me_box(sent, language, with_email=email_box))
     parts.append(
         '<div class="actions">'
         f'<button type="submit" class="submit">{html.escape(text("submit", language))}</button>'

@@ -13,7 +13,8 @@ from liana_survey_shared.config import get_settings
 from liana_survey_shared.web.auth import CurrentUser, current_user
 from liana_survey_shared.web.db import TenantDB, tenant_db
 
-from . import domain, repo, secrets
+from ..ports.contact_directory import ContactDirectory
+from . import contacts, domain, repo, secrets
 from .client import AutomationClient, LianaError, build_client
 from .schemas import (
     Channel,
@@ -44,6 +45,14 @@ def client_factory() -> ClientFactory:
         return build_client(host, client_id, secret, allow_demo=allow_demo)
 
     return build
+
+
+def contact_directory() -> ContactDirectory:
+    """LianaMailer, to look up a contact's email address before a Retry. Tests
+    replace this."""
+    from ..factory import build_contact_directory
+
+    return build_contact_directory(get_settings())
 
 
 def _key() -> str:
@@ -85,8 +94,10 @@ def _client(row: dict[str, Any], build: ClientFactory, db: TenantDB) -> Automati
 
 
 @router.get("", response_model=IntegrationsStatus)
-def integrations(db: TenantDB = Depends(tenant_db)) -> dict:
+def integrations(db: TenantDB = Depends(tenant_db), directory=Depends(contact_directory)) -> dict:
     """Card status for the Integrations page."""
+    from ..adapters.lianamailer.directory import NotSetUp
+
     with db() as conn:
         row = repo.get(conn)
         counts = repo.event_counts(conn)
@@ -94,6 +105,7 @@ def integrations(db: TenantDB = Depends(tenant_db)) -> dict:
         "liana_automation": _connection(row) if row else None,
         "events": counts,
         "demo_available": demo_allowed(),
+        "lianamailer_set_up": not isinstance(directory, NotSetUp),
     }
 
 
@@ -188,16 +200,34 @@ def _sender(db: TenantDB, build: ClientFactory) -> tuple[dict[str, Any], Automat
 
 
 def _send(
-    event: dict[str, Any], row: dict[str, Any], client: AutomationClient, db: TenantDB
+    event: dict[str, Any],
+    row: dict[str, Any],
+    client: AutomationClient,
+    db: TenantDB,
+    directory: ContactDirectory | None = None,
 ) -> dict[str, Any]:
     """Send one pending event and record the attempt. Every way out records an outcome,
     so the event never stays pending. A wrong host (404) or credentials also mark the
-    connection as broken, so nothing more is sent until it is fixed."""
-    status, error = "sent", None
+    connection as broken, so nothing more is sent until it is fixed.
+
+    An event still waiting for the contact's email address (its lookup failed
+    earlier) gets it from LianaMailer first, through `directory`."""
+    if directory is not None:
+        try:
+            payload = contacts.with_email(event["payload"], directory, db, event["response_id"])
+        except (contacts.NotSent, contacts.LookupFailed) as problem:
+            status = "skipped" if isinstance(problem, contacts.NotSent) else "failed"
+            with db() as conn:
+                return _event(repo.mark_event(conn, event["id"], status, str(problem)))
+        if payload is not event["payload"]:
+            with db() as conn:
+                repo.set_payload(conn, event["id"], payload)
+            event = {**event, "payload": payload}
+    status, error, answer = "sent", None, None
     try:
-        client.import_events(domain.import_body(row["channel_id"], [event["payload"]]))
+        answer = client.import_events(domain.import_body(row["channel_id"], [event["payload"]]))
     except LianaError as failure:
-        status, error = "failed", str(failure)
+        status, error, answer = "failed", str(failure), failure.response
         if failure.kind in ("config", "auth"):
             with db() as conn:
                 repo.update(conn, status="error", last_error=error)
@@ -207,7 +237,7 @@ def _send(
             repo.finish_event(conn, event["id"], "failed", UNEXPECTED)
         raise
     with db() as conn:
-        return _event(repo.finish_event(conn, event["id"], status, error))
+        return _event(repo.finish_event(conn, event["id"], status, error, answer))
 
 
 @router.post("/liana-automation/test-event", response_model=SyncEvent, status_code=201)
@@ -242,9 +272,13 @@ def sync_log(
 
 @router.post("/events/{event_id}/retry", response_model=SyncEvent)
 def retry_event(
-    event_id: UUID, db: TenantDB = Depends(tenant_db), build=Depends(client_factory)
+    event_id: UUID,
+    db: TenantDB = Depends(tenant_db),
+    build=Depends(client_factory),
+    directory=Depends(contact_directory),
 ) -> dict:
-    """Send a failed event again, with exactly the same data."""
+    """Send a failed event again, with the same data. One still waiting for the
+    contact's email address gets it from LianaMailer first."""
     with db() as conn:
         event = repo.get_event(conn, event_id)
     if event is None:
@@ -261,7 +295,7 @@ def retry_event(
         event = repo.claim_event(conn, event_id)
     if event is None:
         raise HTTPException(409, "This event is already being sent.")
-    return _send(event, row, client, db)
+    return _send(event, row, client, db, directory)
 
 
 @router.delete("/liana-automation", status_code=204)

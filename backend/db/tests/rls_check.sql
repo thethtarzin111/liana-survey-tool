@@ -158,6 +158,25 @@ begin
   delete from integrations where id = '00000000-0000-4000-8000-0000000004ff';
   perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
 
+  -- 3i. LianaMailer contact ids looked up for one organisation stay its own.
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
+  insert into lianamailer_contacts (tenant_id, contact_id, email)
+  values ('00000000-0000-4000-8000-000000000001', 'rls-check', 'rls-check@example.com')
+  on conflict do nothing;
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
+  select count(*) into n from lianamailer_contacts;
+  if n <> 0 then raise exception 'RLS: other tenant sees % LianaMailer contacts', n; end if;
+  begin
+    insert into lianamailer_contacts (tenant_id, contact_id, email)
+    values ('00000000-0000-4000-8000-000000000001', 'sneaky', 'sneaky@example.com');
+    raise exception 'RLS: a LianaMailer contact was added for another tenant';
+  exception when insufficient_privilege then
+    null; -- expected
+  end;
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-000000000001', true);
+  delete from lianamailer_contacts where contact_id = 'rls-check';
+  perform set_config('app.tenant_id', '00000000-0000-4000-8000-0000000000ff', true);
+
   -- 4. Writing a row for a different tenant is refused.
   begin
     insert into surveys (tenant_id, title, type)

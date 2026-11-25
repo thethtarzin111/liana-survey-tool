@@ -14,16 +14,18 @@ Every failure becomes one of four errors, which decide what the caller does:
 """
 
 import itertools
+import logging
 import time
 from typing import Any, Protocol
 
 import httpx
 
-from .domain import DEMO_HOST
+from .domain import DEMO_HOST, import_problem
 
 TOKEN_URL = "https://tokens.lianacloud.com/token"
 STAGING_TOKEN_URL = "https://tokens.stg.lianacloud.com/token"
 SCOPE = "automation-api"
+log = logging.getLogger(__name__)
 
 
 def token_url_for(host: str) -> str:
@@ -33,9 +35,14 @@ def token_url_for(host: str) -> str:
 
 
 class LianaError(Exception):
-    """A failed call. `str(error)` is safe to show to the admin."""
+    """A failed call. `str(error)` is safe to show to the admin. `response` is
+    Liana's answer (status and body) when there was one, for the sync log's Details."""
 
     kind = "error"
+
+    def __init__(self, message: str, response: str | None = None) -> None:
+        super().__init__(message)
+        self.response = response
 
 
 class AuthError(LianaError):
@@ -58,7 +65,10 @@ class AutomationClient(Protocol):
     def ping(self) -> None: ...
     def channels(self) -> list[dict[str, str]]: ...
     def create_channel(self, name: str) -> dict[str, str]: ...
-    def import_events(self, body: dict[str, Any]) -> None: ...
+    def import_events(self, body: dict[str, Any]) -> str | None:
+        """Send events. Returns Liana's answer (status and body) for the sync log;
+        raises PermanentError when the answer says the events were not accepted."""
+        ...
 
 
 def _channel(item: Any) -> dict[str, str] | None:
@@ -138,6 +148,19 @@ class LianaClient:
         return self._token
 
     def _post(self, path: str, body: dict[str, Any]) -> Any:
+        res = self._call(path, body)
+        if not res.content:
+            return None
+        try:
+            return res.json()
+        except ValueError as error:
+            raise PermanentError(
+                f"Liana answered {path} with something that is not JSON.", _summary(res)
+            ) from error
+
+    def _call(self, path: str, body: dict[str, Any]) -> httpx.Response:
+        """POST to the API; the answer once its status is a success. Every other
+        status becomes one of the errors above."""
         for attempt in (1, 2):
             try:
                 res = self.http.post(
@@ -159,24 +182,18 @@ class LianaClient:
             if res.status_code == 401 and attempt == 1:
                 self._token = None  # expired or revoked: get a new one and retry once
                 continue
+            answer = _summary(res)
             if res.status_code == 401:
-                raise AuthError("Liana refused the credentials (401).")
+                raise AuthError("Liana refused the credentials (401).", answer)
             if res.status_code == 400:
-                raise PermanentError(f"Liana refused the data (400): {res.text[:300]}")
+                raise PermanentError(f"Liana refused the data (400): {res.text[:300]}", answer)
             if res.status_code == 404:
-                raise ConfigError("Not found (404): check the host.")
+                raise ConfigError("Not found (404): check the host.", answer)
             if res.status_code >= 500:
-                raise TemporaryError(f"Liana answered {res.status_code}. Try again later.")
+                raise TemporaryError(f"Liana answered {res.status_code}. Try again later.", answer)
             if res.status_code >= 300:
-                raise PermanentError(f"Liana answered {res.status_code}: {res.text[:300]}")
-            if not res.content:
-                return None
-            try:
-                return res.json()
-            except ValueError as error:
-                raise PermanentError(
-                    f"Liana answered {path} with something that is not JSON."
-                ) from error
+                raise PermanentError(f"Liana answered {res.status_code}: {res.text[:300]}", answer)
+            return res
         raise AssertionError("unreachable")
 
     def ping(self) -> None:
@@ -197,8 +214,29 @@ class LianaClient:
             raise PermanentError("Liana did not return the new channel.")
         return created
 
-    def import_events(self, body: dict[str, Any]) -> None:
-        self._post("import", body)
+    def import_events(self, body: dict[str, Any]) -> str | None:
+        """POST /import. A 200 is not enough: the body is checked for events Liana did
+        not accept (domain.import_problem), and the whole answer is logged."""
+        res = self._call("import", body)
+        answer = _summary(res)
+        log.info("LianaAutomation import answered %s", answer)
+        parsed: Any = None
+        if res.content:
+            try:
+                parsed = res.json()
+            except ValueError as error:
+                raise PermanentError(
+                    "Liana answered the import with something that is not JSON.", answer
+                ) from error
+        problem = import_problem(parsed)
+        if problem:
+            raise PermanentError(f"Liana did not accept the event: {problem}", answer)
+        return answer
+
+
+def _summary(res: httpx.Response) -> str:
+    """Liana's answer for the sync log and the server log: status and body (shortened)."""
+    return f"HTTP {res.status_code} {res.text[:2000]}".rstrip()
 
 
 # --- Demo -------------------------------------------------------------------------
@@ -237,13 +275,19 @@ class DemoLianaClient:
         _demo_channels.append(channel)
         return dict(channel)
 
-    def import_events(self, body: dict[str, Any]) -> None:
+    def import_events(self, body: dict[str, Any]) -> str | None:
         self._check()
         if not str(body.get("channel", "")).startswith("demo-"):
-            raise PermanentError("Liana refused the data (400): unknown channel.")
+            raise PermanentError(
+                "Liana refused the data (400): unknown channel.",
+                'HTTP 400 {"error": "unknown channel"} (demo)',
+            )
         for item in body.get("data", []):
             if any("fail" in str(value) for value in (item.get("identity") or {}).values()):
-                raise TemporaryError("Liana answered 503. Try again later. (demo)")
+                raise TemporaryError(
+                    "Liana answered 503. Try again later. (demo)", "HTTP 503 (demo)"
+                )
+        return f'HTTP 200 {{"succeed": true, "imported": {len(body.get("data", []))}}} (demo)'
 
 
 def build_client(host: str, client_id: str, secret: str, *, allow_demo: bool) -> AutomationClient:

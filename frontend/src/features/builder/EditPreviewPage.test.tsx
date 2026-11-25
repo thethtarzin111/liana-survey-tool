@@ -252,7 +252,7 @@ test('reader options show their tips and are saved with Save as draft', async ()
   ]);
   for (const box of boxes) expect(box).toBeChecked();
   expect(within(group).getByText('Appears after about 10 answers')).toBeInTheDocument();
-  expect(within(group).getByRole('button', { name: /^About: "Contact me about this by email" opt-in\. Answers stay anonymous/ })).toBeInTheDocument();
+  expect(within(group).getByRole('button', { name: /^About: "Contact me about this by email" opt-in\. Readers who tick it appear under/ })).toBeInTheDocument();
 
   fireEvent.click(within(group).getByLabelText('Show results to readers'));
   fireEvent.click(within(group).getByLabelText('"Contact me about this by email" opt-in'));

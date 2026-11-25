@@ -10,7 +10,8 @@ const connection = (overrides: Partial<LianaConnection> = {}): LianaConnection =
 });
 const event = (overrides: Partial<SyncEvent> = {}): SyncEvent => ({
   id: 'e1', verb: 'survey_answered', contact: 'su…@example.com', test: true, status: 'sent', attempts: 1,
-  last_error: null, created_at: '2026-11-23T10:00:00Z', sent_at: '2026-11-23T10:00:01Z', ...overrides,
+  last_error: null, payload: { identity: { email: 'survey-test-1@example.com' } }, liana_response: 'HTTP 200 {}',
+  created_at: '2026-11-23T10:00:00Z', sent_at: '2026-11-23T10:00:01Z', ...overrides,
 });
 
 let status: IntegrationsStatus;
@@ -19,7 +20,7 @@ const calls: { method: string; path: string; body: unknown }[] = [];
 const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
-  status = { liana_automation: null, events: {}, demo_available: true };
+  status = { liana_automation: null, events: {}, demo_available: true, lianamailer_set_up: true };
   log = [];
   calls.length = 0;
   fetchMock.mockReset().mockImplementation(async (input, init) => {
@@ -122,7 +123,7 @@ test('the wizard connects LianaAutomation step by step', async () => {
 });
 
 test('a failed event can be retried from the sync log', async () => {
-  status = { liana_automation: connection({ status: 'connected', channel_id: '1', channel_name: 'Website' }), events: { failed: 1 }, demo_available: true };
+  status = { liana_automation: connection({ status: 'connected', channel_id: '1', channel_name: 'Website' }), events: { failed: 1 }, demo_available: true, lianamailer_set_up: true };
   log = [event({ id: 'e9', status: 'failed', last_error: 'Liana answered 503. Try again later.' })];
   renderPage();
   const table = await screen.findByRole('table', { name: 'Events sent to LianaAutomation' });
@@ -138,6 +139,7 @@ test('an error is shown on the card, and disconnecting asks first', async () => 
     liana_automation: connection({ status: 'error', last_error: 'Not found (404): check the host.' }),
     events: {},
     demo_available: false,
+    lianamailer_set_up: true,
   };
   renderPage();
   expect(await screen.findByText('Error')).toBeInTheDocument();
@@ -175,6 +177,7 @@ test('answers that were not sent on purpose say why and have no Retry', async ()
     liana_automation: connection({ status: 'connected', channel_id: '1', channel_name: 'Website' }),
     events: { sent: 1, skipped: 1 },
     demo_available: true,
+    lianamailer_set_up: true,
   };
   log = [event({ id: 'e5', verb: 'survey_answered', test: false, status: 'skipped', last_error: 'Not sent: anonymous answer.' })];
   renderPage();
@@ -182,5 +185,32 @@ test('answers that were not sent on purpose say why and have no Retry', async ()
   expect(within(table).getByText('Not sent')).toBeInTheDocument();
   expect(within(table).getByText('Not sent: anonymous answer.')).toBeInTheDocument();
   expect(within(table).queryByRole('button', { name: 'Retry' })).toBeNull();
-  expect(screen.getByText(/1 sent/)).toHaveTextContent('1 sent, 1 not sent');
+  expect(screen.getByText(/1 sent/)).toHaveTextContent('1 sent, 0 failed, 1 not sent');
+});
+
+test('each sync log row has Details with the payload and Liana’s answer', async () => {
+  status = {
+    liana_automation: connection({ status: 'connected', channel_id: '1', channel_name: 'Website' }),
+    events: { sent: 1 },
+    demo_available: true,
+    lianamailer_set_up: true,
+  };
+  log = [event({ id: 'e7', payload: { identity: { email: 'contact.4084399@example.com' } }, liana_response: 'HTTP 200 {"succeed": true}' })];
+  renderPage();
+  const table = await screen.findByRole('table', { name: 'Events sent to LianaAutomation' });
+  fireEvent.click(within(table).getByText('Details'));
+  expect(within(table).getByText(/contact\.4084399@example\.com/)).toBeInTheDocument();
+  expect(within(table).getByText('HTTP 200 {"succeed": true}')).toBeInTheDocument();
+  // The old "comes with the next step" note is gone.
+  expect(screen.queryByText(/comes with the next step/)).toBeNull();
+});
+
+test('the LianaMailer card says whether the contact lookup is set up', async () => {
+  status = { liana_automation: null, events: {}, demo_available: true, lianamailer_set_up: false };
+  const { unmount } = renderPage();
+  expect(await screen.findByText(/Contact lookup: not set up/)).toBeInTheDocument();
+  unmount();
+  status = { ...status, lianamailer_set_up: true };
+  renderPage();
+  expect(await screen.findByText(/Contact lookup: on/)).toBeInTheDocument();
 });
