@@ -1,10 +1,14 @@
-// Sidebar items and icon paths, copied from the prototype. Templates sit right under
+// Sidebar items and icon paths, from the prototype and Liana's own sidebar. Templates sit right under
 // Surveys, where surveys start (#123).
 
 export type NavItem = { to: string; label: string; icon: string };
 
 export const mainNav: NavItem[] = [
-  { to: '/', label: 'Home', icon: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z' },
+  {
+    to: '/',
+    label: 'Front page',
+    icon: 'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM7 7h4v4H7zM13 7h4v4h-4zM7 13h4v4H7zM13 13h4v4h-4z',
+  },
   {
     to: '/surveys',
     label: 'Surveys',
@@ -13,7 +17,7 @@ export const mainNav: NavItem[] = [
   {
     to: '/templates',
     label: 'Templates',
-    icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+    icon: 'M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5',
   },
   { to: '/results', label: 'Results', icon: 'M4 20V10M10 20V4M16 20v-8M2 20h20' },
   {

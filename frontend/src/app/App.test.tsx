@@ -46,7 +46,7 @@ test('sidebar has the prototype items in order', () => {
   const labels = screen.getAllByRole('link').map((a) => a.textContent);
   expect(labels).toEqual([
     'Create survey',
-    'Home',
+    'Front page',
     'Surveys',
     'Templates',
     'Results',
@@ -59,7 +59,7 @@ test('sidebar has the prototype items in order', () => {
 test('front page shows the dashboard', async () => {
   renderAt('/');
   expect(await screen.findByRole('heading', { name: 'Get started with LianaSurvey' })).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByRole('link', { name: 'Front page' })).toHaveAttribute('aria-current', 'page');
 });
 
 test('a sidebar route renders its page', async () => {
