@@ -44,7 +44,7 @@
 }
 .welcome-mail {
   display: flex; flex-direction: column; gap: 9px; padding: 16px;
-  background: var(--color-surface); border-radius: var(--radius-nav); box-shadow: var(--shadow-option-hover);
+  background: var(--color-surface); border-radius: var(--radius-nav); box-shadow: var(--shadow-pop);
 }
 .welcome-mail-head {
   display: flex; justify-content: space-between; align-items: center; gap: 8px;
