@@ -80,21 +80,23 @@
 
 .sidebar {
   width: var(--sidebar-width); flex: none; overflow: auto;
-  /* Liana's .main-navigation: 0.571em 1.143em 1.143em at 13px. The right side
-     leaves room for the 1px border, so the items are 217.3px wide, as in Liana. */
-  display: flex; flex-direction: column; gap: 2px; padding: 7.43px 13.86px 14.86px 14.86px;
+  /* Liana's .main-navigation. The right side leaves room for the 1px border,
+     so the items are 217.3px wide, as in Liana. */
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 0.571429em calc(1.14286em - 1px) 1.14286em 1.14286em;
+  font-family: var(--font-body); font-size: var(--text-sidebar);
   background: var(--color-surface); border-right: 1px solid var(--color-border);
   /* No line beside the main area's rounded corner. The line starts below it. */
   border-image: linear-gradient(to bottom, transparent var(--radius-card), var(--color-border) var(--radius-card)) 1;
 }
 .sidebar .btn { margin-bottom: 10px; }
-.sidebar-divider { height: 1px; background: var(--color-border); margin: 12px -13.86px 12px -14.86px; }
+.sidebar-divider { height: 1px; background: var(--color-border); margin: 12px calc(1px - 1.14286em) 12px -1.14286em; }
 .sidebar-footer { display: flex; flex-direction: column; gap: 2px; }
 
 .nav-link {
   display: flex; align-items: center; gap: 10px;
   min-height: 36px; padding: 0 7.84px; border-radius: var(--radius-nav);
-  font-size: var(--text-nav); line-height: 20.57px; color: var(--color-text); text-decoration: none;
+  font-family: var(--font-body); font-size: 1em; line-height: 1.5; color: var(--color-text); text-decoration: none;
 }
 .nav-link svg { flex: none; }
 .nav-link:hover { background: var(--color-surface-muted); }

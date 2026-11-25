@@ -48,6 +48,7 @@
 
   --text-body: 12px;
   --text-nav: 13.71px;
+  --text-sidebar: 13px;            /* Liana's .main-navigation; its items are 1em */
   --text-section: 13.71px;
   --text-page-title: 17.14px;
   --text-hint: 11.14px;
