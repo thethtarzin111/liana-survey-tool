@@ -208,6 +208,18 @@ def not_ready(connection: dict[str, Any]) -> str | None:
     return None
 
 
+#: Something that looks like an email address. A best-effort safety net: unusual
+#: addresses (quoted local parts, say) may slip through.
+_EMAIL_LIKE = re.compile(r"[^\s@\"'<>(),;:]+@[^\s@\"'<>(),;:]+\.[^\s@\"'<>(),;:]+")
+
+
+def hide_emails(text: str) -> str:
+    """The text with every email address replaced by [email]. Used on everything from
+    Liana that is kept or logged (error messages, answers), since the sync log must
+    never hold a reader's address."""
+    return _EMAIL_LIKE.sub("[email]", text)
+
+
 def import_problem(answer: Any) -> str | None:
     """Why LianaAutomation did not accept an import, read from its answer's body, or
     None when nothing says so. The API docs the team has do not describe the answer,

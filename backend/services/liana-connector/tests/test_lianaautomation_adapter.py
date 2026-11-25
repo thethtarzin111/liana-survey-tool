@@ -559,3 +559,20 @@ def test_an_event_liana_did_not_accept_is_failed_with_its_answer(connect, respon
         "Liana did not accept the event: unknown identity",
     )
     assert row["liana_response"] == 'HTTP 200 {"succeed": false, "message": "unknown identity"}'
+
+
+@needs_db
+def test_an_address_in_lianas_refusal_is_hidden_in_the_sync_log(connect, response):
+    connect()
+    refused = PermanentError(
+        "Liana did not accept the event: Invalid email contact.4084399@example.com",
+        'HTTP 200 {"succeed": false, "message": "Invalid email contact.4084399@example.com"}',
+    )
+    adapter = LianaAutomationContactEvents(
+        KEY, directory=FakeDirectory(), build=FakeClient(failures=[refused])
+    )
+    with pytest.raises(DeliveryFailed):
+        adapter.send_answer_recorded(an_answer(response))
+    [row], connection = _log()
+    assert row["last_error"] == "Liana did not accept the event: Invalid email [email]"
+    assert "contact.4084399@example.com" not in str(row)

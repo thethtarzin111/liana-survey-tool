@@ -19,11 +19,16 @@ Rules the code follows (R05):
     reader, or typed by the reader on the public page (required there once they
     tick "Contact me"). Results → Responses shows it only on those rows, under
     "Asked to be contacted"; every other row stays anonymised.
-  - The sync log (`integration_events`) never keeps an address: its rows hold the
-    contact id (or a reference to the response) and a shortened form for display;
-    the address is added only for the call to LianaAutomation.
-  - Addresses are not written to the server log: the connector logs only the
-    status of a LianaMailer lookup, and hides addresses in LianaAutomation's answer.
+  - The sync log (`integration_events`) never keeps a full address: its rows hold
+    the contact id (or a reference to the response), and the address is added only
+    for the call to LianaAutomation. For display a row keeps a shortened form
+    (`contact_hint`, "te…@example.com"): still personal data, but not an address
+    anyone can write to. It goes with the row (the sync log is per organisation).
+  - Everything kept or logged from LianaAutomation (error messages in `last_error`,
+    the answer in `liana_response`) has its email addresses replaced by `[email]`
+    (`automation.domain.hide_emails`, applied in `LianaError` and to every answer).
+    It is a best-effort safety net: an unusual address could slip through.
+  - The connector logs only the status of a LianaMailer lookup, never its body.
 - **Mail scanners do not answer.** Opening an answer link saves nothing; the page
   saves the answer itself, so an email security scanner that opens every link
   never gives an answer, or sends one to LianaAutomation, in someone's name.

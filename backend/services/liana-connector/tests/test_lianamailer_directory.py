@@ -159,3 +159,11 @@ def test_the_demo_directory_only_makes_example_addresses():
         demo.email_for("999")
     with pytest.raises(DirectoryNotSetUp, match="not set up"):
         NotSetUp().email_for("4084399")
+
+
+def test_the_demo_lianamailer_is_refused_outside_local_development():
+    for mode in ("oidc", "production", ""):
+        directory = build_contact_directory(Settings(lianamailer_api_host="demo", auth_mode=mode))
+        assert isinstance(directory, NotSetUp)
+        with pytest.raises(DirectoryNotSetUp, match="only works in local development"):
+            directory.email_for("4084399")

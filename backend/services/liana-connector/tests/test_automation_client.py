@@ -299,3 +299,29 @@ def test_email_addresses_in_lianas_answer_are_hidden_before_it_is_kept_or_logged
     answer = client(FakeLiana(body=body)).import_events({"channel": "1", "data": []})
     assert "test.anna@example.com" not in answer
     assert '"email":"[email]"' in answer
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (200, {"succeed": False, "message": "Invalid email anna@example.com"}),
+        (200, {"errors": [{"identity": "test.mikko@example.com", "error": "unknown"}]}),
+        (400, {"error": "No contact anna@example.com"}),
+        (409, {"error": "Conflict for anna@example.com"}),
+    ],
+)
+def test_an_address_in_lianas_error_never_reaches_the_sync_log(status, body):
+    # From review: last_error is kept in the sync log, so Liana's own message is
+    # scrubbed too, not only the stored answer.
+    def answer(request):
+        if request.url.host == "tokens.lianacloud.com":
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 900})
+        return httpx.Response(status, json=body)
+
+    http = httpx.Client(transport=httpx.MockTransport(answer))
+    c = LianaClient("rest.automation.lianacloud.com", "id", "secret", http=http)
+    with pytest.raises(PermanentError) as refused:
+        c.import_events({"channel": "1", "data": []})
+    assert "@example.com" not in str(refused.value)
+    assert "@example.com" not in refused.value.response
+    assert "[email]" in refused.value.response

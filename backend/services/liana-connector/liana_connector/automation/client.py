@@ -15,13 +15,12 @@ Every failure becomes one of four errors, which decide what the caller does:
 
 import itertools
 import logging
-import re
 import time
 from typing import Any, Protocol
 
 import httpx
 
-from .domain import DEMO_HOST, import_problem
+from .domain import DEMO_HOST, hide_emails, import_problem
 
 TOKEN_URL = "https://tokens.lianacloud.com/token"
 STAGING_TOKEN_URL = "https://tokens.stg.lianacloud.com/token"
@@ -36,14 +35,16 @@ def token_url_for(host: str) -> str:
 
 
 class LianaError(Exception):
-    """A failed call. `str(error)` is safe to show to the admin. `response` is
-    Liana's answer (status and body) when there was one, for the sync log's Details."""
+    """A failed call. `str(error)` is safe to show to the admin and is kept in the sync
+    log (last_error). `response` is Liana's answer (status and body) when there was
+    one, for the sync log's Details. Email addresses in both are hidden here, so no
+    error path can put a reader's address in the sync log or the server log."""
 
     kind = "error"
 
     def __init__(self, message: str, response: str | None = None) -> None:
-        super().__init__(message)
-        self.response = response
+        super().__init__(hide_emails(message))
+        self.response = hide_emails(response) if response is not None else None
 
 
 class AuthError(LianaError):
@@ -220,6 +221,7 @@ class LianaClient:
         not accept (domain.import_problem), and the whole answer is logged."""
         res = self._call("import", body)
         answer = _summary(res)
+        # `answer` has email addresses hidden (_summary): never log res.text itself.
         log.info("LianaAutomation import answered %s", answer)
         parsed: Any = None
         if res.content:
@@ -235,13 +237,10 @@ class LianaClient:
         return answer
 
 
-_EMAIL = re.compile(r"[^\s@\"'<>(),;:]+@[^\s@\"'<>(),;:]+\.[^\s@\"'<>(),;:]+")
-
-
 def _summary(res: httpx.Response) -> str:
     """Liana's answer for the sync log and the server log: status and body (shortened),
     with any email address in it hidden."""
-    return f"HTTP {res.status_code} {_EMAIL.sub('[email]', res.text[:2000])}".rstrip()
+    return f"HTTP {res.status_code} {hide_emails(res.text[:2000])}".rstrip()
 
 
 # --- Demo -------------------------------------------------------------------------

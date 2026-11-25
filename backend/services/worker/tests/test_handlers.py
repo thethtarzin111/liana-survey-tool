@@ -569,3 +569,23 @@ def test_an_address_without_contact_me_is_not_kept(make_survey):
     record_answer(message(survey_id, nps(main, 2), contact_email="anna@example.org"))
     assert contact_state(survey_id) == (None, False, False, None)
     assert contact_requests(survey_id) == []
+
+
+@pytest.mark.db
+@needs_db
+def test_a_contact_request_is_saved_before_its_event_is_passed_on(make_survey):
+    # From review: the connector stores the looked-up address only on a response that
+    # is already marked "Contact me", so that must be committed before the event goes
+    # out. record_answer returns the events after its transaction; a separate
+    # connection (as the connector's) already sees the request.
+    survey_id, main, _ = make_survey()
+    recorded = record_answer(
+        message(survey_id, nps(main, 3), contact_ref="4084400", contact_me=True)
+    )
+    request = recorded.events[-1]
+    assert isinstance(request, ContactRequested)
+    with tenant_connection(DEMO_TENANT) as conn:
+        asked = conn.execute(
+            "select contact_requested from responses where id = %s", (request.response_id,)
+        ).fetchone()[0]
+    assert asked is True
