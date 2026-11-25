@@ -87,6 +87,7 @@
   background: var(--color-surface); color: var(--color-text);
   font: 400 var(--text-login-input) var(--font-heading); cursor: pointer; box-shadow: var(--shadow-login-sso);
 }
+.login-sso img { flex: none; }
 .login-sso:hover { border-color: var(--color-brand); background: var(--color-mint-light); }
 .login-sso:focus-visible { outline: none; box-shadow: var(--shadow-login-focus), var(--shadow-login-sso); }
 

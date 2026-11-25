@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../../api/client';
-import logo from '../../assets/lianasurvey-logo.png';
+import googleIcon from '../../assets/google-icon.png';
+import logo from '../../assets/liana-logo.png';
 import { Icon } from '../../components/Icon';
 import { useToast } from '../../components/ui';
 import './login.css';
@@ -97,7 +98,7 @@ export function LoginPage() {
       <svg className="login-curve" aria-hidden="true" viewBox="0 0 2000 900" preserveAspectRatio="none">
         <path d="M0 470C180 450 300 640 560 640C820 640 1000 520 1180 380C1420 190 1700 60 2000 0V-10H0Z" />
       </svg>
-      <img className="login-logo" src={logo} alt="LianaSurvey" width={210} height={35} />
+      <img className="login-logo" src={logo} alt="Liana" width={210} height={62} />
       <main className="login-card">
         {step === 'email' ? (
           <form className="login-form" onSubmit={continueWithEmail} noValidate>
@@ -125,7 +126,8 @@ export function LoginPage() {
             <button type="submit" className="login-button">Continue</button>
             <div className="login-or">OR</div>
             <button type="button" className="login-sso" onClick={notInDemo('Signing in with Liana Technologies')}>
-              Continue: Liana Technologies
+              <img src={googleIcon} alt="" width={20} height={20} />
+              <span>Continue: Liana Technologies</span>
             </button>
           </form>
         ) : (
