@@ -13,8 +13,6 @@
 
 /* Tabs under the picker, with the segment filter on the same row */
 .results-tabs .tabs-row { align-items: flex-end; }
-.results-tabs .tab { min-height: 44px; padding: 0 16px; font-size: 15px; font-weight: 700; }
-.results-tabs .tab[aria-selected='true'] { font-weight: 700; }
 .results-tabs > [role='tabpanel'] { margin-top: 12px; }
 .results-count { margin-left: 4px; padding: 0 6px; border-radius: var(--radius-pill); background: var(--color-surface-muted); color: var(--color-text); font-size: var(--text-xs); }
 .results-overview { display: flex; flex-direction: column; gap: 16px; }
