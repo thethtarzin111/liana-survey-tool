@@ -116,7 +116,9 @@ export function SurveySettingsCard({ survey, onSaved }: { survey: Survey; onSave
           onChange={(e) => setForm({ ...form, notify: e.target.checked })}
         />
         <p className="settings-privacy">
-          Answers are anonymous. Readers who tick “Contact me” share their contact so you can follow up.
+          Answers from a LianaMailer newsletter are linked to the reader’s contact and sent to LianaAutomation; the
+          answer page tells the reader. Answers from the public link and QR code are anonymous, unless the reader ticks
+          “Contact me” and leaves an email address.
         </p>
         {problem ? <p className="publish-error" role="alert">{problem}</p> : null}
         <div>

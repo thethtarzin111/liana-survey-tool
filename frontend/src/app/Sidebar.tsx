@@ -4,7 +4,7 @@ import { ButtonLink, CountBadge, icons } from '../components/ui';
 import { footerNav, mainNav, type NavItem } from './nav';
 
 type Props = {
-  /** Number badges by route, e.g. { '/contact-requests': 3 }. */
+  /** Number badges by route, e.g. { '/results': 3 }. */
   badges?: Partial<Record<string, number>>;
   /** Drawer state on narrow screens. Ignored on wide screens. */
   open?: boolean;

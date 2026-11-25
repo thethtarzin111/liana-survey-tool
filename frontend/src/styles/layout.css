@@ -2,29 +2,31 @@
 
 .header {
   height: var(--header-height); flex: none;
-  display: flex; align-items: center; gap: 12px; padding: 6px 16px;
-  background: var(--color-surface); border-bottom: 1px solid var(--color-border);
+  display: flex; align-items: center; gap: 12px; padding: 0 16px 0 0;
+  background: var(--color-surface); border-bottom: 1px solid transparent;
 }
 /* Header (#74), as in the prototype's top bar. */
 .header { position: relative; z-index: 30; }
 .header-logo {
-  display: inline-flex; align-items: center; min-height: 40px; padding: 0 6px;
+  display: inline-flex; align-items: center; padding: 0;
   border-radius: var(--radius-nav); color: var(--color-brand-dark); text-decoration: none;
 }
 .header-logo:focus-visible { outline: 2px solid var(--color-brand-dark); outline-offset: 2px; }
-.logo { display: block; height: 28px; width: auto; }
+/* Liana's top bar logo: max-height 2.2rem (14px root) and 1em 1.42857em margins (12px base). */
+.logo { display: block; height: 30.6px; width: auto; margin: 12px 17.14px; }
 .header-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .header-pill {
   display: inline-flex; align-items: center; gap: 5px; min-height: 29px; padding: 0 11.76px;
   border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill); background: var(--color-surface);
-  box-shadow: var(--shadow-card); color: var(--color-text);
-  font: 500 var(--text-hint) var(--font-heading); cursor: pointer;
+  box-shadow: var(--shadow-button); color: var(--color-text);
+  font: 500 var(--text-hint) var(--font-heading); cursor: pointer; transition: box-shadow 0.1s;
 }
+.header-pill:hover { box-shadow: none; }
 .header-icon {
   width: 34px; height: 34px; flex: none; padding: 0; display: inline-flex; align-items: center; justify-content: center;
   border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-text); cursor: pointer;
 }
-.header-pill:hover, .header-icon:hover, .header-user:hover, .header-user[aria-expanded='true'] { background: var(--color-bg); }
+.header-icon:hover, .header-user:hover, .header-user[aria-expanded='true'] { background: var(--color-bg); }
 .header-icon[aria-expanded='true'] { background: var(--color-surface-muted); }
 .header-pill:focus-visible, .header-icon:focus-visible, .header-user:focus-visible {
   outline: 2px solid var(--color-brand-dark); outline-offset: 2px;
@@ -57,7 +59,7 @@
 @media (prefers-reduced-motion: reduce) { .header-chevron { transition: none; } }
 @media (max-width: 600px) {
   .header { gap: 4px; padding: 6px 8px; }
-  .logo { height: 24px; }
+  .logo { height: 24px; margin: 0; }
   .header-wide { display: none; }
   .header-pill { width: 34px; height: 34px; padding: 0; justify-content: center; box-shadow: none; }
   .header-user { width: auto; padding: 2px; }
@@ -65,7 +67,8 @@
   .menu.header-apps, .header-actions > .menu-wrap:last-child .menu.header-apps { position: fixed; top: calc(var(--header-height) + 4px); left: 8px; right: 8px; width: auto; max-width: none; }
 }
 
-.body { position: relative; display: flex; flex: 1; min-height: 0; }
+/* White behind the grey main area, so its rounded top-left corner shows. */
+.body { position: relative; display: flex; flex: 1; min-height: 0; background: var(--color-surface); }
 
 .icon-button {
   width: 44px; height: 44px; flex: none; padding: 0;
@@ -77,17 +80,23 @@
 
 .sidebar {
   width: var(--sidebar-width); flex: none; overflow: auto;
-  display: flex; flex-direction: column; gap: 2px; padding: 13.71px 8px;
+  /* Liana's .main-navigation. The right side leaves room for the 1px border,
+     so the items are 217.3px wide, as in Liana. */
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 0.571429em calc(1.14286em - 1px) 1.14286em 1.14286em;
+  font-family: var(--font-body); font-size: var(--text-sidebar);
   background: var(--color-surface); border-right: 1px solid var(--color-border);
+  /* No line beside the main area's rounded corner. The line starts below it. */
+  border-image: linear-gradient(to bottom, transparent var(--radius-card), var(--color-border) var(--radius-card)) 1;
 }
 .sidebar .btn { margin-bottom: 10px; }
-.sidebar-divider { height: 1px; background: var(--color-border); margin: 12px -8px; }
+.sidebar-divider { height: 1px; background: var(--color-border); margin: 12px calc(1px - 1.14286em) 12px -1.14286em; }
 .sidebar-footer { display: flex; flex-direction: column; gap: 2px; }
 
 .nav-link {
   display: flex; align-items: center; gap: 10px;
-  min-height: 36px; padding: 0 7.84px; border-radius: var(--radius-nav);
-  font-size: var(--text-nav); line-height: 20.57px; color: var(--color-text); text-decoration: none;
+  min-height: 39.25px; padding: 0 7.84px; border-radius: var(--radius-nav);
+  font-family: var(--font-body); font-size: 1em; line-height: 1.5; color: var(--color-text); text-decoration: none;
 }
 .nav-link svg { flex: none; }
 .nav-link:hover { background: var(--color-surface-muted); }
@@ -96,7 +105,10 @@
 
 .nav-link .count-badge { margin-left: auto; }
 
-.main { flex: 1; overflow: auto; padding: 24px; }
+.main {
+  flex: 1; overflow: auto; padding: 24px;
+  background: var(--color-bg); border-top-left-radius: var(--radius-card);
+}
 .page-header { margin-bottom: 16px; }
 .page-header p { margin: 4px 0 0; color: var(--color-text-muted); }
 

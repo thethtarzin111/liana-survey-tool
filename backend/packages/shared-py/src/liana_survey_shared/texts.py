@@ -178,6 +178,63 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.fi: "Vain jos valitsit ”Ei minulle”.",
         Language.sv: "Endast om du valde ”Inte för mig”.",
     },
+    # Follow-up page after a one-tap answer from an email (Bug 3: saved by the page,
+    # not by opening the link, so mail scanners do not answer). {answer} is the answer.
+    "your_answer": {
+        Language.en: "Your answer: {answer}",
+        Language.fi: "Vastauksesi: {answer}",
+        Language.sv: "Ditt svar: {answer}",
+    },
+    "tap_saving": {
+        Language.en: "Saving your answer…",
+        Language.fi: "Tallennetaan vastaustasi…",
+        Language.sv: "Ditt svar sparas…",
+    },
+    "tap_saved": {
+        Language.en: "Thanks, your answer is saved. Everything below is optional.",
+        Language.fi: "Kiitos, vastauksesi on tallennettu. Kaikki alla oleva on valinnaista.",
+        Language.sv: "Tack, ditt svar har sparats. Allt nedan är valfritt.",
+    },
+    "tap_confirm": {
+        Language.en: "Press Submit to save your answer.",
+        Language.fi: "Tallenna vastauksesi painamalla Lähetä.",
+        Language.sv: "Tryck på Skicka för att spara ditt svar.",
+    },
+    "tap_failed": {
+        Language.en: "Your answer could not be saved yet. Press Submit to try again.",
+        Language.fi: "Vastaustasi ei voitu vielä tallentaa. Yritä uudelleen painamalla Lähetä.",
+        Language.sv: "Ditt svar kunde inte sparas ännu. Tryck på Skicka för att försöka igen.",
+    },
+    "comment": {
+        Language.en: "Tell us more",
+        Language.fi: "Kerro lisää",
+        Language.sv: "Berätta mer",
+    },
+    "contact_me": {
+        Language.en: "Contact me about this by email",
+        Language.fi: "Ottakaa minuun yhteyttä tästä sähköpostitse",
+        Language.sv: "Kontakta mig om detta via e-post",
+    },
+    "contact_email": {
+        Language.en: "Your email address",
+        Language.fi: "Sähköpostiosoitteesi",
+        Language.sv: "Din e-postadress",
+    },
+    "contact_email_hint": {
+        Language.en: "Needed only if you want us to contact you.",
+        Language.fi: "Tarvitaan vain, jos haluat, että otamme sinuun yhteyttä.",
+        Language.sv: "Behövs bara om du vill att vi kontaktar dig.",
+    },
+    "contact_email_needed": {
+        Language.en: "Enter your email address so we can contact you, or untick “Contact me”.",
+        Language.fi: "Anna sähköpostiosoitteesi, jotta voimme ottaa yhteyttä, tai poista valinta.",
+        Language.sv: "Ange din e-postadress så att vi kan kontakta dig, eller avmarkera rutan.",
+    },
+    "identified_notice": {
+        Language.en: "Your answer is linked to your contact details with the sender.",
+        Language.fi: "Vastauksesi yhdistetään yhteystietoihisi lähettäjän järjestelmässä.",
+        Language.sv: "Ditt svar kopplas till dina kontaktuppgifter hos avsändaren.",
+    },
     # Progress bar on the survey link page (#8); {answered} and {total} are numbers
     "progress_label": {
         Language.en: "Progress",
@@ -201,9 +258,9 @@ TEXTS: dict[str, dict[Language, str]] = {
         Language.sv: "Föregående",
     },
     "step": {
-        Language.en: "Question {n} of {total}",
-        Language.fi: "Kysymys {n}/{total}",
-        Language.sv: "Fråga {n} av {total}",
+        Language.en: "Page {n} of {total}",
+        Language.fi: "Sivu {n}/{total}",
+        Language.sv: "Sida {n} av {total}",
     },
     "answer_this": {
         Language.en: "Please answer this question.",

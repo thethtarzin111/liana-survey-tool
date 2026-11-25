@@ -15,8 +15,8 @@ See the root README for independent frontend/backend commands.
 
 A shared demo for the Liana team and other students runs on one small EU VM
 (Azure for Students), deployed by the "Deploy demo" workflow after CI passes on
-`main`. It runs the local gateway with demo data behind HTTPS and one shared
-password; survey links stay public. Setup and day-to-day use:
+`main`. It runs the local gateway with demo data behind HTTPS, with one login
+per demo organisation; survey links stay public. Setup and day-to-day use:
 `backend/infra/deploy/README.md`. It is a demo, not production: there is no real
 login yet.
 
@@ -31,15 +31,15 @@ For a production setup (e.g. on Liana's own infrastructure), the source layout i
 | Respondent | `backend/services/respondent` | `uvicorn respondent_service.main:app` |
 | Data analyzer | `backend/services/data-analyzer` | `uvicorn data_analyzer.main:app` |
 | Worker | `backend/services/worker` | `python -m survey_worker.main` |
-| Liana connector | `backend/services/liana-connector` | `python -m liana_connector.main` |
+| Liana connector | `backend/services/liana-connector` | `python -m liana_connector.main` (queue) and `uvicorn liana_connector.api:app` (Integrations page API) |
 
 Install `backend/packages/shared-py` and the relevant service dependencies into
 the deployed Python environment. Configure each HTTP service's listening host
 and port for its hosting platform, and supervise long-running processes.
 
 A production entry point must route `/api/v1/surveys` and `/api/v1/templates`
-to the survey manager, `/api/v1/results` to the analyzer, and `/r/` to the
-respondent. It must authenticate admin requests, provide `/api/v1/me`, replace
+to the survey manager, `/api/v1/results` to the analyzer, `/api/v1/integrations`
+to the connector's API, and `/r/` to the respondent. It must authenticate admin requests, provide `/api/v1/me`, replace
 forwarded identity headers, provide TLS and rate limits, and keep the individual
 services private. `backend/scripts/local_gateway.py` is a loopback-only demo
 entry point and does not implement production authentication.

@@ -14,9 +14,14 @@ import psycopg
 import pytest
 
 from liana_survey_shared.db import ping, tenant_connection
-from liana_survey_shared.messages import AnswerSubmitted, AnswerValue
+from liana_survey_shared.messages import (
+    AnswerRecorded,
+    AnswerSubmitted,
+    AnswerValue,
+    ContactRequested,
+)
 from survey_worker import main as worker
-from survey_worker.handlers import BadMessage, Recorded, handle_answer, parse
+from survey_worker.handlers import BadMessage, Recorded, handle_answer, parse, record_answer
 
 DEMO_TENANT = UUID("00000000-0000-4000-8000-000000000001")
 OTHER_TENANT = UUID("00000000-0000-4000-8000-0000000000ff")
@@ -27,7 +32,7 @@ needs_db = pytest.mark.skipif(
 
 
 def message(
-    survey_id, answers, *, reader="reader-1", tenant=DEMO_TENANT, at=None, segment=None
+    survey_id, answers, *, reader="reader-1", tenant=DEMO_TENANT, at=None, segment=None, **extra
 ) -> bytes:
     return (
         AnswerSubmitted(
@@ -37,6 +42,7 @@ def message(
             answers=answers,
             **({"created_at": at} if at else {}),
             **({"segment": segment} if segment else {}),
+            **extra,
         )
         .model_dump_json()
         .encode()
@@ -371,3 +377,215 @@ def test_readers_answering_at_the_same_time_never_go_past_the_limit(make_survey)
     assert saved.count(True) == 3
     assert totals(survey_id) == (3, {"9": 3})
     assert len(stored(survey_id)) == 3
+
+
+# --- Comments, "Contact me" and events for the connector (demo review) --------------
+
+
+def response_row(survey_id):
+    with tenant_connection(DEMO_TENANT) as conn:
+        return conn.execute(
+            "select id, contact_ref, comment from responses where survey_id = %s", (survey_id,)
+        ).fetchone()
+
+
+def contact_requests(survey_id):
+    with tenant_connection(DEMO_TENANT) as conn:
+        return conn.execute(
+            "select response_id, contact_ref from contact_requests where survey_id = %s",
+            (survey_id,),
+        ).fetchall()
+
+
+def test_published_events_are_passed_on_after_the_answer_is_saved(monkeypatch):
+    event = object()
+    monkeypatch.setattr(worker, "record_answer", lambda body: Recorded(True, None, (event,)))
+    published = []
+
+    async def publish(message):
+        published.append(message)
+
+    msg = FakeMessage()
+    asyncio.run(worker.process(msg, publish))
+    assert published == [event] and msg.outcome == "ack"
+
+
+@pytest.mark.db
+@needs_db
+def test_the_comment_is_saved_and_kept_when_the_reader_taps_again(make_survey):
+    survey_id, main, _ = make_survey()
+    now = datetime.now(UTC)
+    record_answer(message(survey_id, nps(main, 3), at=now, comment="Too many emails"))
+    record_answer(message(survey_id, nps(main, 4), at=now + timedelta(seconds=1)))
+    _, _, comment = response_row(survey_id)
+    assert comment == "Too many emails"
+
+
+@pytest.mark.db
+@needs_db
+def test_contact_me_creates_one_contact_request_per_response(make_survey):
+    survey_id, main, _ = make_survey()
+    now = datetime.now(UTC)
+    tapped = record_answer(message(survey_id, nps(main, 3), at=now))
+    [recorded] = tapped.events
+    assert isinstance(recorded, AnswerRecorded) and recorded.contact_ref is None
+    assert contact_requests(survey_id) == []
+
+    sent = record_answer(
+        message(
+            survey_id,
+            nps(main, 3),
+            at=now + timedelta(seconds=1),
+            contact_ref="4084400",
+            contact_me=True,
+            campaign="november",
+        )
+    )
+    recorded, request = sent.events
+    response_id, contact_ref, _ = response_row(survey_id)
+    assert isinstance(request, ContactRequested) and request.contact_ref == "4084400"
+    assert contact_requests(survey_id) == [(response_id, "4084400")]
+    assert (recorded.response_id, recorded.contact_ref, recorded.score, recorded.main_kind) == (
+        response_id,
+        "4084400",
+        3,
+        "nps",
+    )
+    assert (recorded.campaign, recorded.survey_title) == ("november", "Worker test")
+
+    # Sent again (e.g. the form twice): still one request, none published again.
+    again = record_answer(
+        message(
+            survey_id,
+            nps(main, 3),
+            at=now + timedelta(seconds=2),
+            contact_ref="4084400",
+            contact_me=True,
+        )
+    )
+    assert [type(e) for e in again.events] == [AnswerRecorded]
+    assert len(contact_requests(survey_id)) == 1
+
+
+@pytest.mark.db
+@needs_db
+def test_an_identified_answer_without_contact_me_makes_no_contact_request(make_survey):
+    survey_id, main, _ = make_survey()
+    recorded = record_answer(message(survey_id, nps(main, 9), contact_ref="4084399"))
+    [event] = recorded.events
+    assert event.contact_ref == "4084399" and event.score == 9
+    assert contact_requests(survey_id) == []
+
+
+@pytest.mark.db
+@needs_db
+def test_nothing_is_passed_on_when_nothing_changed(make_survey):
+    survey_id, main, _ = make_survey()
+    body = message(survey_id, nps(main, 9))
+    assert len(record_answer(body).events) == 1
+    assert record_answer(body).events == ()  # the same message again: kept
+
+
+@pytest.mark.db
+@needs_db
+def test_opening_the_link_again_keeps_the_follow_up_answers(make_survey):
+    # From review: the follow-up page saves the tapped answer on every open; that must
+    # not wipe the reasons the reader sent with the follow-up form before.
+    survey_id, main, reasons = make_survey()
+    now = datetime.now(UTC)
+    record_answer(message(survey_id, nps(main, 9), at=now, main_only=True))
+    record_answer(
+        message(
+            survey_id,
+            [*nps(main, 9), AnswerValue(question_id=reasons, choices=["Price"])],
+            at=now + timedelta(seconds=1),
+        )
+    )
+    record_answer(message(survey_id, nps(main, 9), at=now + timedelta(seconds=2), main_only=True))
+    assert [(number, choices) for _, number, choices in stored(survey_id)] == [
+        (9, None),
+        (None, ["Price"]),
+    ]
+    # A changed tap changes only the main answer and the totals.
+    record_answer(message(survey_id, nps(main, 4), at=now + timedelta(seconds=3), main_only=True))
+    assert [(number, choices) for _, number, choices in stored(survey_id)] == [
+        (4, None),
+        (None, ["Price"]),
+    ]
+    assert totals(survey_id) == (1, {"4": 1})
+
+
+def contact_state(survey_id):
+    with tenant_connection(DEMO_TENANT) as conn:
+        return conn.execute(
+            """select contact_ref, contact_requested, contact_requested_at is not null,
+                      contact_email
+               from responses where survey_id = %s""",
+            (survey_id,),
+        ).fetchone()
+
+
+@pytest.mark.db
+@needs_db
+def test_contact_me_is_saved_on_the_response_and_never_taken_away(make_survey):
+    survey_id, main, _ = make_survey()
+    now = datetime.now(UTC)
+    record_answer(message(survey_id, nps(main, 3), at=now, contact_ref="4084400"))
+    assert contact_state(survey_id) == ("4084400", False, False, None)
+    record_answer(
+        message(
+            survey_id,
+            nps(main, 3),
+            at=now + timedelta(seconds=1),
+            contact_ref="4084400",
+            contact_me=True,
+        )
+    )
+    assert contact_state(survey_id) == ("4084400", True, True, None)
+    # A later tap without the box, or without the contact, keeps both.
+    record_answer(message(survey_id, nps(main, 4), at=now + timedelta(seconds=2), main_only=True))
+    assert contact_state(survey_id) == ("4084400", True, True, None)
+
+
+@pytest.mark.db
+@needs_db
+def test_a_public_page_request_keeps_the_typed_address(make_survey):
+    survey_id, main, _ = make_survey()
+    recorded = record_answer(
+        message(survey_id, nps(main, 2), contact_me=True, contact_email="anna@example.org")
+    )
+    answered, request = recorded.events
+    assert answered.contact_ref is None  # anonymous: no survey_answered goes out
+    assert (request.contact_ref, request.contact_email) == (None, "anna@example.org")
+    assert request.response_id == response_row(survey_id)[0]
+    assert contact_state(survey_id) == (None, True, True, "anna@example.org")
+    assert contact_requests(survey_id) == [(request.response_id, None)]
+
+
+@pytest.mark.db
+@needs_db
+def test_an_address_without_contact_me_is_not_kept(make_survey):
+    survey_id, main, _ = make_survey()
+    record_answer(message(survey_id, nps(main, 2), contact_email="anna@example.org"))
+    assert contact_state(survey_id) == (None, False, False, None)
+    assert contact_requests(survey_id) == []
+
+
+@pytest.mark.db
+@needs_db
+def test_a_contact_request_is_saved_before_its_event_is_passed_on(make_survey):
+    # From review: the connector stores the looked-up address only on a response that
+    # is already marked "Contact me", so that must be committed before the event goes
+    # out. record_answer returns the events after its transaction; a separate
+    # connection (as the connector's) already sees the request.
+    survey_id, main, _ = make_survey()
+    recorded = record_answer(
+        message(survey_id, nps(main, 3), contact_ref="4084400", contact_me=True)
+    )
+    request = recorded.events[-1]
+    assert isinstance(request, ContactRequested)
+    with tenant_connection(DEMO_TENANT) as conn:
+        asked = conn.execute(
+            "select contact_requested from responses where id = %s", (request.response_id,)
+        ).fetchone()[0]
+    assert asked is True

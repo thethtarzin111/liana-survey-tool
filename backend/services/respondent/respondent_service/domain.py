@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
+from liana_survey_shared.contact import InvalidEmail, clean_email
 from liana_survey_shared.messages import AnswerValue
 from liana_survey_shared.scoring import CSAT_SCALE, NPS_SCALE, THUMBS_SCALE
 from liana_survey_shared.texts import text
@@ -18,6 +19,13 @@ MULTI_KINDS = frozenset({"multiple_choice", "reasons"})
 TEXT_LIMITS = {"text": 500, "long_text": 5000}
 #: "Not for me": the only thumbs answer that asks for reasons (as in the email flow).
 THUMBS_NOT_FOR_ME = 0
+#: The "Tell us more" box's form field and longest text (as a long_text answer).
+COMMENT_FIELD = "comment"
+COMMENT_LIMIT = 5000
+#: The "Contact me about this by email" box's form field, and the address field next
+#: to it on pages without a contact id (the public link and the QR code).
+CONTACT_ME_FIELD = "contact_me"
+CONTACT_EMAIL_FIELD = "contact_email"
 
 
 class AnswerProblem(Exception):
@@ -93,9 +101,10 @@ def form_answers(
     """The answers sent from the survey link page, checked against each question.
 
     `form` holds the values sent per field (see field_name). Blank values count
-    as not answered. Raises AnswerProblem "answer_required" when a required
-    question, or every question, is left blank, and "answer_not_valid" for
-    answers that are not one of the question's choices or too long."""
+    as not answered, so the list is empty when every question is optional and
+    left blank. Raises AnswerProblem "answer_required" when a required question
+    is left blank, and "answer_not_valid" for answers that are not one of the
+    question's choices or too long."""
     main_answer = None
     if questions:
         sent = [v.strip() for v in form.get(field_name(questions[0]), ())]
@@ -110,8 +119,6 @@ def form_answers(
                 raise AnswerProblem("answer_required", 400)
             continue
         answers.append(_answer(question, values))
-    if not answers:
-        raise AnswerProblem("answer_required", 400)
     return answers
 
 
@@ -136,3 +143,68 @@ def _answer(question: Mapping[str, Any], values: list[str]) -> AnswerValue:
     else:
         raise AnswerProblem("answer_not_valid", 400)
     return answer
+
+
+def has_text_question(questions: Sequence[Mapping[str, Any]]) -> bool:
+    """Whether the survey asks for free text itself (Results shows that as the comment)."""
+    return any(question["kind"] in TEXT_LIMITS for question in questions)
+
+
+def shows_comment_box(survey: Mapping[str, Any], questions: Sequence[Mapping[str, Any]]) -> bool:
+    """The "Tell us more" box: when it is switched on and no question asks for text."""
+    return bool(survey["comment_field"]) and not has_text_question(questions)
+
+
+def shows_contact_me(survey: Mapping[str, Any]) -> bool:
+    """The "Contact me" box, when the survey offers it (contact_opt_in)."""
+    return bool(survey["contact_opt_in"])
+
+
+def asks_contact_email(reader_ref: str | None) -> bool:
+    """Whether "Contact me" needs an email address: only without a contact id (r=).
+    For a newsletter reader the connector gets the address from LianaMailer."""
+    return not reader_ref
+
+
+def contact_request(
+    survey: Mapping[str, Any], form: Mapping[str, Sequence[str]], reader_ref: str | None
+) -> tuple[bool, str | None]:
+    """Whether the reader asked to be contacted, and the address they typed (None when
+    they come from a newsletter link). Raises AnswerProblem "contact_email_needed"
+    when "Contact me" is ticked on a page without a contact id and the address is
+    missing or not an address."""
+    if not shows_contact_me(survey) or not any(v.strip() for v in form.get(CONTACT_ME_FIELD, ())):
+        return False, None
+    if not asks_contact_email(reader_ref):
+        return True, None
+    try:
+        return True, clean_email(next(iter(form.get(CONTACT_EMAIL_FIELD, ())), ""))
+    except InvalidEmail:
+        raise AnswerProblem("contact_email_needed", 400) from None
+
+
+def comment(form: Mapping[str, Sequence[str]]) -> str | None:
+    """The "Tell us more" text, or None when blank. Raises AnswerProblem when too long."""
+    values = [v.strip() for v in form.get(COMMENT_FIELD, ()) if v.strip()]
+    if not values:
+        return None
+    if len(values) != 1 or len(values[0]) > COMMENT_LIMIT:
+        raise AnswerProblem("answer_not_valid", 400)
+    return values[0]
+
+
+def follow_up_answers(
+    survey_type: str,
+    questions: Sequence[Mapping[str, Any]],
+    form: Mapping[str, Sequence[str]],
+    main_answer: int,
+) -> list[AnswerValue]:
+    """The answers sent from the follow-up page after a one-tap answer: the tapped
+    answer from the link, plus the other questions, which are all optional there
+    (the answer is saved already, so the reader may stop at any point)."""
+    if not questions:
+        return []
+    main, others = questions[0], questions[1:]
+    sent = {**form, field_name(main): [str(main_answer)]}
+    optional = [main, *({**question, "required": False} for question in others)]
+    return form_answers(survey_type, optional, sent)

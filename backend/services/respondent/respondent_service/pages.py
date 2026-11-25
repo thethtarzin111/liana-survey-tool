@@ -1,7 +1,12 @@
-"""The server-rendered pages readers see: the thank-you and problem pages (#42) and
-the survey link page (#105), which works as a plain HTML form. A small script adds
-the progress bar (#8) and asks thumbs reasons only after "Not for me"; without
-JavaScript the form still works.
+"""The server-rendered pages readers see: the thank-you and problem pages (#42),
+the survey link page (#105) and the follow-up page after a one-tap answer from an
+email. All work as plain HTML forms. On the survey link page a small script adds
+the progress bar (#8), splits the questions into pages and asks thumbs reasons
+only after "Not for me". On the follow-up page a script saves the tapped answer
+as soon as the page opens; without JavaScript the reader presses Submit.
+
+The survey description keeps its line breaks and a small Markdown subset:
+**bold**, *italic* or _italic_, and [links](https://example.org).
 
 Survey texts and colours are escaped; colours are only used when they are
 6-digit hex codes, as stored by survey-manager. The styles use the values in
@@ -15,9 +20,23 @@ from typing import Any
 
 from liana_survey_shared.texts import language_or_default, text
 
-from .domain import field_name
+from .domain import (
+    COMMENT_FIELD,
+    COMMENT_LIMIT,
+    CONTACT_EMAIL_FIELD,
+    CONTACT_ME_FIELD,
+    field_name,
+)
 
 _HEX = re.compile(r"#[0-9A-Fa-f]{6}")
+#: Questions per page on the survey link page. The builder preview uses the same number.
+QUESTIONS_PER_PAGE = 3
+_LINK = re.compile(r'\[([^\]\n]+)\]\(((?:https?://|mailto:)[^\s()"<>]+)\)')
+_BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*")
+_ITALIC = re.compile(
+    r"(?<![\w*])\*(?=[^\s*])(.+?)(?<=[^\s*])\*(?![\w*])"  # *italic*, not 2*3 or **
+    r"|(?<!\w)_(?=\S)(.+?)(?<=\S)_(?!\w)"  # _italic_, not snake_case
+)
 DEFAULT_ACCENT = "#0F6A5E"
 DEFAULT_BACKGROUND = "#FFFFFF"
 
@@ -27,19 +46,21 @@ _STYLES = """
   * { box-sizing: border-box; }
   :root { --font: Inter, Helvetica, Arial, sans-serif; }
   body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
-         background: var(--background); color: #353A40; font: 16px/1.5 var(--font); }
+         background: #FFFFFF; color: #353A40; font: 16px/1.5 var(--font); }
   main { width: 100%; max-width: 480px; margin: 24px; padding: 32px 28px; border-radius: 14px;
-         background: #FFFFFF; border-top: 6px solid var(--accent);
+         background: var(--background); border-top: 6px solid var(--accent);
          box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08); }
   h1 { margin: 0 0 8px; font: 600 22px/1.3 Poppins, Helvetica, Arial, sans-serif; }
   p { margin: 0; }
   main.survey { max-width: 600px; }
-  .description { color: #696F77; white-space: pre-line; }
+  .description { color: #696F77; white-space: pre-line; overflow-wrap: anywhere; }
+  .description a { color: var(--accent); }
   .error { margin-top: 16px; padding: 10px 14px; border-radius: 7px; color: #DB2828;
            background: #FFF6F6; border: 1px solid #DB2828; }
   form { display: flex; flex-direction: column; gap: 28px; margin-top: 24px; }
   fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   legend { padding: 0; margin-bottom: 12px; font-weight: 600; }
+  .is-missing legend { color: #DB2828; }
   .optional, .hint { color: #696F77; font-weight: 400; }
   .hint { margin: -6px 0 10px; font-size: 14px; }
   label { position: relative; cursor: pointer; }
@@ -85,7 +106,7 @@ _STYLES = """
   .step-error { margin: -12px 0 0; color: #DB2828; }
   legend:focus { outline: none; }
   .progress { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 12px;
-              margin: 16px -4px -8px; padding: 10px 4px; background: #FFFFFF; }
+              margin: 16px -4px -8px; padding: 10px 4px; background: var(--background); }
   .progress[hidden] { display: none; }
   .survey > .progress:first-child { margin-top: -12px; }
   .progress-track { flex: 1; height: 8px; border-radius: 120px; background: #DFE3E7;
@@ -94,6 +115,16 @@ _STYLES = """
                    background: var(--accent); transition: width .2s ease; }
   .progress-text { color: #696F77; font-size: 13px; white-space: nowrap; }
   fieldset[hidden] { display: none; }
+  .saved { margin-top: 8px; color: #696F77; }
+  .notice { margin-top: 12px; color: #696F77; font-size: 14px; }
+  .check { display: flex; gap: 10px; align-items: center; }
+  .check input { margin: 0; width: 18px; height: 18px; accent-color: var(--accent); }
+  .contact-email { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+  .contact-email[hidden], .contact-box[hidden] { display: none; }
+  .contact-email .hint { margin: 0; }
+  input[type=email] { width: 100%; padding: 10px 12px; color: inherit; font: inherit;
+         border: 1px solid #CED3D9; border-radius: 7px; background: #FFFFFF; }
+  input[type=email]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   @media (prefers-reduced-motion: reduce) { .progress-fill { transition: none; } }
   @media (max-width: 520px) {
     body { align-items: flex-start; }
@@ -111,11 +142,12 @@ _STYLES = """
 # - the progress bar (#8) counts the questions shown and answered;
 # - thumbs reasons are shown only after "Not for me" (0); hidden ones are
 #   disabled, so they are not sent;
-# - one question at a time with Previous / Next (#9). Next and Submit check
-#   required answers first; answers stay in the form when going back.
+# - a few questions per page with Previous / Next (#9). Next and Submit check
+#   the required answers first; answers stay in the form when going back.
 _SCRIPT = """
 (function () {
   var form = document.querySelector('form.survey-form');
+  var perPage = Number(form && form.getAttribute('data-per-page')) || 1;
   var bar = document.querySelector('.progress');
   if (!form || !bar) return;
   var each = function (list, fn) { Array.prototype.forEach.call(list, fn); };
@@ -126,7 +158,7 @@ _SCRIPT = """
   var next = form.querySelector('[data-next]');
   var send = form.querySelector('button[type=submit]');
   var missing = form.querySelector('.step-error');
-  var current = null;
+  var at = -1;
   each(document.querySelectorAll('[data-no-script]'), function (el) { el.hidden = true; });
 
   function answered(fieldset) {
@@ -141,20 +173,39 @@ _SCRIPT = """
   function shown() {
     return Array.prototype.filter.call(all, function (f) { return !f.hidden; });
   }
-  function show(target, focus) {
+  function pages() {
     var list = shown();
-    current = list.indexOf(target) < 0 ? list[0] : target;
-    var at = list.indexOf(current);
+    var out = [];
+    for (var i = 0; i < list.length; i += perPage) out.push(list.slice(i, i + perPage));
+    return out;
+  }
+  function pageOf(fieldset) {
+    return Math.floor(shown().indexOf(fieldset) / perPage);
+  }
+  function markMissing(page) {
+    each(all, function (f) {
+      f.classList.toggle('is-missing', page.indexOf(f) >= 0 && isMissing(f));
+    });
+  }
+  function show(index, focus) {
+    var list = pages();
+    at = Math.max(0, Math.min(index, list.length - 1));
+    var page = list[at] || [];
     var last = at === list.length - 1;
-    each(all, function (f) { f.classList.toggle('is-off', f !== current); });
+    each(all, function (f) {
+      f.classList.toggle('is-off', page.indexOf(f) < 0);
+      f.classList.remove('is-missing');
+    });
     previous.hidden = at === 0;
+    each(form.querySelectorAll('[data-last-page]'), function (el) { el.hidden = !last; });
     next.hidden = last;
     send.hidden = !last;
+    stepLabel.hidden = list.length < 2;
     stepLabel.textContent = stepLabel.getAttribute('data-template')
       .replace('{n}', at + 1).replace('{total}', list.length);
     missing.hidden = true;
-    if (focus) {
-      var legend = current.querySelector('legend');
+    if (focus && page.length) {
+      var legend = page[0].querySelector('legend');
       legend.tabIndex = -1;
       legend.focus();
     }
@@ -175,42 +226,52 @@ _SCRIPT = """
     bar.querySelector('.progress-text').textContent = words;
     bar.setAttribute('aria-valuenow', percent);
     bar.setAttribute('aria-valuetext', words);
-    if (current) {
+    if (at >= 0) {
       var wasMissing = !missing.hidden;
-      show(current, false);
-      missing.hidden = !(wasMissing && isMissing(current));
+      show(at, false);
+      var page = pages()[at] || [];
+      if (wasMissing && page.some(isMissing)) {
+        missing.hidden = false;
+        markMissing(page);
+      }
     }
   }
   function forward() {
-    if (isMissing(current)) {
+    var page = pages()[at] || [];
+    if (page.some(isMissing)) {
       missing.hidden = false;
+      markMissing(page);
       return;
     }
-    var list = shown();
-    show(list[list.indexOf(current) + 1], true);
+    show(at + 1, true);
   }
 
   next.addEventListener('click', forward);
-  previous.addEventListener('click', function () {
-    var list = shown();
-    show(list[list.indexOf(current) - 1], true);
-  });
+  previous.addEventListener('click', function () { show(at - 1, true); });
   form.addEventListener('submit', function (event) {
-    var list = shown();
-    if (current !== list[list.length - 1]) {
-      event.preventDefault();  // Enter in a text field on an earlier question
+    if (at !== pages().length - 1) {
+      event.preventDefault();  // Enter in a text field on an earlier page
       forward();
       return;
     }
-    var first = list.filter(isMissing)[0];
+    var first = shown().filter(isMissing)[0];
     if (first) {
       event.preventDefault();
-      show(first, true);
+      show(pageOf(first), true);
       missing.hidden = false;
+      markMissing(pages()[at]);
     }
   });
   form.addEventListener('input', update);
   form.addEventListener('change', update);
+  // The email field next to "Contact me" shows once the box is ticked.
+  var contactMe = form.querySelector('input[name=contact_me]');
+  var contactEmail = form.querySelector('[data-contact-email]');
+  if (contactMe && contactEmail) {
+    var showEmail = function () { contactEmail.hidden = !contactMe.checked; };
+    contactMe.addEventListener('change', showEmail);
+    showEmail();
+  }
 
   // The page's own checks replace the browser's, which cannot reach hidden steps.
   form.noValidate = true;
@@ -218,11 +279,66 @@ _SCRIPT = """
   bar.hidden = false;
   stepLabel.hidden = false;
   update();
-  // Sent back with something to fix: start at the first question to answer.
+  // Sent back with something to fix: start at the page of the first question to answer.
   var start = document.querySelector('.error') ? shown().filter(isMissing)[0] : null;
-  show(start || shown()[0], false);
+  show(start ? pageOf(start) : 0, false);
 })();
 """
+
+
+# The follow-up page saves the tapped answer as soon as it opens, with a POST that
+# mail scanners do not send (they only open links). Without JavaScript the reader
+# presses Submit instead. Submit sends the whole form, which replaces the answer
+# saved here (the same reader key), so it never counts twice.
+_FOLLOW_UP_SCRIPT = """
+(function () {
+  var form = document.querySelector('form.follow-up');
+  var status = document.querySelector('[data-tap-status]');
+  if (!form || !status || !window.fetch || !window.URLSearchParams) return;
+  var data = new URLSearchParams();
+  ['r', 's', 'a', 'c', 'seg', 'ch'].forEach(function (name) {
+    var field = form.elements[name];
+    if (field) data.append(name, field.value);
+  });
+  data.append('step', 'tap');
+  status.textContent = status.getAttribute('data-saving');
+  fetch(window.location.pathname, {
+    method: 'POST',
+    body: data,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  }).then(function (response) {
+    if (!response.ok) throw new Error(String(response.status));
+    status.textContent = status.getAttribute('data-saved');
+  }).catch(function () {
+    status.textContent = status.getAttribute('data-failed');
+  });
+})();
+"""
+
+
+def description_html(description: str) -> str:
+    """The survey description as escaped HTML with **bold**, *italic*, _italic_ and
+    [links](https://...). Line breaks stay in the text; the page keeps them with CSS.
+    Only http, https and mailto links become links."""
+    links: list[str] = []
+
+    def keep_link(match: re.Match[str]) -> str:
+        url = html.escape(match.group(2), quote=True)
+        links.append(
+            f'<a href="{url}" rel="noopener noreferrer" target="_blank">'
+            f"{_emphasis(html.escape(match.group(1), quote=True))}</a>"
+        )
+        return f"\x00{len(links) - 1}\x00"
+
+    marked = _LINK.sub(keep_link, description.replace("\x00", ""))
+    formatted = _emphasis(html.escape(marked, quote=True))
+    return re.sub("\x00(\\d+)\x00", lambda m: links[int(m.group(1))], formatted)
+
+
+def _emphasis(escaped: str) -> str:
+    bold = _BOLD.sub(r"<strong>\1</strong>", escaped)
+    return _ITALIC.sub(lambda m: f"<em>{m.group(1) or m.group(2)}</em>", bold)
 
 
 def _colour(value: str | None, default: str) -> str:
@@ -296,11 +412,16 @@ def survey_form(
     channel: str,
     sent: Mapping[str, Sequence[str]] | None = None,
     error: str | None = None,
+    comment_box: bool = False,
+    contact_box: bool = False,
 ) -> str:
     """The whole survey for a reader who came from a plain link or QR code (#105).
 
     `key` is the signed visit key the answers are sent back with; `sent` and
-    `error` show the reader's answers again with what to fix."""
+    `error` show the reader's answers again with what to fix. `comment_box` adds
+    the optional "Tell us more" box as the last question, `contact_box` the "Contact
+    me" box with an email field: these readers have no contact id, so a reader who
+    wants a reply leaves an address."""
     language = survey["language"]
     sent = sent or {}
     title = reader_title(survey)
@@ -309,7 +430,7 @@ def survey_form(
     if title:
         parts.append(f"<h1>{html.escape(title)}</h1>")
     if description:
-        parts.append(f'<p class="description">{html.escape(description)}</p>')
+        parts.append(f'<p class="description">{description_html(description)}</p>')
     if error:
         parts.append(f'<p class="error" role="alert">{html.escape(error)}</p>')
     parts.append(
@@ -319,7 +440,7 @@ def survey_form(
         '<span class="progress-track"><span class="progress-fill"></span></span>'
         '<span class="progress-text"></span></div>'
     )
-    parts.append('<form method="post" class="survey-form">')
+    parts.append(f'<form method="post" class="survey-form" data-per-page="{QUESTIONS_PER_PAGE}">')
     parts.append(f'<input type="hidden" name="key" value="{html.escape(key)}">')
     parts.append(f'<input type="hidden" name="ch" value="{html.escape(channel)}">')
     parts.append(
@@ -329,9 +450,18 @@ def survey_form(
         parts.append(
             _question(survey["type"], question, sent.get(field_name(question), ()), language)
         )
+    if comment_box:
+        parts.append(_comment_box(sent, language))
+    if contact_box:
+        parts.append(
+            # Not a question: the progress bar and the pages leave it out, and the
+            # script shows it with the last page only.
+            '<div class="contact-box" data-last-page>'
+            f"{_contact_me_box(sent, language, with_email=True)}</div>"
+        )
     parts.append(
         '<p class="step-error" role="alert" hidden>'
-        f"{html.escape(text('answer_this', language))}</p>"
+        f"{html.escape(text('answer_required', language))}</p>"
     )
     parts.append(
         '<div class="actions">'
@@ -350,6 +480,132 @@ def survey_form(
         survey["background_color"],
         language,
         _SCRIPT,
+    )
+
+
+def _comment_box(sent: Mapping[str, Sequence[str]], language: str | None) -> str:
+    """The optional "Tell us more" box (surveys.comment_field)."""
+    value = html.escape(sent[COMMENT_FIELD][0]) if sent.get(COMMENT_FIELD) else ""
+    optional = html.escape(text("optional", language))
+    return (
+        '<fieldset data-kind="long_text">'
+        f'<legend id="{COMMENT_FIELD}-label">{html.escape(text("comment", language))}'
+        f' <span class="optional">{optional}</span></legend>'
+        f'<textarea name="{COMMENT_FIELD}" maxlength="{COMMENT_LIMIT}"'
+        f' aria-labelledby="{COMMENT_FIELD}-label">{value}</textarea></fieldset>'
+    )
+
+
+def _contact_me_box(
+    sent: Mapping[str, Sequence[str]], language: str | None, *, with_email: bool
+) -> str:
+    """The "Contact me about this by email" opt-in (surveys.contact_opt_in). With
+    `with_email`, an address field that the page's script shows once the box is
+    ticked (without JavaScript it is always there); the server requires it then."""
+    checked = " checked" if sent.get(CONTACT_ME_FIELD) else ""
+    box = (
+        f'<label class="check"><input type="checkbox" name="{CONTACT_ME_FIELD}" value="1"'
+        f"{checked}>{html.escape(text('contact_me', language))}</label>"
+    )
+    if not with_email:
+        return box
+    value = html.escape(sent[CONTACT_EMAIL_FIELD][0]) if sent.get(CONTACT_EMAIL_FIELD) else ""
+    return (
+        f'{box}<div class="contact-email" data-contact-email>'
+        f'<label for="{CONTACT_EMAIL_FIELD}">{html.escape(text("contact_email", language))}</label>'
+        f'<p class="hint" id="{CONTACT_EMAIL_FIELD}-hint">'
+        f"{html.escape(text('contact_email_hint', language))}</p>"
+        f'<input type="email" id="{CONTACT_EMAIL_FIELD}" name="{CONTACT_EMAIL_FIELD}"'
+        f' maxlength="254" autocomplete="email" value="{value}"'
+        f' aria-describedby="{CONTACT_EMAIL_FIELD}-hint"></div>'
+    )
+
+
+def answer_label(main_kind: str | None, answer: int, language: str | None) -> str:
+    """The tapped answer as the reader saw it: "9", "4 Satisfied" or "Loved it"."""
+    if main_kind == "thumbs":
+        keys = ("thumbs_down", "thumbs_ok", "thumbs_up")
+        return text(keys[answer], language) if 0 <= answer < len(keys) else str(answer)
+    if main_kind == "rating":
+        return f"{answer} {text(f'csat_{answer}', language)}"
+    return str(answer)
+
+
+def follow_up(
+    survey: Mapping[str, Any],
+    questions: Sequence[Mapping[str, Any]],
+    *,
+    answer: int,
+    link_fields: Mapping[str, str],
+    comment_box: bool,
+    contact_box: bool,
+    identified: bool,
+    email_box: bool = False,
+    sent: Mapping[str, Sequence[str]] | None = None,
+    error: str | None = None,
+) -> str:
+    """The page an answer link from an email opens (Bug 3 of the demo review).
+
+    Opening the link saves nothing, so a mail scanner that opens every link does not
+    answer. The script saves the tapped `answer` (a POST with step=tap) as soon as
+    the page shows; without JavaScript the reader presses Submit. Below it are the
+    survey's other questions, the "Tell us more" box and the "Contact me" box, all
+    optional. Submit sends them with the same link fields, which updates the same
+    response instead of adding one.
+
+    `questions` are the survey's questions after the main one. `link_fields` are
+    sent back as hidden fields (r, s, a, c, seg, ch)."""
+    language = survey["language"]
+    sent = sent or {}
+    title = reader_title(survey)
+    label = answer_label(survey.get("main_kind"), answer, language)
+    parts = ['<main class="survey">']
+    if title:
+        parts.append(f"<h1>{html.escape(title)}</h1>")
+    parts.append(
+        f"<p><strong>{html.escape(text('your_answer', language).format(answer=label))}</strong></p>"
+    )
+    parts.append(
+        '<p class="saved" role="status" data-tap-status'
+        f' data-saving="{html.escape(text("tap_saving", language))}"'
+        f' data-saved="{html.escape(text("tap_saved", language))}"'
+        f' data-failed="{html.escape(text("tap_failed", language))}">'
+        f"{html.escape(text('tap_confirm', language))}</p>"
+    )
+    if error:
+        parts.append(f'<p class="error" role="alert">{html.escape(error)}</p>')
+    parts.append('<form method="post" class="follow-up">')
+    for name, value in link_fields.items():
+        parts.append(
+            f'<input type="hidden" name="{html.escape(name)}" value="{html.escape(value)}">'
+        )
+    for question in questions:
+        optional = {**question, "required": False}
+        if survey["type"] == "thumbs" and question["kind"] == "reasons" and answer != 0:
+            continue  # thumbs reasons only after "Not for me"
+        parts.append(
+            _question(survey["type"], optional, sent.get(field_name(question), ()), language)
+        )
+    if comment_box:
+        parts.append(_comment_box(sent, language))
+    if contact_box:
+        parts.append(_contact_me_box(sent, language, with_email=email_box))
+    parts.append(
+        '<div class="actions">'
+        f'<button type="submit" class="submit">{html.escape(text("submit", language))}</button>'
+        "</div>"
+    )
+    parts.append("</form>")
+    if identified:
+        parts.append(f'<p class="notice">{html.escape(text("identified_notice", language))}</p>')
+    parts.append("</main>")
+    return _document(
+        title or text("survey_heading", language),
+        "\n".join(parts),
+        survey["accent_color"],
+        survey["background_color"],
+        language,
+        _FOLLOW_UP_SCRIPT,
     )
 
 

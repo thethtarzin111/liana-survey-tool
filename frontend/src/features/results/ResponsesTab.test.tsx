@@ -7,13 +7,15 @@ import { useResultsParams } from './useResultsParams';
 function row(n: number, overrides: Partial<ResponseRow> = {}): ResponseRow {
   return {
     id: `id-${n}`, display_id: `R-${String(1000 + n)}`, submitted_at: '2026-11-19T09:12:00Z', answer: 3,
-    reason: 'Too long', comment: `Comment ${n}`, masked: false, segment_label: 'Members', ...overrides,
+    reason: 'Too long', comment: `Comment ${n}`, masked: false, segment_label: 'Members', contact_requested: false,
+    contact: null, ...overrides,
   };
 }
 const many = (from: number, count: number) => Array.from({ length: count }, (_, i) => row(from + i));
 
 const detail: ResponseDetail = {
-  display_id: 'R-1001', submitted_at: '2026-11-19T09:12:00Z', segment_label: 'Members',
+  display_id: 'R-1001', submitted_at: '2026-11-19T09:12:00Z', segment_label: 'Members', contact_requested: false,
+  contact: null,
   answers: [
     { question_id: 'q1', prompt: 'How likely are you to recommend us?', kind: 'nps', value: 3, masked: false },
     { question_id: 'q2', prompt: 'What could be better?', kind: 'long_text', value: 'Write to [hidden] please', masked: true },
@@ -128,7 +130,8 @@ test('chips per survey type', async () => {
   third.unmount();
   renderTab('/results?survey=s1&tab=responses', null);
   await screen.findByRole('table');
-  expect(screen.queryByRole('button', { name: 'All answers' })).not.toBeInTheDocument();
+  // Without a scale only "Asked to be contacted" is left.
+  expect(names().sort()).toEqual(['All answers', 'Asked to be contacted']);
 });
 
 test('Load more appends the next 50', async () => {
@@ -193,10 +196,11 @@ test('Export CSV link carries the filters', async () => {
   expect(link).toHaveAttribute('download');
 });
 
-test('the anonymised notice links to Contact requests', async () => {
+test('the anonymised notice points to the Asked to be contacted filter', async () => {
   renderTab();
-  expect(await screen.findByText(/Anonymised\. No names or emails are shown\./)).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Contact requests' })).toHaveAttribute('href', '/contact-requests');
+  expect(await screen.findByText(/Filter by “Asked to be contacted” to see people who want a reply/)).toBeInTheDocument();
+  expect(screen.getByText(/sent to LianaAutomation/)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Integrations' })).toHaveAttribute('href', '/integrations');
 });
 
 const responseCalls = () =>
@@ -275,4 +279,20 @@ test('a refused segment recovers: Clear filters also resets the segment', async 
   fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
   await waitFor(() => expect(location()).toBe('/results?survey=s1&tab=responses'));
   expect(await screen.findByRole('table')).toBeInTheDocument();
+});
+
+test('Asked to be contacted filters, and only those rows show a badge and an email address', async () => {
+  pageRows = [
+    row(1, { contact_requested: true, contact: 'test.mikko@example.com' }),
+    row(2),
+  ];
+  renderTab();
+  const table = await screen.findByRole('table');
+  expect(within(table).getAllByText('Contact me')).toHaveLength(1);
+  expect(within(table).getByText('test.mikko@example.com')).toBeInTheDocument();
+  expect(within(table).queryByText(/@example\.com/, { selector: '.response-contact-email' })).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Asked to be contacted' }));
+  await waitFor(() => expect(location()).toBe('/results?survey=s1&tab=responses&group=contact'));
+  await waitFor(() => expect(lastCall().searchParams.get('group')).toBe('contact'));
 });

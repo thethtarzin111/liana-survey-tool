@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { Question, ReaderOptions } from '../../api/client';
 import { ACCENT_SWATCHES, BACKGROUND_SWATCHES } from './branding';
-import { CustomPreview, PreviewQuestion, TemplatePreview } from './SurveyPreview';
+import { CustomPreview, PreviewQuestion, QUESTIONS_PER_PAGE, TemplatePreview } from './SurveyPreview';
 
 const ON: ReaderOptions = { comment_field: true, show_results: true, contact_opt_in: true };
 const BRAND = { accent: ACCENT_SWATCHES[2].hex, background: BACKGROUND_SWATCHES[3].hex, logoUrl: null };
@@ -155,4 +155,40 @@ test('the Build your survey preview shows the title, questions, opt-in and Submi
   expect(within(preview()).getByText('Fundraising')).toBeInTheDocument();
   expect(preview()).toHaveTextContent('Contact me about this by email');
   expect(within(preview()).getByText('Submit')).toBeInTheDocument();
+});
+
+test('more questions than fit on a page are split into pages with Next, as on the survey link page', () => {
+  const questions = Array.from({ length: QUESTIONS_PER_PAGE + 1 }, (_, i) => q('text', `Question ${i + 1}`));
+  render(<CustomPreview title="Big one" description="" contactOptIn questions={questions} {...BRAND} />);
+  expect(within(preview()).getByText('Page 1 of 2')).toBeInTheDocument();
+  expect(within(preview()).getByText('Page 2 of 2')).toBeInTheDocument();
+  expect(within(preview()).getByText('Next')).toBeInTheDocument();
+  expect(within(preview()).getByText('Previous')).toBeInTheDocument();
+  expect(within(preview()).getByText('Submit')).toBeInTheDocument();
+  // The last question starts the second page.
+  const second = within(preview()).getByText('Page 2 of 2').parentElement as HTMLElement;
+  expect(within(second).getByText(`Question ${QUESTIONS_PER_PAGE + 1}`)).toBeInTheDocument();
+  expect(within(second).queryByText('Question 1')).not.toBeInTheDocument();
+});
+
+test('a short survey has one page and no page labels', () => {
+  render(<CustomPreview title="Short" description="" contactOptIn={false} questions={[q('text', 'Only one')]} {...BRAND} />);
+  expect(within(preview()).queryByText(/Page \d of/)).not.toBeInTheDocument();
+  expect(within(preview()).queryByText('Next')).not.toBeInTheDocument();
+});
+
+test('the description keeps line breaks, bold, italic and links', () => {
+  render(
+    <CustomPreview
+      title="Formatted" contactOptIn={false} questions={[]} {...BRAND}
+      description={'First line\n**Bold** and *italic*, see [our site](https://example.org)\n[no](javascript:alert(1))'}
+    />,
+  );
+  expect(within(preview()).getByText('Bold').tagName).toBe('STRONG');
+  expect(within(preview()).getByText('italic').tagName).toBe('EM');
+  expect(within(preview()).getByRole('link', { name: 'our site' })).toHaveAttribute('href', 'https://example.org');
+  expect(within(preview()).queryByRole('link', { name: 'no' })).not.toBeInTheDocument();
+  expect(preview()).toHaveTextContent('[no](javascript:alert(1))');
+  const description = within(preview()).getByText(/First line/);
+  expect(description.textContent).toContain('First line\n');
 });

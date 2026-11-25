@@ -4,7 +4,6 @@ import { BuilderPage } from '../features/builder/BuilderPage';
 import { LivePage } from '../features/publish/LivePage';
 import { CreateSurveyPage } from '../features/builder/CreateSurveyPage';
 import { TemplatePickerPage } from '../features/builder/TemplatePickerPage';
-import { ContactRequestsPage } from '../features/contact-requests/ContactRequestsPage';
 import { FrontPage } from '../features/front/FrontPage';
 import { IntegrationsPage } from '../features/integrations/IntegrationsPage';
 import { ResultsPage } from '../features/results/ResultsPage';
@@ -58,7 +57,8 @@ export function App() {
             <Route path="/surveys/:id/live" element={<LivePage />} />
             <Route path="/results" element={<ResultsPage />} />
             <Route path="/responses" element={<Navigate to="/results?tab=responses" replace />} />
-            <Route path="/contact-requests" element={<ContactRequestsPage />} />
+            {/* The old Contact requests page: its requests are a filter in Responses now. */}
+            <Route path="/contact-requests" element={<Navigate to="/results?tab=responses&group=contact" replace />} />
             <Route path="/templates" element={<TemplatesPage />} />
             <Route path="/integrations" element={<IntegrationsPage />} />
             <Route path="/support" element={<SupportPage />} />

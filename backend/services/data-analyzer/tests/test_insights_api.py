@@ -159,3 +159,40 @@ def test_too_few_comments(recording):
 def test_unknown_survey_is_404():
     res = TestClient(app).get(f"/api/v1/results/{uuid4()}/comment-insights", headers=HEADERS)
     assert res.status_code == 404
+
+
+@needs_db
+def test_tell_us_more_comments_are_included(recording):
+    # Surveys without a text question keep the "Tell us more" box in
+    # responses.comment: insights read it, as the Responses tab does.
+    with tenant_connection(DEMO_TENANT) as conn:
+        survey_id = conn.execute(
+            """insert into surveys (tenant_id, title, type, status)
+               values (%s, 'Comment box insights', 'nps', 'live') returning id""",
+            (DEMO_TENANT,),
+        ).fetchone()[0]
+        nps = _question(conn, survey_id, 1, "nps", "Recommend us?")
+        for i, (_, value, comment) in enumerate(ANSWERS):
+            response_id = conn.execute(
+                """insert into responses (tenant_id, survey_id, link_token_hash, comment,
+                                          submitted_at)
+                   values (%s, %s, %s, %s, now() - make_interval(hours => %s)) returning id""",
+                (DEMO_TENANT, survey_id, f"b{i}", comment, len(ANSWERS) - i),
+            ).fetchone()[0]
+            conn.execute(
+                """insert into answers (tenant_id, response_id, question_id, value_number)
+                   values (%s, %s, %s, %s)""",
+                (DEMO_TENANT, response_id, nps, value),
+            )
+    try:
+        body = (
+            TestClient(app)
+            .get(f"/api/v1/results/{survey_id}/comment-insights", headers=HEADERS)
+            .json()
+        )
+        assert (body["status"], body["comments"]) == ("ready", 6)
+        ((sent, _),) = recording.sent
+        assert sent[0]["text"] == "Membership price went up, call me on [hidden]"
+    finally:
+        with tenant_connection(DEMO_TENANT) as conn:
+            conn.execute("delete from surveys where id = %s", (survey_id,))

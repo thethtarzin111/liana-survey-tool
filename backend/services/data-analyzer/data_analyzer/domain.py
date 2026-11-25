@@ -306,6 +306,23 @@ def display_id(response_id: UUID) -> str:
     return "R-" + digest[:6].upper()
 
 
+#: The Responses tab's "Asked to be contacted" filter (?group=contact).
+CONTACT_GROUP = "contact"
+
+
+def contact_of(row: dict[str, Any]) -> str | None:
+    """How to reach a reader who asked to be contacted: their email address, or their
+    LianaMailer contact id until the address has been looked up. None for everyone
+    else: their answers stay anonymised."""
+    if not row.get("contact_requested"):
+        return None
+    if row.get("contact_email"):
+        return row["contact_email"]
+    if row.get("contact_ref"):
+        return f"LianaMailer contact {row['contact_ref']}"
+    return None
+
+
 def response_row(row: dict[str, Any], labels: dict[str, str]) -> dict[str, Any]:
     """One response of the list as the API shows it. The segment label is None when
     segments are off (`labels` is empty)."""
@@ -318,6 +335,8 @@ def response_row(row: dict[str, Any], labels: dict[str, str]) -> dict[str, Any]:
         "comment": row["comment"],
         "masked": row["was_masked"],
         "segment_label": labels.get(row["segment"]),
+        "contact_requested": bool(row.get("contact_requested")),
+        "contact": contact_of(row),
     }
 
 
@@ -349,6 +368,8 @@ def response_detail(detail: dict[str, Any], labels: dict[str, str]) -> dict[str,
         "display_id": display_id(detail["id"]),
         "submitted_at": detail["submitted_at"],
         "segment_label": labels.get(detail["segment"]),
+        "contact_requested": bool(detail.get("contact_requested")),
+        "contact": contact_of(detail),
         "answers": answers,
     }
 

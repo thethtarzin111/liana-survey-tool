@@ -13,7 +13,13 @@ from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
 from liana_survey_shared.db import tenant_connection
-from liana_survey_shared.messages import AnswerSubmitted, NewResponsesDigest
+from liana_survey_shared.messages import (
+    AnswerRecorded,
+    AnswerSubmitted,
+    ContactRequested,
+    Message,
+    NewResponsesDigest,
+)
 
 from .digests import claim_digest
 
@@ -46,6 +52,9 @@ class Recorded:
     changed: bool
     #: The "new responses" email to publish now, if one is due.
     digest: NewResponsesDigest | None = None
+    #: For the Liana connector: the saved answer (AnswerRecorded) and, when the
+    #: reader ticked "Contact me", their new contact request (ContactRequested).
+    events: tuple[Message, ...] = ()
 
 
 def handle_answer(body: bytes, connect: Connect = tenant_connection) -> bool:
@@ -66,25 +75,98 @@ def handle_answer(body: bytes, connect: Connect = tenant_connection) -> bool:
 
 
 def record_answer(body: bytes, connect: Connect = tenant_connection) -> Recorded:
-    """handle_answer(), plus the owner's "new responses" email when a new reader's
-    answer makes one due. It is claimed in the same transaction as the answer."""
+    """handle_answer(), plus what to publish after it, all decided in the answer's
+    transaction:
+
+    - the owner's "new responses" email when a new reader's answer makes one due;
+    - AnswerRecorded for every saved or changed answer, so the connector can send
+      it to LianaAutomation (or say in the sync log why not);
+    - ContactRequested when the reader ticked "Contact me": the request is saved on
+      the response (Results -> Responses, "Asked to be contacted") and as a contact
+      request here, once per response, whether or not it reaches LianaAutomation."""
     msg = parse(body)
     digest = None
+    events: list[Message] = []
     try:
         with connect(msg.tenant_id) as conn:
-            outcome = _save(conn, msg)
+            outcome, response_id = _save(conn, msg)
             if outcome == "saved":
                 digest = claim_digest(conn, msg.survey_id, after_new_response=True)
+            if response_id is not None:
+                events.append(_recorded(conn, msg, response_id))
+                if msg.contact_me:
+                    request = _request_contact(conn, msg, response_id)
+                    if request is not None:
+                        events.append(request)
     except (psycopg.errors.ForeignKeyViolation, psycopg.errors.DataError) as error:
         raise BadMessage(f"answer does not fit the survey: {error.diag.message_primary}") from error
     log.info("answer %s survey=%s message=%s", outcome, msg.survey_id, msg.message_id)
-    return Recorded(outcome in ("saved", "replaced"), digest)
+    return Recorded(outcome in ("saved", "replaced"), digest, tuple(events))
 
 
-def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
-    """What happened: "saved" or "replaced", or why nothing changed: "kept" (the
-    stored answer is as new or newer), "closed" (tapped on or after the close
-    date) or "full" (a new reader once the response limit is reached)."""
+def _recorded(conn: psycopg.Connection, msg: AnswerSubmitted, response_id: UUID) -> AnswerRecorded:
+    """The saved answer for the connector: the main answer and the contact the
+    response now has (an earlier "Contact me" keeps it when the reader taps again)."""
+    title, contact_ref = conn.execute(
+        """select s.title, r.contact_ref from responses r join surveys s on s.id = r.survey_id
+           where r.id = %s""",
+        (response_id,),
+    ).fetchone()
+    main = conn.execute(
+        "select id, kind::text from questions where survey_id = %s order by position limit 1",
+        (msg.survey_id,),
+    ).fetchone()
+    score = None
+    if main is not None:
+        for answer in msg.answers:
+            if answer.question_id == main[0] and answer.number is not None:
+                score = int(answer.number)
+    return AnswerRecorded(
+        tenant_id=msg.tenant_id,
+        survey_id=msg.survey_id,
+        response_id=response_id,
+        survey_title=title,
+        main_kind=main[1] if main is not None else None,
+        score=score,
+        campaign=msg.campaign,
+        contact_ref=contact_ref,
+    )
+
+
+def _request_contact(
+    conn: psycopg.Connection, msg: AnswerSubmitted, response_id: UUID
+) -> ContactRequested | None:
+    """Create the response's contact request, or None if it already has one or there
+    is no way to reach the reader (no contact id, no address)."""
+    contact_ref, contact_email = conn.execute(
+        "select contact_ref, contact_email from responses where id = %s", (response_id,)
+    ).fetchone()
+    if not (contact_ref or contact_email):
+        return None
+    row = conn.execute(
+        """insert into contact_requests (tenant_id, survey_id, response_id, contact_ref)
+           values (%s, %s, %s, %s)
+           on conflict (response_id) do nothing
+           returning id""",
+        (msg.tenant_id, msg.survey_id, response_id, contact_ref),
+    ).fetchone()
+    if row is None:
+        return None
+    return ContactRequested(
+        tenant_id=msg.tenant_id,
+        survey_id=msg.survey_id,
+        contact_request_id=row[0],
+        contact_ref=contact_ref,
+        contact_email=contact_email,
+        response_id=response_id,
+    )
+
+
+def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> tuple[str, UUID | None]:
+    """What happened, and the response it happened to: "saved" or "replaced", or
+    why nothing changed: "kept" (the stored answer is as new or newer), "closed"
+    (tapped on or after the close date) or "full" (a new reader once the response
+    limit is reached). The response is None when nothing changed."""
     # Row-level security limits this connection to the message's tenant, so a
     # survey of another tenant looks like an unknown survey.
     survey = conn.execute(
@@ -95,14 +177,16 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
     closes_at, response_limit = survey
     # The reader's tap time decides, not when the worker gets to the message.
     if closes_at is not None and msg.created_at >= closes_at:
-        return "closed"
+        return "closed", None
     main = _main_question(conn, msg.survey_id)
     new_count = _main_count(main, [(a.question_id, a.number) for a in msg.answers])
 
     inserted = conn.execute(
         """insert into responses
-             (tenant_id, survey_id, submitted_at, link_token_hash, contact_ref, channel, segment)
-           values (%s, %s, %s, %s, %s, %s, %s)
+             (tenant_id, survey_id, submitted_at, link_token_hash, contact_ref, channel, segment,
+              comment, contact_requested, contact_requested_at, contact_email)
+           values (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                   case when %s then %s::timestamptz end, %s)
            on conflict (survey_id, link_token_hash) do nothing
            returning id""",
         (
@@ -113,14 +197,19 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
             msg.contact_ref,
             msg.channel,
             msg.segment,
+            msg.comment,
+            msg.contact_me,
+            msg.contact_me,
+            msg.created_at,
+            msg.contact_email if msg.contact_me else None,
         ),
     ).fetchone()
     if inserted is not None:
         if not _add_to_totals(conn, msg, new_count, new_reader=True, limit=response_limit):
             conn.execute("delete from responses where id = %s", (inserted[0],))
-            return "full"
+            return "full", None
         _save_answers(conn, msg, inserted[0])
-        return "saved"
+        return "saved", inserted[0]
 
     # This reader answered before. Lock their response so two taps at the same
     # time can't both replace it.
@@ -130,24 +219,48 @@ def _save(conn: psycopg.Connection, msg: AnswerSubmitted) -> str:
         (msg.survey_id, msg.link_token_hash),
     ).fetchone()
     if msg.created_at <= submitted_at:
-        return "kept"
+        return "kept", None
 
     old_answers = conn.execute(
         "select question_id, value_number from answers where response_id = %s", (response_id,)
     ).fetchall()
     old_count = _main_count(main, old_answers)
-    conn.execute("delete from answers where response_id = %s", (response_id,))
+    if msg.main_only:
+        # The follow-up page saving the tapped answer again (the reader opened the
+        # link again): their other answers from the follow-up form stay.
+        conn.execute(
+            "delete from answers where response_id = %s and question_id = any(%s)",
+            (response_id, [answer.question_id for answer in msg.answers]),
+        )
+    else:
+        conn.execute("delete from answers where response_id = %s", (response_id,))
     conn.execute(
-        """update responses set submitted_at = %s, contact_ref = coalesce(%s, contact_ref)
-           where id = %s""",
-        (msg.created_at, msg.contact_ref, response_id),
+        # Nothing here takes a contact or a "Contact me" away: an unticked box on a
+        # later form, or a later tap, keeps the earlier request.
+        """update responses set
+             submitted_at = %(at)s,
+             contact_ref = coalesce(%(ref)s, contact_ref),
+             comment = coalesce(%(comment)s, comment),
+             contact_requested = contact_requested or %(asked)s,
+             contact_requested_at = coalesce(contact_requested_at,
+                                             case when %(asked)s then %(at)s::timestamptz end),
+             contact_email = coalesce(%(email)s, contact_email)
+           where id = %(id)s""",
+        {
+            "at": msg.created_at,
+            "ref": msg.contact_ref,
+            "comment": msg.comment,
+            "asked": msg.contact_me,
+            "email": msg.contact_email if msg.contact_me else None,
+            "id": response_id,
+        },
     )
     _save_answers(conn, msg, response_id)
     change = dict(new_count)
     for value, count in old_count.items():
         change[value] = change.get(value, 0) - count
     _add_to_totals(conn, msg, change, new_reader=False)
-    return "replaced"
+    return "replaced", response_id
 
 
 def _save_answers(conn: psycopg.Connection, msg: AnswerSubmitted, response_id: UUID) -> None:

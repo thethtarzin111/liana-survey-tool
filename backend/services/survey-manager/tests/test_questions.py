@@ -243,3 +243,27 @@ def test_other_tenant_cannot_access_questions(client):
     app.dependency_overrides.clear()
     saved = client.get(f"/api/v1/surveys/{survey_id}/questions").json()
     assert saved[0]["prompt"] == "Tenant secret"
+
+
+@pytest.mark.db
+@needs_db
+def test_question_changes_count_as_changes_to_the_survey(client):
+    survey_id = new_survey(client)
+
+    def modified() -> str:
+        return client.get(f"/api/v1/surveys/{survey_id}").json()["updated_at"]
+
+    times = [modified()]
+    question = add_question(client, survey_id, "First")
+    times.append(modified())
+    url = f"/api/v1/surveys/{survey_id}/questions/{question['id']}"
+    client.patch(url, json={"prompt": "Changed"})
+    times.append(modified())
+    copy = client.post(f"{url}/duplicate").json()
+    times.append(modified())
+    order = {"question_ids": [copy["id"], question["id"]]}
+    client.put(f"/api/v1/surveys/{survey_id}/questions/order", json=order)
+    times.append(modified())
+    client.delete(url)
+    times.append(modified())
+    assert times == sorted(set(times))

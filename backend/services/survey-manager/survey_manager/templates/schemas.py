@@ -29,10 +29,13 @@ class Template(BaseModel):
     #: The first one is the main question; thumbs, NPS and CSAT templates follow it
     #: with optional reason bubbles.
     questions: list[TemplateQuestion]
+    #: Branding colours of the survey an own template was saved from; None for built-in ones.
+    accent_color: str | None = None
+    background_color: str | None = None
 
 
 class TemplateCreate(BaseModel):
-    """Save a survey as a template: its type, questions and thank-you message."""
+    """Save a survey as a template: its type, questions, thank-you message and colours."""
 
     model_config = ConfigDict(extra="forbid")
 

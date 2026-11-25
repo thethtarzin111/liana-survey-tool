@@ -119,7 +119,7 @@ test('an API refusal is shown with its reason', async () => {
 
 test('says answers are anonymous and links to results and all surveys', () => {
   renderCard();
-  expect(screen.getByText(/Answers are anonymous. Readers who tick “Contact me” share their contact/)).toBeInTheDocument();
+  expect(screen.getByText(/Answers from the public link and QR code are anonymous, unless the reader ticks “Contact me”/)).toBeInTheDocument();
   expect(screen.queryByRole('radio')).not.toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Go to results' })).toHaveAttribute('href', '/results');
   expect(screen.getByRole('link', { name: 'Back to all surveys' })).toHaveAttribute('href', '/surveys');
@@ -145,4 +145,10 @@ test('the survey language is shown, picked and saved on its own', async () => {
 test('surveys without a language show English', () => {
   renderCard({ ...survey, language: undefined });
   expect(screen.getByLabelText('Survey language')).toHaveValue('en');
+});
+
+test('the privacy note says newsletter answers are linked to the contact', () => {
+  renderCard();
+  expect(screen.getByText(/Answers from a LianaMailer newsletter are linked to the reader’s contact/)).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Identified answers/)).toBeNull();
 });

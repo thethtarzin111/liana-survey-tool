@@ -8,6 +8,14 @@ export type CurrentUser = {
   email: string;
 };
 
+/** A demo organisation the dev-auth gateway can switch to. */
+export type DemoOrganization = {
+  tenant_id: string;
+  tenant_name: string;
+  user_name: string;
+  current: boolean;
+};
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -34,6 +42,10 @@ export async function getJson<T>(path: string): Promise<T> {
 
 export const api = {
   me: () => getJson<CurrentUser>('/api/v1/me'),
+  /** Dev auth only: the demo organisations. Real login has no such list. */
+  demoOrganizations: () => getJson<DemoOrganization[]>('/api/v1/me/organizations'),
+  /** Dev auth only: signs this browser in to another demo organisation. */
+  switchOrganization: (tenantId: string) => send<CurrentUser>('PUT', '/api/v1/me/organizations', { tenant_id: tenantId }),
   survey: (id: string) => getJson<Survey>(`/api/v1/surveys/${encodeURIComponent(id)}`),
   createSurvey: async (type: SurveyType): Promise<Survey> => {
     const res = await fetch('/api/v1/surveys', {
@@ -68,6 +80,29 @@ export const api = {
     const query = params.toString();
     return getJson<SurveyListItem[]>(`/api/v1/surveys${query ? `?${query}` : ''}`);
   },
+  /** Card status for the Integrations page. */
+  integrations: () => getJson<IntegrationsStatus>(INTEGRATIONS),
+  /** Wizard step 1. Leave the secret out to keep the saved one. 422 for a host outside lianacloud.com. */
+  saveLianaCredentials: (body: { host: string; client_id: string; client_secret?: string }) =>
+    send<LianaConnection>('PUT', `${INTEGRATIONS}/liana-automation`, body),
+  /** Wizard step 2: ping LianaAutomation; the result is in `status` and `last_error`. */
+  testLianaConnection: () => send<LianaConnection>('POST', `${INTEGRATIONS}/liana-automation/test`),
+  lianaChannels: () => getJson<LianaChannel[]>(`${INTEGRATIONS}/liana-automation/channels`),
+  createLianaChannel: (name: string) =>
+    send<LianaChannel>('POST', `${INTEGRATIONS}/liana-automation/channels`, { name }),
+  /** Wizard steps 3 and 4: the channel and the "what to send" switches. */
+  changeLianaConnection: (changes: {
+    channel_id?: string;
+    channel_name?: string;
+    settings?: Partial<LianaSendSettings>;
+  }) => send<LianaConnection>('PATCH', `${INTEGRATIONS}/liana-automation`, changes),
+  /** Wizard step 5: a test event for a made-up @example.com contact. */
+  sendLianaTestEvent: (email?: string) =>
+    send<SyncEvent>('POST', `${INTEGRATIONS}/liana-automation/test-event`, email ? { email } : {}),
+  syncLog: (status?: SyncEvent['status']) =>
+    getJson<SyncEvent[]>(`${INTEGRATIONS}/liana-automation/events${status ? `?status=${status}` : ''}`),
+  retrySyncEvent: (id: string) => send<SyncEvent>('POST', `${INTEGRATIONS}/events/${encodeURIComponent(id)}/retry`),
+  disconnectLiana: () => send<void>('DELETE', `${INTEGRATIONS}/liana-automation`),
   /** Everything the Results overview shows for one survey. 400 for an unknown segment, 404 for an unknown survey. */
   overview: (surveyId: string, segment = 'all') =>
     getJson<SurveyOverview>(
@@ -257,6 +292,9 @@ export type SurveyListItem = Survey & {
   answers: number;
   /** When the newest response arrived; null before the first. */
   last_answer_at: string | null;
+  created_at: string;
+  /** Last change to the survey's settings or texts. */
+  updated_at: string;
   /** "Headline score", e.g. { score: 'NPS +42', note: 'scale −100 to +100' }; null before answers. */
   headline: { score: string; note: string } | null;
 };
@@ -364,6 +402,54 @@ export type CommentInsights = {
   run: { grouper: string | null; writer: string; llm_calls: number };
 };
 
+const INTEGRATIONS = '/api/v1/integrations';
+
+export type LianaSendSettings = { answers: boolean; contact_requests: boolean; themes: boolean };
+
+export type LianaConnection = {
+  host: string;
+  auth_type: 'oauth';
+  client_id: string;
+  /** The last 4 characters of the secret, shown as ••••a91f. */
+  secret_hint: string;
+  channel_id: string | null;
+  channel_name: string | null;
+  settings: LianaSendSettings;
+  /** disconnected: saved but not tested yet. */
+  status: 'disconnected' | 'connected' | 'error';
+  last_error: string | null;
+  updated_at: string;
+};
+
+export type IntegrationsStatus = {
+  liana_automation: LianaConnection | null;
+  /** Sync log events by status. */
+  events: Partial<Record<SyncEvent['status'], number>>;
+  /** The built-in demo host can be used (local development). */
+  demo_available: boolean;
+  /** The server has the LianaMailer API settings, to look up newsletter readers' email addresses. */
+  lianamailer_set_up: boolean;
+};
+
+export type LianaChannel = { id: string; name: string };
+
+export type SyncEvent = {
+  id: string;
+  verb: string;
+  /** Shortened, e.g. "su…@example.com". */
+  contact: string | null;
+  test: boolean;
+  /** skipped: deliberately not sent (anonymous answer, unknown contact); last_error says why. */
+  status: 'pending' | 'sent' | 'retrying' | 'failed' | 'skipped';
+  attempts: number;
+  last_error: string | null;
+  /** What was (or will be) sent to POST /import, and LianaAutomation's answer (status and body). */
+  payload: Record<string, unknown>;
+  liana_response: string | null;
+  created_at: string;
+  sent_at: string | null;
+};
+
 export type ResponseFilters = { segment?: string; q?: string; group?: string };
 
 export type ResponseRow = {
@@ -376,6 +462,10 @@ export type ResponseRow = {
   masked: boolean;
   /** Null when the survey has no segments to show. */
   segment_label: string | null;
+  /** The reader ticked “Contact me”. */
+  contact_requested: boolean;
+  /** Only for those readers: their email address (or LianaMailer contact ID until it is looked up). */
+  contact: string | null;
 };
 
 export type ResponsesPage = { total: number; rows: ResponseRow[] };
@@ -384,6 +474,8 @@ export type ResponseDetail = {
   display_id: string;
   submitted_at: string;
   segment_label: string | null;
+  contact_requested: boolean;
+  contact: string | null;
   answers: {
     question_id: string;
     prompt: string;
@@ -425,6 +517,9 @@ export type Template = {
   own: boolean;
   /** The first is the main question; thumbs, NPS and CSAT templates follow it with reason bubbles. */
   questions: Pick<Question, 'kind' | 'prompt' | 'options' | 'required'>[];
+  /** Own templates: the branding colours of the survey they were saved from. */
+  accent_color?: string | null;
+  background_color?: string | null;
 };
 
 /** The name and description a user gives their own template. */

@@ -63,8 +63,10 @@ def resolve_segment(
 def resolve_group(
     conn: psycopg.Connection, survey_id: UUID, group: str | None
 ) -> tuple[int, ...] | None:
-    """The answers of an answer group of the survey's main question. Raises 422."""
-    if not group:
+    """The answers of an answer group of the survey's main question. Raises 422.
+    None for no group, and for "contact" (asked to be contacted), which is not about
+    the answers."""
+    if not group or group == domain.CONTACT_GROUP:
         return None
     values = domain.group_values(repo.scale_kind(conn, survey_id), group)
     if values is None:
@@ -77,7 +79,8 @@ Group = Annotated[
     str | None,
     Query(
         description="Answer group: thumbs not-for-me, good, loved-it; nps detractors, "
-        "passives, promoters; rating low, neutral, high"
+        "passives, promoters; rating low, neutral, high; any survey: contact (readers "
+        "who asked to be contacted)"
     ),
 ]
 
@@ -112,7 +115,9 @@ def survey_responses(
     with db() as conn:
         stored, labels = resolve_scope(conn, survey_id, segment)
         values = resolve_group(conn, survey_id, group)
-        total, rows = repo.responses(conn, survey_id, stored, q, values, limit, offset)
+        total, rows = repo.responses(
+            conn, survey_id, stored, q, values, limit, offset, group == domain.CONTACT_GROUP
+        )
     return {"total": total, "rows": [domain.response_row(row, labels) for row in rows]}
 
 
@@ -128,7 +133,9 @@ def survey_responses_csv(
     with db() as conn:
         stored, labels = resolve_scope(conn, survey_id, segment)
         values = resolve_group(conn, survey_id, group)
-        questions, rows = repo.responses_export(conn, survey_id, stored, q, values)
+        questions, rows = repo.responses_export(
+            conn, survey_id, stored, q, values, group == domain.CONTACT_GROUP
+        )
     lines = domain.csv_rows(questions, rows, labels)
 
     def stream() -> Iterator[str]:

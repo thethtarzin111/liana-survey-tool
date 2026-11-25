@@ -170,7 +170,9 @@ def analyse(
             quote = draft.get("quote", "")
             if not quote:
                 continue
-            if quote not in comment.text:
+            # The quote's whitespace is collapsed (_text), so compare it with the comment
+            # collapsed the same way: a line break or double space is not a difference.
+            if quote not in " ".join(comment.text.split()):
                 hidden += 1
             elif len(quotes) < MAX_QUOTES and all(q["text"] != quote for q in quotes):
                 quotes.append(

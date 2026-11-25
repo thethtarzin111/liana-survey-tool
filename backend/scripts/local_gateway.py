@@ -1,28 +1,118 @@
 """Loopback-only development gateway for the native Python service apps.
 
 Also runs the shared demo server (backend/infra/deploy/README.md), bound to
-127.0.0.1 behind Caddy, which adds HTTPS and a shared password. It gives every
-admin request the demo user, so it is not a production entry point."""
+127.0.0.1 behind Caddy, which adds HTTPS and one login per demo organisation.
+It gives every admin request a demo user, so it is not a production entry point.
+Locally the user menu switches between the demo organisations (a cookie picks
+the demo user). On the demo server the login picks it (DEMO_LOGINS)."""
 
 import asyncio
 import logging
 import os
 
-from starlette.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
 
 from data_analyzer.main import app as analyzer
+from liana_connector.api import app as connector
 from liana_survey_shared.config import get_settings
-from liana_survey_shared.web.auth import demo_user
+from liana_survey_shared.web.auth import CurrentUser, demo_user, demo_users
 from respondent_service.main import app as respondent
 from survey_manager.main import app as surveys
 
-IDENTITY = {b"x-tenant-id", b"x-user-id", b"x-tenant-name", b"x-user-name", b"x-user-email"}
+IDENTITY = {
+    b"x-tenant-id",
+    b"x-user-id",
+    b"x-tenant-name",
+    b"x-user-name",
+    b"x-user-email",
+    b"x-demo-login",
+}
+DEMO_ORG_COOKIE = "demo_org"
+DEMO_LOGIN_HEADER = "x-demo-login"
+ONE_YEAR = 365 * 24 * 60 * 60
+
+
+class OrganizationChoice(BaseModel):
+    tenant_id: str
+
+
+def demo_logins() -> dict[str, CurrentUser] | None:
+    """The demo server's logins, from DEMO_LOGINS="<username>=<tenant id>,...".
+    Caddy checks each password and passes the username in X-Demo-Login.
+    None means there are no logins: locally, the user menu picks the organisation."""
+    setting = os.environ.get("DEMO_LOGINS", "").strip()
+    if not setting:
+        return None
+    users = {str(u.tenant_id): u for u in demo_users()}
+    logins = {}
+    for entry in setting.split(","):
+        username, _, tenant_id = entry.strip().partition("=")
+        if tenant_id.strip() not in users:
+            raise RuntimeError(f"DEMO_LOGINS: {entry!r} is not <username>=<demo tenant id>")
+        logins[username.strip()] = users[tenant_id.strip()]
+    return logins
+
+
+def signed_in(request: Request) -> CurrentUser | None:
+    """The demo user for this request, or None if the request has no valid login.
+    On the demo server the login decides. Locally the organisation chosen in the
+    user menu decides, and an unknown or missing choice falls back to the default."""
+    logins = demo_logins()
+    if logins is not None:
+        return logins.get(request.headers.get(DEMO_LOGIN_HEADER, ""))
+    chosen = request.cookies.get(DEMO_ORG_COOKIE)
+    return next((u for u in demo_users() if str(u.tenant_id) == chosen), demo_user())
+
+
+async def organizations(request: Request, current: CurrentUser) -> Response:
+    """GET lists the demo organisations. PUT switches to one, for this browser.
+    With demo logins, each login has one organisation and cannot switch."""
+    logins = demo_logins()
+    choices = [current] if logins is not None else demo_users()
+    if request.method == "GET":
+        return JSONResponse(
+            [
+                {
+                    "tenant_id": str(u.tenant_id),
+                    "tenant_name": u.tenant_name,
+                    "user_name": u.name,
+                    "current": u.tenant_id == current.tenant_id,
+                }
+                for u in choices
+            ]
+        )
+    if request.method != "PUT":
+        return JSONResponse({"detail": "Method not allowed"}, 405, headers={"Allow": "GET, PUT"})
+    if logins is not None:
+        return JSONResponse({"detail": "Sign in with the other organisation's login"}, 403)
+    try:
+        choice = OrganizationChoice.model_validate_json(await request.body())
+    except ValidationError:
+        return JSONResponse({"detail": 'Send {"tenant_id": "..."}'}, 422)
+    user = next((u for u in demo_users() if str(u.tenant_id) == choice.tenant_id), None)
+    if user is None:
+        return JSONResponse({"detail": "Unknown demo organisation"}, 422)
+    response = JSONResponse(user.model_dump(mode="json"))
+    response.set_cookie(
+        DEMO_ORG_COOKIE,
+        str(user.tenant_id),
+        max_age=ONE_YEAR,
+        httponly=True,
+        samesite="lax",
+        # The demo server is behind Caddy, which adds HTTPS.
+        secure=request.headers.get("x-forwarded-proto") == "https",
+    )
+    return response
 
 
 class DirectLianaEvents:
-    """Local development without RabbitMQ: hands each "new responses" email
-    straight to the connector's code with its mock adapters, instead of putting
-    it on survey.liana-events. The mock mail shows up in this terminal."""
+    """Local development without RabbitMQ: hands each message for the connector
+    (saved answers, "Contact me" requests, "new responses" emails) straight to the
+    connector's code, instead of putting it on survey.liana-events. The adapters
+    are the ones LIANA_ADAPTER and NOTIFICATION_MAIL_ADAPTER pick; the mock mail
+    shows up in this terminal."""
 
     def __init__(self) -> None:
         from liana_connector.factory import build_contact_events, build_notification_mail
@@ -31,9 +121,16 @@ class DirectLianaEvents:
         self.mail = build_notification_mail(get_settings())
 
     async def publish(self, message) -> None:
-        from liana_connector.handlers import handle_event
+        from liana_connector.handlers import deliver
+        from liana_connector.retry import MAX_ATTEMPTS
 
-        handle_event(message.model_dump_json().encode(), self.contacts, self.mail)
+        # Without RabbitMQ nothing would retry later, so this is the last attempt: a
+        # temporary error makes the sync log row failed at once, with Retry, instead
+        # of "retrying" for ever. The LianaAutomation adapter calls Liana over HTTP:
+        # off the event loop.
+        await asyncio.to_thread(
+            deliver, message.model_dump_json().encode(), MAX_ATTEMPTS, self.contacts, self.mail
+        )
 
 
 class DirectAnswerQueue:
@@ -50,8 +147,18 @@ class DirectAnswerQueue:
         from survey_worker.handlers import record_answer
 
         recorded = await asyncio.to_thread(record_answer, message.model_dump_json().encode())
-        if recorded.digest is not None and self.events is not None:
-            await self.events.publish(recorded.digest)
+        if self.events is None:
+            return
+        for event in (*recorded.events, recorded.digest):
+            if event is None:
+                continue
+            try:
+                await self.events.publish(event)
+            except Exception:
+                # As the worker: the answer stays saved; the sync log shows the failure.
+                logging.getLogger("liana_connector").exception(
+                    "could not pass on %s", type(event).__name__
+                )
 
     async def close(self) -> None:
         pass
@@ -96,8 +203,17 @@ async def app(scope, receive, send):
             scope, receive, send
         )
         return
+    request = Request(scope, receive)
+    public = path == "/r" or path.startswith("/r/")
+    user = None if public else signed_in(request)
+    if user is None and path.startswith("/api/"):
+        await JSONResponse({"detail": "Sign in with a demo login"}, 401)(scope, receive, send)
+        return
     if path == "/api/v1/me":
-        await JSONResponse(demo_user().model_dump(mode="json"))(scope, receive, send)
+        await JSONResponse(user.model_dump(mode="json"))(scope, receive, send)
+        return
+    if path == "/api/v1/me/organizations":
+        await (await organizations(request, user))(scope, receive, send)
         return
     if path == "/health":
         await JSONResponse({"status": "ok", "service": "local-gateway"})(scope, receive, send)
@@ -109,6 +225,7 @@ async def app(scope, receive, send):
         ("/api/v1/surveys", surveys),
         ("/api/v1/templates", surveys),
         ("/api/v1/results", analyzer),
+        ("/api/v1/integrations", connector),
         ("/r", respondent),
     ):
         if path == prefix or path.startswith(prefix + "/"):
@@ -118,8 +235,7 @@ async def app(scope, receive, send):
         return
     # Never trust identity headers supplied by the browser, including public requests.
     headers = [(key, value) for key, value in scope["headers"] if key.lower() not in IDENTITY]
-    if not (path == "/r" or path.startswith("/r/")):
-        user = demo_user()
+    if user is not None:
         headers.extend(
             (key, str(value).encode("utf-8"))
             for key, value in (

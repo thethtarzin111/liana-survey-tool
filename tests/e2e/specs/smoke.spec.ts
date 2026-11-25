@@ -13,7 +13,7 @@ test('front page loads the dashboard and the demo user through the API', async (
 
 test('sidebar links open their pages', async ({ page }) => {
   await page.goto('/');
-  for (const name of ['Surveys', 'Results', 'Contact requests', 'Templates']) {
+  for (const name of ['Surveys', 'Results', 'Templates']) {
     await page.getByRole('link', { name, exact: true }).click();
     await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
   }

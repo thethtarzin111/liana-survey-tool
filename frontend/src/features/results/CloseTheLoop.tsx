@@ -1,5 +1,6 @@
 import type { SurveyOverview } from '../../api/client';
-import { ButtonLink, Card } from '../../components/ui';
+import { Button, Card } from '../../components/ui';
+import { useResultsParams } from './useResultsParams';
 
 const TEXT: Record<'thumbs' | 'nps' | 'csat', string> = {
   thumbs: 'Reply to readers who chose “Not for me” and ask what to improve.',
@@ -9,14 +10,20 @@ const TEXT: Record<'thumbs' | 'nps' | 'csat', string> = {
 
 /** Standard surveys: a pointer to the people who asked to be contacted. */
 export function CloseTheLoop({ type }: { type: SurveyOverview['type'] }) {
+  const { set } = useResultsParams();
   if (type === 'custom') return null;
   return (
     <Card className="results-card results-loop">
       <div className="results-loop-text">
         <h2 className="results-loop-title">Close the loop</h2>
-        <p className="results-loop-note">{TEXT[type]}</p>
+        <p className="results-loop-note">
+          {TEXT[type]} Readers who tick “Contact me” are listed in Responses with their email address, and sent to
+          LianaAutomation.
+        </p>
       </div>
-      <ButtonLink variant="secondary" size="sm" to="/contact-requests">Open contact requests</ButtonLink>
+      <Button variant="secondary" size="sm" onClick={() => set({ tab: 'responses', group: 'contact' })}>
+        Open contact requests
+      </Button>
     </Card>
   );
 }

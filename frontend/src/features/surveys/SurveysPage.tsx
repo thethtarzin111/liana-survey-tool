@@ -238,6 +238,8 @@ export function SurveysPage() {
     },
     { key: 'type', header: 'Type', render: (s) => TYPE_LABEL[s.type] },
     { key: 'status', header: 'Status', render: (s) => <SurveyStatusBadge status={s.status} /> },
+    { key: 'created', header: 'Created', render: (s) => <time className="survey-date" dateTime={s.created_at}>{openDate(s.created_at)}</time> },
+    { key: 'modified', header: 'Modified', render: (s) => <time className="survey-date" dateTime={s.updated_at}>{openDate(s.updated_at)}</time> },
     { key: 'answers', header: 'Answers', numeric: true, render: (s) => s.answers },
     // From the scoring rules (#22), once the survey has answers.
     {

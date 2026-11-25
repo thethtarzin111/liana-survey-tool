@@ -248,3 +248,22 @@ def test_repeated_comments_give_distinct_quotes_and_samples():
     assert [q["text"] for q in theme["quotes"]] == ["Hard to find information", "Website is slow"]
     assert theme["samples"] == ["Hard to find information", "Website is slow"]
     assert theme["comments"] == 6
+
+
+def test_a_quote_across_a_line_break_or_double_space_is_still_word_for_word():
+    # From review: the quote is whitespace-collapsed, so the comment is compared the
+    # same way; only the words must match.
+    found = [
+        Comment("C1", "Delivery took\nnine days.  Far too long", 2),
+        Comment("C2", "Price  is fine", 8),
+        # Enough comments for themes; these have no quote.
+        *(Comment(f"C{i}", f"Other comment {i}", 5) for i in range(3, 6)),
+    ]
+    items = {
+        "C1": item("C1", "Delivery", quote="took nine days. Far too long", summary="Late."),
+        "C2": item("C2", "Delivery", quote="Price   is\tfine"),
+        **{f"C{i}": item(f"C{i}", "Delivery", quote="") for i in range(3, 6)},
+    }
+    theme = analyse(found, "nps", [], MockGrouper(), FakeWriter(items))["themes"][0]
+    assert [q["text"] for q in theme["quotes"]] == ["took nine days. Far too long", "Price is fine"]
+    assert theme["hidden_quotes"] == 0

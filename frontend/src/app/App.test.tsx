@@ -5,12 +5,13 @@ import { App } from './App';
 import { Sidebar } from './Sidebar';
 
 beforeEach(() => {
-  // No API in unit tests: pretend the dev-auth stub answered. Lists (templates)
-  // get an empty list, so pages that load them do not fail after the test.
+  // No API in unit tests: pretend the dev-auth stub answered. Lists (templates,
+  // the Integrations sync log) get an empty list, so pages that load them do not
+  // crash while or after the test runs.
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) =>
-      String(input).includes('/api/v1/templates')
+      String(input).includes('/api/v1/templates') || String(input).includes('/liana-automation/events')
         ? Response.json([])
         : Response.json({
             user_id: 'u',
@@ -45,11 +46,10 @@ test('sidebar has the prototype items in order', () => {
   const labels = screen.getAllByRole('link').map((a) => a.textContent);
   expect(labels).toEqual([
     'Create survey',
-    'Home',
+    'Front page',
     'Surveys',
     'Templates',
     'Results',
-    'Contact requests',
     'Integrations',
     'Support',
     'Settings',
@@ -59,12 +59,37 @@ test('sidebar has the prototype items in order', () => {
 test('front page shows the dashboard', async () => {
   renderAt('/');
   expect(await screen.findByRole('heading', { name: 'Get started with LianaSurvey' })).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+  expect(screen.getByRole('link', { name: 'Front page' })).toHaveAttribute('aria-current', 'page');
 });
 
-test('a sidebar route renders its page', () => {
+test('a sidebar route renders its page', async () => {
+  renderAt('/integrations');
+  expect(await screen.findByRole('heading', { name: 'Integrations' })).toBeInTheDocument();
+});
+
+test('the old Contact requests link opens Responses with Asked to be contacted on', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.startsWith('/api/v1/surveys')) {
+        return Response.json([
+          { id: 's1', title: 'Member NPS', type: 'nps', status: 'live', answers: 3, last_answer_at: null, headline: null },
+        ]);
+      }
+      if (path.includes('/responses')) return Response.json({ total: 0, rows: [] });
+      return Response.json({
+        survey_id: 's1', title: 'Member NPS', type: 'nps', status: 'live', closes_at: null, last_answer_at: null,
+        channels: [], segment: 'all', segments: [], responses: 3, views: 0, response_rate: null, completed_all: null,
+        main: null, questions: [], reasons: [], trend: [], by_segment: [],
+      });
+    }),
+  );
   renderAt('/contact-requests');
-  expect(screen.getByRole('heading', { name: 'Contact requests' })).toBeInTheDocument();
+  expect(await screen.findByRole('tab', { name: 'Responses 3' })).toHaveAttribute('aria-selected', 'true');
+  expect(await screen.findByRole('button', { name: 'Asked to be contacted' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.queryByText('Page not found.')).toBeNull();
+  expect(screen.queryByRole('link', { name: 'Contact requests' })).toBeNull();
 });
 
 test('/responses lands on Results with the Responses tab', async () => {
@@ -93,7 +118,7 @@ test('/responses lands on Results with the Responses tab', async () => {
 test('sidebar shows a badge when given a count', () => {
   render(
     <MemoryRouter>
-      <Sidebar badges={{ '/contact-requests': 3 }} />
+      <Sidebar badges={{ '/results': 3 }} />
     </MemoryRouter>,
   );
   expect(screen.getByLabelText('3 new')).toBeInTheDocument();

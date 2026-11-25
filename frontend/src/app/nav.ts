@@ -1,10 +1,14 @@
-// Sidebar items and icon paths, copied from the prototype. Templates sit right under
+// Sidebar items and icon paths, from the prototype and Liana's own sidebar. Templates sit right under
 // Surveys, where surveys start (#123).
 
 export type NavItem = { to: string; label: string; icon: string };
 
 export const mainNav: NavItem[] = [
-  { to: '/', label: 'Home', icon: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z' },
+  {
+    to: '/',
+    label: 'Front page',
+    icon: 'M4 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zM15 3h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zM4 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zM15 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1z',
+  },
   {
     to: '/surveys',
     label: 'Surveys',
@@ -13,14 +17,9 @@ export const mainNav: NavItem[] = [
   {
     to: '/templates',
     label: 'Templates',
-    icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+    icon: 'M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5',
   },
   { to: '/results', label: 'Results', icon: 'M4 20V10M10 20V4M16 20v-8M2 20h20' },
-  {
-    to: '/contact-requests',
-    label: 'Contact requests',
-    icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
-  },
   {
     to: '/integrations',
     label: 'Integrations',
