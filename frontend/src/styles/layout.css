@@ -65,7 +65,8 @@
   .menu.header-apps, .header-actions > .menu-wrap:last-child .menu.header-apps { position: fixed; top: calc(var(--header-height) + 4px); left: 8px; right: 8px; width: auto; max-width: none; }
 }
 
-.body { position: relative; display: flex; flex: 1; min-height: 0; }
+/* White behind the grey main area, so its rounded top-left corner shows. */
+.body { position: relative; display: flex; flex: 1; min-height: 0; background: var(--color-surface); }
 
 .icon-button {
   width: 44px; height: 44px; flex: none; padding: 0;
@@ -96,7 +97,10 @@
 
 .nav-link .count-badge { margin-left: auto; }
 
-.main { flex: 1; overflow: auto; padding: 24px; }
+.main {
+  flex: 1; overflow: auto; padding: 24px;
+  background: var(--color-bg); border-top-left-radius: var(--radius-card);
+}
 .page-header { margin-bottom: 16px; }
 .page-header p { margin: 4px 0 0; color: var(--color-text-muted); }
 
