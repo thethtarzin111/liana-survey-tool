@@ -29,17 +29,16 @@ test('a first visit shows the open banner with both ways to start', () => {
   expect(within(banner).queryByText('84% positive')?.closest('[aria-hidden="true"]')).not.toBeNull();
 });
 
-test('folding leaves a one-line bar that unfolds the banner again', () => {
+test('folding hides the banner content and the toggle opens it again', () => {
   renderBanner();
   fireEvent.click(screen.getByRole('button', { name: 'Fold up the welcome banner' }));
 
   const toggle = screen.getByRole('button', { name: 'Show the welcome banner' });
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  const bar = screen.getByRole('button', { name: /^LianaSurvey Welcome to LianaSurvey/ });
+  expect(screen.getAllByRole('button')).toHaveLength(1);
 
-  fireEvent.click(bar);
+  fireEvent.click(toggle);
   expect(screen.getByRole('button', { name: 'Fold up the welcome banner' })).toHaveAttribute('aria-expanded', 'true');
-  expect(screen.queryByRole('button', { name: /^LianaSurvey Welcome/ })).not.toBeInTheDocument();
 });
 
 test('the banner stays folded on the next visit', () => {

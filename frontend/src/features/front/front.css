@@ -11,12 +11,8 @@
 .welcome-banner .welcome-toggle[aria-expanded]:hover { background: var(--color-mint-light); }
 .welcome-toggle svg { transition: transform 0.35s ease; }
 .welcome-toggle.folded svg { transform: rotate(180deg); }
-.welcome-bar {
-  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 50px; padding: 0 64px 0 24px;
-  border: 0; background: transparent; font: 500 var(--text-nav) var(--font-heading);
-  color: var(--color-text); text-align: left; cursor: pointer;
-}
-.welcome-bar strong { color: var(--color-brand-dark); font-weight: 600; }
+/* Folded: a plain strip, tall enough for the 44px toggle plus its 8px offsets. */
+.welcome-banner.folded { min-height: 60px; }
 .welcome-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.35s ease; }
 .welcome-body > div { overflow: hidden; min-height: 0; }
 /* Hidden content leaves the tab order and the accessibility tree once folded. */

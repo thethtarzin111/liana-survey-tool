@@ -31,7 +31,7 @@ export function WelcomeBanner() {
   };
 
   return (
-    <section className="welcome-banner" aria-labelledby="welcome-title">
+    <section className={`welcome-banner${folded ? ' folded' : ''}`} aria-labelledby="welcome-title">
       <IconButton
         className={`welcome-toggle${folded ? ' folded' : ''}`}
         label={folded ? 'Show the welcome banner' : 'Fold up the welcome banner'}
@@ -40,13 +40,6 @@ export function WelcomeBanner() {
         aria-controls="welcome-body"
         onClick={toggle}
       />
-      {folded ? (
-        <button type="button" className="welcome-bar" onClick={toggle}>
-          <strong>LianaSurvey</strong>
-          <span aria-hidden="true">·</span>
-          <span>{HEADING}</span>
-        </button>
-      ) : null}
       <div id="welcome-body" className={`welcome-body${folded ? ' folded' : ''}`}>
         <div>
           <div className="welcome-inner">
