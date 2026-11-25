@@ -12,11 +12,11 @@
   position: absolute; top: 8px; right: 12px; z-index: 2;
   width: 37px; height: 37px; margin: 0;
   border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill);
-  background: var(--color-surface); color: var(--color-text); box-shadow: var(--shadow-control);
+  background: var(--color-surface); color: var(--color-text); box-shadow: var(--shadow-button);
   transition: border-color 0.1s, box-shadow 0.1s;
 }
 .welcome-banner .welcome-toggle[aria-expanded]:hover,
-.welcome-banner .welcome-toggle[aria-expanded]:focus-visible { background: var(--color-surface); border-color: var(--color-border-hover); }
+.welcome-banner .welcome-toggle[aria-expanded]:focus-visible { background: var(--color-surface); border-color: var(--color-border-hover); box-shadow: none; }
 /* Folded: a plain strip, tall enough for the toggle plus its 8px offsets. */
 .welcome-banner.folded { min-height: 53px; }
 .welcome-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.35s ease; }

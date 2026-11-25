@@ -20,7 +20,7 @@
   --color-on-brand: #ffffff;       /* text and icons on green */
 
   --color-brand: #4ca74e;          /* primary buttons */
-  --color-brand-hover: #3e8f40;
+  --color-brand-hover: #59ba54;   /* Liana's bright green: lighter on hover */
   --color-brand-dark: #2b6450;     /* links, active nav, badges */
   --color-mint: #cfeadf;
   --color-mint-light: #f0f9f6;
@@ -66,7 +66,7 @@
   --control-height: 34px;
 
   --shadow-card: 0 3px 3px rgba(0, 0, 0, 0.03);
-  --shadow-button: 0 3px 3px rgba(0, 0, 0, 0.1);
+  --shadow-button: 0 3px 3px rgba(0, 0, 0, 0.1);  /* primary and white buttons; white ones drop it on hover */
   --shadow-control: 0 2px 2px rgba(0, 0, 0, 0.03);  /* secondary and icon buttons */
   --shadow-pop: 0 20px 30px rgba(23, 73, 77, 0.15);
   --shadow-menu: 0 5px 32px rgba(0, 0, 0, 0.05);   /* menus, dialogs */
