@@ -692,6 +692,36 @@ paths:
         '400': { description: 'Segment not available: unknown, or too small to show' }
         '404': { description: Survey not found }
         '422': { description: survey_id is not a UUID }
+  /api/v1/results/{survey_id}/comment-insights:
+    get:
+      tags: [results]
+      summary: Themes in one survey's comments
+      description: >-
+        Comments to the survey's first text question, with emails and phone numbers hidden before
+        anything reads them. With fewer than `min_comments` (5) comments `status` is `too_few` and
+        there are no themes. With fewer than `direct_limit` (50) the theme writer (an LLM, or the mock)
+        reads them in one batch (`mode: direct`); from 50 the grouper embeds and clusters them first
+        and the writer is called once per group (`mode: clustered`). The writer only names themes,
+        summaries and quotes. Every count, percentage and score is computed in code; sentiment comes
+        from the reader's score and from the writer only for mixed scores (NPS 7-8, thumbs Good,
+        rating 3). A quote is kept only when it is found word-for-word in its comment. Segments
+        follow the overview's rules.
+      parameters:
+        - { name: survey_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - name: segment
+          in: query
+          required: false
+          description: "`all` (default) for no filter, or a `value` from the overview's `segments`"
+          schema: { type: string, default: all }
+      responses:
+        '200':
+          description: The themes
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommentInsights' }
+        '400': { description: 'Segment not available: unknown, or too small to show' }
+        '404': { description: Survey not found }
+        '422': { description: survey_id is not a UUID }
   /api/v1/results/{survey_id}/responses:
     get:
       tags: [results]
@@ -1015,6 +1045,71 @@ components:
         responses: { type: integer, minimum: 0 }
         response_rate: { type: [integer, 'null'], minimum: 0, description: Responses divided by views, as a whole percentage }
         main_result: { type: [string, 'null'], example: NPS +42 }
+    CommentInsights:
+      type: object
+      required: [survey_id, status, mode, kind, comments, redacted, min_comments, direct_limit, score, themes, negative_themes, run]
+      properties:
+        survey_id: { type: string, format: uuid }
+        status: { type: string, enum: [ready, too_few] }
+        mode: { type: [string, 'null'], enum: [direct, clustered, null] }
+        kind: { type: [string, 'null'], enum: [nps, thumbs, rating, null], description: The main scale question's kind }
+        comments: { type: integer, minimum: 0 }
+        redacted: { type: integer, minimum: 0, description: Comments with an email or phone number hidden }
+        min_comments: { type: integer, example: 5 }
+        direct_limit: { type: integer, example: 50 }
+        score: { type: [integer, 'null'], description: Main score of everyone who commented; null with fewer than 5 scored answers }
+        themes:
+          type: array
+          description: Most comments first, Other last
+          items:
+            type: object
+            required: [key, label, outlier, comments, percent, sentiment, score, score_vs_all, quotes, hidden_quotes, samples]
+            properties:
+              key: { type: string, example: price }
+              label: { type: string, description: Named by the theme writer, example: Price }
+              outlier: { type: boolean, description: 'True for "Other": comments that fit no theme' }
+              comments: { type: integer }
+              percent: { type: [integer, 'null'], description: Share of all comments }
+              sentiment:
+                type: object
+                required: [negative, neutral, positive]
+                properties:
+                  negative: { type: integer }
+                  neutral: { type: integer }
+                  positive: { type: integer }
+              score: { type: [integer, 'null'], description: Main score of these commenters; null with fewer than 5 scored answers }
+              score_vs_all: { type: [integer, 'null'], description: score minus the score of all commenters }
+              quotes:
+                type: array
+                maxItems: 3
+                items:
+                  type: object
+                  required: [comment_id, text, summary]
+                  properties:
+                    comment_id: { type: string, example: C1 }
+                    text: { type: string, description: Found word-for-word in the redacted comment }
+                    summary: { type: string }
+              hidden_quotes: { type: integer, description: Suggested quotes not found word-for-word }
+              samples: { type: array, maxItems: 5, items: { type: string }, description: Redacted comments }
+        negative_themes:
+          type: array
+          maxItems: 3
+          items:
+            type: object
+            required: [key, label, count, percent]
+            properties:
+              key: { type: string }
+              label: { type: string }
+              count: { type: integer, description: Negative comments in the theme }
+              percent: { type: [integer, 'null'], description: Share of all negative comments }
+        run:
+          type: object
+          required: [grouper, writer, llm_calls]
+          properties:
+            grouper: { type: [string, 'null'], description: Null in direct mode }
+            writer: { type: string, example: Mock (no LLM connected) }
+            llm_calls: { type: integer }
+
     LianaSendSettings:
       type: object
       properties:

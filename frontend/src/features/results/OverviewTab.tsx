@@ -1,16 +1,23 @@
 import type { SurveyOverview } from '../../api/client';
 import { Card, EmptyState, icons } from '../../components/ui';
-import { AiComingSoon } from './AiComingSoon';
 import { AnswerSplit, TopReasons, hasTopReasons } from './AnswerSplit';
 import { CloseTheLoop } from './CloseTheLoop';
+import { InsightsCard } from './InsightsCard';
 import { KpiCards } from './KpiCards';
 import { QuestionCard } from './QuestionCard';
 import { SegmentCard } from './SegmentCard';
 import { takeaway } from './takeaway';
 import { TrendCard } from './TrendCard';
 
+type Props = {
+  overview: SurveyOverview;
+  onReadAll: () => void;
+  /** Opens the Comment insights tab; left out when the survey asks for no comments. */
+  onOpenInsights?: () => void;
+};
+
 /** KPI cards, then the visual of each question kind. */
-export function OverviewTab({ overview, onReadAll }: { overview: SurveyOverview; onReadAll: () => void }) {
+export function OverviewTab({ overview, onReadAll, onOpenInsights }: Props) {
   if (overview.responses === 0) {
     return (
       <EmptyState
@@ -53,7 +60,7 @@ export function OverviewTab({ overview, onReadAll }: { overview: SurveyOverview;
         <AnswerSplit overview={overview} />
       )}
       {pair.length > 0 ? <div className="results-row">{pair}</div> : null}
-      <AiComingSoon />
+      {onOpenInsights ? <InsightsCard onOpen={onOpenInsights} /> : null}
       {kind ? <SegmentCard kind={kind} rows={overview.by_segment} /> : null}
       <CloseTheLoop type={overview.type} />
     </div>

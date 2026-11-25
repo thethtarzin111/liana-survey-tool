@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     lianamailer_api_secret: str = ""
     lianamailer_api_realm: str = "EUR"
 
+    # Comment insights (Results tab). mock = works offline, no model or LLM.
+    # hdbscan = multilingual embeddings + HDBSCAN (needs data-analyzer[ai]).
+    insights_grouper: str = "mock"
+    # mock only for now: which LLM to use is still Liana's decision (docs/gdpr.md).
+    insights_writer: str = "mock"
+
 
 @lru_cache
 def get_settings() -> Settings:

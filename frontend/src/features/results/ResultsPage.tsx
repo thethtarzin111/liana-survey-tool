@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, type SurveyListItem, type SurveyOverview } from '../../api/client';
 import { PageHeader } from '../../components/PageHeader';
 import { Button, ButtonLink, Card, EmptyState, Select, Tabs, icons } from '../../components/ui';
+import { CommentInsightsTab } from './CommentInsightsTab';
 import { OverviewTab } from './OverviewTab';
 import { ResponsesTab, type Scale } from './ResponsesTab';
 import { SurveyPicker } from './SurveyPicker';
@@ -23,6 +24,13 @@ function scaleOf(overview: SurveyOverview): Scale | null {
   if (overview.type === 'csat') return 'rating';
   const q = overview.questions.find((x) => x.kind === 'nps' || x.kind === 'thumbs' || x.kind === 'rating');
   return q ? (q.kind as Scale) : null;
+}
+
+/** Whether the survey asks for comments: a text question, which standard surveys show
+ * only with their comment field on. Only these surveys get the Comment insights tab. */
+export function hasComments(overview: SurveyOverview, survey: SurveyListItem): boolean {
+  const asks = overview.questions.some((q) => q.kind === 'text' || q.kind === 'long_text');
+  return asks && (overview.type === 'custom' || survey.comment_field);
 }
 
 type Loaded = { surveyId: string; segment: string; data: SurveyOverview };
@@ -135,11 +143,13 @@ export function ResultsPage() {
     body = <p role="status">Loading results…</p>;
   } else {
     const showSegments = overview.segments.length >= 2;
+    const insights = hasComments(overview, chosen);
+    const shown = tab === 'insights' && !insights ? 'overview' : tab;
     body = (
       <Tabs
         className="results-tabs"
         label="Results views"
-        value={tab}
+        value={shown}
         actions={
           <div className="results-tab-actions">
             <SurveyPicker compact surveys={surveys} value={surveyId} onPick={(id) => set({ survey: id })} />
@@ -158,7 +168,7 @@ export function ResultsPage() {
             ) : null}
           </div>
         }
-        onChange={(id) => set({ tab: id === 'responses' ? 'responses' : 'overview' })}
+        onChange={(id) => set({ tab: id === 'responses' || id === 'insights' ? id : 'overview' })}
         tabs={[
           { id: 'overview', label: 'Overview' },
           {
@@ -169,12 +179,24 @@ export function ResultsPage() {
               </>
             ),
           },
+          ...(insights ? [{ id: 'insights', label: 'Comment insights' }] : []),
         ]}
       >
-        {tab === 'responses' ? (
+        {shown === 'responses' ? (
           <ResponsesTab surveyId={chosen.id} segment={segment} scale={scaleOf(overview)} />
+        ) : shown === 'insights' ? (
+          <CommentInsightsTab
+            key={chosen.id}
+            surveyId={chosen.id}
+            segment={segment}
+            onReadAll={() => set({ tab: 'responses' })}
+          />
         ) : (
-          <OverviewTab overview={overview} onReadAll={() => set({ tab: 'responses' })} />
+          <OverviewTab
+            overview={overview}
+            onReadAll={() => set({ tab: 'responses' })}
+            onOpenInsights={insights ? () => set({ tab: 'insights' }) : undefined}
+          />
         )}
       </Tabs>
     );

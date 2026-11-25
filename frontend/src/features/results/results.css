@@ -159,5 +159,56 @@
 .response-answer dd { margin: 2px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: var(--text-body); }
 .question-empty { margin: 0; color: var(--color-text-muted); font-size: var(--text-body); }
 
+/* --- Comment insights tab -------------------------------------------------- */
+.insights-intro { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; color: var(--color-text-muted); }
+.insights-ai-badge {
+  display: inline-flex; align-items: center; padding: 2px 10px; border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--color-ai) 35%, var(--color-border));
+  background: color-mix(in srgb, var(--color-ai) 8%, var(--color-surface));
+  color: var(--color-ai); font-size: var(--text-hint); font-weight: 600; white-space: nowrap;
+}
+.insights-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.insights-legend { flex-direction: row; flex-wrap: wrap; gap: 6px 14px; flex: 0 1 auto; }
+.insights-themes { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.insights-theme {
+  width: 100%; display: grid; grid-template-columns: minmax(90px, 160px) minmax(0, 1fr) 72px; align-items: center; gap: 10px;
+  padding: 8px 10px; border: 1px solid transparent; border-radius: var(--radius-nav); background: none;
+  color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.insights-theme:hover { background: var(--color-surface-muted); }
+.insights-theme[aria-pressed='true'] { background: var(--color-mint-light); border-color: var(--color-mint-border); }
+.insights-theme:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.insights-theme-label { font-weight: 600; overflow-wrap: anywhere; }
+.insights-theme-other .insights-theme-label { color: var(--color-text-muted); font-weight: 400; font-style: italic; }
+.insights-theme-count { text-align: right; color: var(--color-text-muted); white-space: nowrap; }
+.insights-theme-count strong { color: var(--color-text); }
+.insights-track { display: block; min-width: 4px; }
+.insights-bar { display: flex; height: 12px; width: 100%; border-radius: var(--radius-sm); overflow: hidden; background: var(--color-surface-muted); }
+.insights-bar > span { display: block; height: 100%; }
+.insights-detail { gap: 10px; }
+.insights-theme-title { margin: 0; font: 600 var(--text-page-title) var(--font-heading); overflow-wrap: anywhere; }
+.insights-meta { margin: 0; color: var(--color-text-muted); }
+.insights-rename { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.insights-rename .field { flex: 1 1 180px; min-width: 0; }
+.insights-subtitle { margin: 6px 0 0; font-size: var(--text-hint); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+.insights-quotes, .insights-samples { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.insights-quotes li { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-nav); background: var(--color-surface-muted); }
+.insights-quote-summary { color: var(--color-text-muted); font-size: var(--text-hint); }
+.insights-verified { color: var(--color-brand-dark); font-size: var(--text-hint); font-weight: 600; }
+.insights-hidden { margin: 0; color: var(--color-error-text); font-size: var(--text-hint); }
+.insights-samples li { padding-bottom: 8px; border-bottom: 1px solid var(--color-row-line); }
+.insights-samples li:last-child { padding-bottom: 0; border-bottom: 0; }
+.insights-run { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 16px; }
+.insights-run dt { color: var(--color-text-muted); font-weight: 600; }
+.insights-run dd { margin: 0; }
+
+@media (max-width: 880px) {
+  .insights-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .insights-theme { grid-template-columns: minmax(0, 1fr) auto; }
+  .insights-theme .insights-track { grid-column: 1 / -1; grid-row: 2; }
+}
+
 .response-contact { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 4px; }
 .response-contact-email { overflow-wrap: anywhere; font-size: var(--text-small); }
