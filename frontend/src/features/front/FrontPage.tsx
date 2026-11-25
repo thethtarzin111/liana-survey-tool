@@ -17,6 +17,7 @@ import { dayDate } from '../results/format';
 import { useFeatureFlag } from '../settings/featureFlags';
 import { LatestSplit } from './LatestSplit';
 import { PerformancePanel } from './PerformancePanel';
+import { WelcomeBanner } from './WelcomeBanner';
 import './front.css';
 
 const TYPE_LABEL: Record<SurveyType, string> = {
@@ -173,6 +174,7 @@ export function FrontPage() {
   if (failed) {
     return (
       <div className="front-page">
+        <WelcomeBanner />
         <Card padded className="front-error" role="alert">
           <strong>We couldn’t load your dashboard.</strong>
           <p>Your survey information is temporarily unavailable.</p>
@@ -181,7 +183,14 @@ export function FrontPage() {
       </div>
     );
   }
-  if (surveys === null) return <p role="status">Loading dashboard…</p>;
+  if (surveys === null) {
+    return (
+      <div className="front-page">
+        <WelcomeBanner />
+        <p role="status">Loading dashboard…</p>
+      </div>
+    );
+  }
 
   const answered = surveys.filter((survey) => survey.answers > 0);
   const live = surveys.filter((survey) => survey.status === 'live').length;
@@ -227,6 +236,7 @@ export function FrontPage() {
 
   return (
     <div className="front-page">
+      <WelcomeBanner />
       {answered.length === 0 ? <GettingStarted surveys={surveys} /> : null}
 
       <h2 className="section-header">Overview</h2>
