@@ -1,9 +1,9 @@
 /* Liana design tokens, measured from the Liana test account.
    Source: design/prototype/DesignSystem.dc.html and design/tokens.json. */
 :root {
-  --text-dashboard-stat: 24px;
+  --text-dashboard-stat: 22px;
   /* Results KPI numbers */
-  --text-kpi-value: 30px;
+  --text-kpi-value: 28px;
   /* Liana has no red or brown: negative answers are grey, striped */
   --color-chart-negative: #696f77;
   --color-chart-negative-stripe: #878e97;
@@ -46,20 +46,19 @@
   --color-app-mailer: #e76155;
   --color-app-monitor: #27b99f;
 
-  /* Liana's sizes scaled from its 12px base to 13px */
-  --text-body: 13px;
-  --text-nav: 14.86px;
+  --text-body: 12px;
+  --text-nav: 13.71px;
   --text-sidebar: 13px;            /* Liana's .main-navigation; its items are 1em */
-  --text-section: 14.86px;
-  --text-page-title: 18.57px;
-  --text-hint: 12.07px;
-  --text-small: 11.7px;
-  --text-table-head: 12px;
-  --text-xs: 12px;                 /* step numbers, small remove buttons */
-  --text-icon: 14px;               /* the × in chips */
-  --text-brand: 17px;              /* "LianaSurvey" in the header */
-  --text-title-input: 22px;        /* survey title field in the builder */
-  --text-welcome: 28px;            /* front page welcome banner heading */
+  --text-section: 13.71px;
+  --text-page-title: 17.14px;
+  --text-hint: 11.14px;
+  --text-small: 10.8px;
+  --text-table-head: 11px;
+  --text-xs: 11px;                 /* step numbers, small remove buttons */
+  --text-icon: 13px;               /* the × in chips */
+  --text-brand: 16px;              /* "LianaSurvey" in the header */
+  --text-title-input: 20px;        /* survey title field in the builder */
+  --text-welcome: 26px;            /* front page welcome banner heading */
 
   --radius-sm: 3.43px;
   --radius-nav: 6.86px;

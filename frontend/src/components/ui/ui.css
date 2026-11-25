@@ -98,7 +98,7 @@
 .empty-state { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 36px 20px; }
 .empty-state .icon-circle { margin-bottom: 4px; }
 .empty-title { font: 600 var(--text-section) var(--font-heading); color: var(--color-text); margin: 0; }
-.empty-text { max-width: 380px; margin: 0; font-size: var(--text-body); line-height: 1.5; color: var(--color-text-muted); }
+.empty-text { max-width: 380px; margin: 0; font-size: var(--text-body); line-height: 18px; color: var(--color-text-muted); }
 .empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 6px; }
 
 /* --- Form fields -------------------------------------------------------- */
@@ -117,7 +117,7 @@
 .input:focus { outline: none; border-color: var(--color-brand); box-shadow: var(--focus-ring); }
 .input:disabled { background: var(--color-bg); color: var(--color-placeholder); cursor: not-allowed; }
 .input[aria-invalid='true'] { border-color: var(--color-error); }
-textarea.input { padding: 9px 10.29px; line-height: 1.5; resize: vertical; }
+textarea.input { padding: 9px 10.29px; line-height: 18px; resize: vertical; }
 select.input { width: auto; max-width: 100%; padding-right: 6px; }
 
 .check { display: inline-flex; align-items: flex-start; gap: 8px; font-size: var(--text-body); cursor: pointer; }
@@ -231,7 +231,7 @@ select.input { width: auto; max-width: 100%; padding-right: 6px; }
 .option-card:disabled { cursor: wait; opacity: 0.6; }
 .option-card[aria-pressed='true'] { border-color: var(--color-brand); background: var(--color-mint-light); }
 .option-title { font: 600 var(--text-section) var(--font-heading); }
-.option-text { color: var(--color-text-muted); line-height: 1.5; }
+.option-text { color: var(--color-text-muted); line-height: 18px; }
 
 /* --- Menu --------------------------------------------------------------- */
 .menu-wrap { position: relative; display: inline-flex; }
