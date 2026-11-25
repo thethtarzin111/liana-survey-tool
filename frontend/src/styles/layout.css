@@ -80,6 +80,8 @@
   width: var(--sidebar-width); flex: none; overflow: auto;
   display: flex; flex-direction: column; gap: 2px; padding: 13.71px 8px;
   background: var(--color-surface); border-right: 1px solid var(--color-border);
+  /* No line beside the main area's rounded corner. The line starts below it. */
+  border-image: linear-gradient(to bottom, transparent var(--radius-card), var(--color-border) var(--radius-card)) 1;
 }
 .sidebar .btn { margin-bottom: 10px; }
 .sidebar-divider { height: 1px; background: var(--color-border); margin: 12px -8px; }
