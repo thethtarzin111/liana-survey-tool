@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { icons } from '../../components/ui';
 import { WelcomeBanner } from './WelcomeBanner';
 
 const HEADING = 'Welcome to LianaSurvey – hear what your readers think';
@@ -25,6 +26,7 @@ test('a first visit shows the open banner with both ways to start', () => {
   const toggle = within(banner).getByRole('button', { name: 'Fold up the welcome banner' });
   expect(toggle).toHaveAttribute('aria-expanded', 'true');
   expect(toggle).toHaveAttribute('aria-controls', 'welcome-body');
+  expect(toggle.querySelector('path')).toHaveAttribute('d', icons.close);
   // The newsletter picture is decoration only.
   expect(within(banner).queryByText('84% positive')?.closest('[aria-hidden="true"]')).not.toBeNull();
 });
@@ -36,6 +38,7 @@ test('folding hides the banner content and the toggle opens it again', () => {
   const toggle = screen.getByRole('button', { name: 'Show the welcome banner' });
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
   expect(screen.getAllByRole('button')).toHaveLength(1);
+  expect(toggle.querySelector('path')).toHaveAttribute('d', icons.chevronDown);
 
   fireEvent.click(toggle);
   expect(screen.getByRole('button', { name: 'Fold up the welcome banner' })).toHaveAttribute('aria-expanded', 'true');

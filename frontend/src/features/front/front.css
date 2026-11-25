@@ -9,8 +9,6 @@
   border-radius: var(--radius-pill); background: var(--color-surface);
 }
 .welcome-banner .welcome-toggle[aria-expanded]:hover { background: var(--color-mint-light); }
-.welcome-toggle svg { transition: transform 0.35s ease; }
-.welcome-toggle.folded svg { transform: rotate(180deg); }
 /* Folded: a plain strip, tall enough for the 44px toggle plus its 8px offsets. */
 .welcome-banner.folded { min-height: 60px; }
 .welcome-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.35s ease; }
@@ -73,7 +71,7 @@
   .welcome-inner { padding: 28px 20px 32px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .welcome-body, .welcome-toggle svg { transition: none; }
+  .welcome-body { transition: none; }
 }
 
 /* Getting started */

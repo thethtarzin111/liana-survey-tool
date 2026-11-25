@@ -33,9 +33,9 @@ export function WelcomeBanner() {
   return (
     <section className={`welcome-banner${folded ? ' folded' : ''}`} aria-labelledby="welcome-title">
       <IconButton
-        className={`welcome-toggle${folded ? ' folded' : ''}`}
+        className="welcome-toggle"
         label={folded ? 'Show the welcome banner' : 'Fold up the welcome banner'}
-        icon={icons.chevronUp}
+        icon={folded ? icons.chevronDown : icons.close}
         aria-expanded={!folded}
         aria-controls="welcome-body"
         onClick={toggle}
