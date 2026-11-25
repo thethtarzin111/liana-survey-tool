@@ -5,12 +5,13 @@ import { App } from './App';
 import { Sidebar } from './Sidebar';
 
 beforeEach(() => {
-  // No API in unit tests: pretend the dev-auth stub answered. Lists (templates)
-  // get an empty list, so pages that load them do not fail after the test.
+  // No API in unit tests: pretend the dev-auth stub answered. Lists (templates,
+  // the Integrations sync log) get an empty list, so pages that load them do not
+  // crash while or after the test runs.
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) =>
-      String(input).includes('/api/v1/templates')
+      String(input).includes('/api/v1/templates') || String(input).includes('/liana-automation/events')
         ? Response.json([])
         : Response.json({
             user_id: 'u',
