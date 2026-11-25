@@ -2,17 +2,18 @@
 
 .header {
   height: var(--header-height); flex: none;
-  display: flex; align-items: center; gap: 12px; padding: 6px 16px;
+  display: flex; align-items: center; gap: 12px; padding: 0 16px 0 0;
   background: var(--color-surface); border-bottom: 1px solid transparent;
 }
 /* Header (#74), as in the prototype's top bar. */
 .header { position: relative; z-index: 30; }
 .header-logo {
-  display: inline-flex; align-items: center; min-height: 40px; padding: 0 6px;
+  display: inline-flex; align-items: center; padding: 0;
   border-radius: var(--radius-nav); color: var(--color-brand-dark); text-decoration: none;
 }
 .header-logo:focus-visible { outline: 2px solid var(--color-brand-dark); outline-offset: 2px; }
-.logo { display: block; height: 28px; width: auto; }
+/* Liana's top bar logo: 2.2rem high with 1em 1.42857em margins on a 12px base. */
+.logo { display: block; height: 26.4px; width: auto; margin: 12px 17.14px; }
 .header-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .header-pill {
   display: inline-flex; align-items: center; gap: 5px; min-height: 29px; padding: 0 11.76px;
@@ -25,7 +26,7 @@
   width: 34px; height: 34px; flex: none; padding: 0; display: inline-flex; align-items: center; justify-content: center;
   border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--color-text); cursor: pointer;
 }
-.header-pill:hover, .header-icon:hover, .header-user:hover, .header-user[aria-expanded='true'] { background: var(--color-bg); }
+.header-icon:hover, .header-user:hover, .header-user[aria-expanded='true'] { background: var(--color-bg); }
 .header-icon[aria-expanded='true'] { background: var(--color-surface-muted); }
 .header-pill:focus-visible, .header-icon:focus-visible, .header-user:focus-visible {
   outline: 2px solid var(--color-brand-dark); outline-offset: 2px;
@@ -58,7 +59,7 @@
 @media (prefers-reduced-motion: reduce) { .header-chevron { transition: none; } }
 @media (max-width: 600px) {
   .header { gap: 4px; padding: 6px 8px; }
-  .logo { height: 24px; }
+  .logo { height: 24px; margin: 0; }
   .header-wide { display: none; }
   .header-pill { width: 34px; height: 34px; padding: 0; justify-content: center; box-shadow: none; }
   .header-user { width: auto; padding: 2px; }
