@@ -102,7 +102,7 @@ separate services. See [`docs/architecture.md`](docs/architecture.md).
 
 There is no login screen: everyone is a demo user (see `docs/decisions/0003-dev-auth-stub.md`).
 The demo data has two organisations, Example Members Association (Anna Virtanen, the
-default) and Example Sports Club (Mikko Korhonen). **Switch organization (demo)** in the
+default) and LUT Students (Mikko Korhonen). **Switch organization (demo)** in the
 user menu changes between them, to show that organisations never see each other's data.
 On the demo server each organisation has its own login instead
 (`backend/infra/deploy/README.md`).

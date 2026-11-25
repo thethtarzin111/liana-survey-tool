@@ -279,8 +279,8 @@ on conflict (id) do nothing;
 commit;
 
 -- ---------------------------------------------------------------------------
--- A second organisation, Example Sports Club, to show that organisations are
--- kept apart: the user menu switches to it (dev auth only). It has its own user,
+-- A second organisation, LUT Students, to show that organisations are kept
+-- apart: its own login on the demo server, the user menu locally (dev auth only). It has its own user,
 -- a live thumbs survey and a closed NPS survey with responses, and a draft.
 -- ---------------------------------------------------------------------------
 
@@ -289,7 +289,7 @@ begin;
 select set_config('app.tenant_id', '00000000-0000-4000-8000-000000000002', true);
 
 insert into tenants (id, name) values
-  ('00000000-0000-4000-8000-000000000002', 'Example Sports Club')
+  ('00000000-0000-4000-8000-000000000002', 'LUT Students')
 on conflict (id) do nothing;
 
 insert into users (id, tenant_id, name, email) values
@@ -300,15 +300,15 @@ on conflict (id) do nothing;
 insert into surveys (id, tenant_id, title, type, status, created_by, created_at, opens_at,
                      closes_at, published_at, link_token, accent_color, background_color) values
   ('00000000-0000-4000-8000-000000000221', '00000000-0000-4000-8000-000000000002',
-   'Training session feedback', 'thumbs', 'live', '00000000-0000-4000-8000-000000000102',
+   'Course feedback', 'thumbs', 'live', '00000000-0000-4000-8000-000000000102',
    '2026-09-05 18:00+03', '2026-09-08 18:00+03', null, '2026-09-08 18:00+03',
-   'demo-training-feedback-0221', '#1B4F9C', '#F6F7F9'),
+   'demo-course-feedback-0221', '#1B4F9C', '#F6F7F9'),
   ('00000000-0000-4000-8000-000000000222', '00000000-0000-4000-8000-000000000002',
-   'Season pass NPS', 'nps', 'closed', '00000000-0000-4000-8000-000000000102',
+   'Membership NPS', 'nps', 'closed', '00000000-0000-4000-8000-000000000102',
    '2026-09-05 18:30+03', '2026-09-10 09:00+03', '2026-11-10 18:00+02', '2026-09-10 09:00+03',
-   'demo-season-pass-0222', '#1B4F9C', '#FFFFFF'),
+   'demo-membership-nps-0222', '#1B4F9C', '#FFFFFF'),
   ('00000000-0000-4000-8000-000000000223', '00000000-0000-4000-8000-000000000002',
-   'Club kit order', 'custom', 'draft', '00000000-0000-4000-8000-000000000102',
+   'Orientation week sign-up', 'custom', 'draft', '00000000-0000-4000-8000-000000000102',
    '2026-11-02 12:00+02', null, null, null, null, '#1B4F9C', '#FFFFFF')
 on conflict (id) do nothing;
 
@@ -319,55 +319,55 @@ on conflict do nothing;
 
 insert into questions (tenant_id, survey_id, position, kind, prompt, options, required) values
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000221', 1, 'thumbs',
-   'How was today''s training?', '[]', true),
+   'How was today''s lecture?', '[]', true),
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000221', 2, 'reasons',
    'What could be better?',
-   '["Too crowded","Too hard","Too easy","Start time","Equipment"]', false),
+   '["Too fast","Too slow","Unclear slides","Start time","Room too full"]', false),
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000221', 3, 'text',
-   'Anything else for the coaches?', '[]', false),
+   'Anything else for the teacher?', '[]', false),
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000222', 1, 'nps',
-   'How likely are you to recommend an Example Sports Club season pass to a friend?', '[]', true),
+   'How likely are you to recommend a LUT Students membership to a friend?', '[]', true),
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000222', 2, 'reasons',
    'What shaped your score?',
-   '["Coaching","Opening hours","Price","Facilities","Club spirit"]', false),
+   '["Events","Student discounts","Price","Study support","Community"]', false),
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000222', 3, 'text',
    'Anything else you want to tell us?', '[]', false),
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000223', 1,
-   'single_choice', 'Which shirt size do you need?', '["XS","S","M","L","XL"]', true),
+   'single_choice', 'Which day can you come?', '["Monday","Tuesday","Wednesday"]', true),
   ('00000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-000000000223', 2,
-   'multiple_choice', 'What else would you order?', '["Shorts","Socks","Training jacket"]', false)
+   'multiple_choice', 'What else would you join?', '["Campus tour","Sauna evening","Sports day"]', false)
 on conflict (survey_id, position) do nothing;
 
-create temp table club_resp on commit drop as
+create temp table students_resp on commit drop as
 select b.*,
   case b.slug
     -- Thumbs: 0 Not for me, 1 Good, 2 Loved it.
-    when 'training' then case when b.i % 6 = 0 then 0 when b.i % 6 in (1, 3) then 1 else 2 end
+    when 'course' then case when b.i % 6 = 0 then 0 when b.i % 6 in (1, 3) then 1 else 2 end
     else (array[2,5,6,7,8,8,9,9,9,10,10,6,7,9,10])[1 + (b.i * 7) % 15]
   end as score,
   case when b.i % 4 <> 0 then b.comments[1 + (b.i * 3) % array_length(b.comments, 1)] end
     as comment
 from (
   select s.survey_id, s.slug, s.comments, g as i,
-    md5('resp-club-' || s.slug || '-' || g)::uuid as id,
-    md5('link-club-' || s.slug || '-' || g) as link_token_hash,
+    md5('resp-students-' || s.slug || '-' || g)::uuid as id,
+    md5('link-students-' || s.slug || '-' || g) as link_token_hash,
     ((s.first_day + floor((g - 1) * s.days::numeric / s.n) * interval '1 day'
       + ((g * 5) % 4) * interval '1 hour') at time zone 'Europe/Helsinki') as submitted_at,
     (array['link','email','qr'])[1 + g % 3] as channel
   from (values
-    ('00000000-0000-4000-8000-000000000221'::uuid, 'training', 24,
+    ('00000000-0000-4000-8000-000000000221'::uuid, 'course', 24,
      '2026-09-08 20:00'::timestamp, 70, array[
-       'Great session, thanks!',
-       'The hall was too full on Tuesday.',
-       'More stretching at the end, please.',
-       'Coach Leena explains things really well.',
-       'Could we start 30 minutes later?']),
-    ('00000000-0000-4000-8000-000000000222'::uuid, 'pass', 30,
+       'Great lecture, thanks!',
+       'The room was too full on Tuesday.',
+       'More examples at the end, please.',
+       'The exercises really helped.',
+       'Could we start at 10:15 instead?']),
+    ('00000000-0000-4000-8000-000000000222'::uuid, 'membership', 30,
      '2026-09-10 12:00'::timestamp, 60, array[
-       'The weekend opening hours are too short.',
-       'Good value for the whole family.',
-       'The changing rooms need an update.',
-       'Friendly staff and a good club spirit.'])
+       'More weekend events, please.',
+       'The student discounts are worth it.',
+       'The common room needs an update.',
+       'Friendly people and a good community.'])
   ) as s(survey_id, slug, n, first_day, days, comments)
   cross join lateral generate_series(1, s.n) g
 ) b;
@@ -375,12 +375,12 @@ from (
 insert into responses (id, tenant_id, survey_id, submitted_at, link_token_hash, channel)
 select id, '00000000-0000-4000-8000-000000000002', survey_id, submitted_at, link_token_hash,
        channel::distribution_channel
-from club_resp
+from students_resp
 on conflict (survey_id, link_token_hash) do nothing;
 
 insert into answers (tenant_id, response_id, question_id, value_number)
 select '00000000-0000-4000-8000-000000000002', r.id, q.id, r.score
-from club_resp r
+from students_resp r
 join questions q on q.survey_id = r.survey_id and q.position = 1
 where not exists (select 1 from answers a where a.response_id = r.id and a.question_id = q.id);
 
@@ -388,14 +388,14 @@ where not exists (select 1 from answers a where a.response_id = r.id and a.quest
 insert into answers (tenant_id, response_id, question_id, value_choices)
 select '00000000-0000-4000-8000-000000000002', r.id, q.id,
   jsonb_build_array(q.options ->> ((r.i * 3) % 5))
-from club_resp r
+from students_resp r
 join questions q on q.survey_id = r.survey_id and q.position = 2
-where (r.slug = 'pass' or r.score = 0)
+where (r.slug = 'membership' or r.score = 0)
   and not exists (select 1 from answers a where a.response_id = r.id and a.question_id = q.id);
 
 insert into answers (tenant_id, response_id, question_id, value_text)
 select '00000000-0000-4000-8000-000000000002', r.id, q.id, r.comment
-from club_resp r
+from students_resp r
 join questions q on q.survey_id = r.survey_id and q.position = 3
 where r.comment is not null
   and not exists (select 1 from answers a where a.response_id = r.id and a.question_id = q.id);

@@ -46,7 +46,7 @@ def demo_user() -> CurrentUser:
 SECOND_DEMO_USER = CurrentUser(
     user_id=UUID("00000000-0000-4000-8000-000000000102"),
     tenant_id=UUID("00000000-0000-4000-8000-000000000002"),
-    tenant_name="Example Sports Club",
+    tenant_name="LUT Students",
     name="Mikko Korhonen",
     email="mikko.korhonen@example.org",
 )

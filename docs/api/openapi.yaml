@@ -885,7 +885,7 @@ components:
       required: [tenant_id, tenant_name, user_name, current]
       properties:
         tenant_id: { type: string, format: uuid }
-        tenant_name: { type: string, example: Example Sports Club }
+        tenant_name: { type: string, example: LUT Students }
         user_name: { type: string, example: Mikko Korhonen }
         current: { type: boolean, description: This browser is signed in to it }
     Snippet:

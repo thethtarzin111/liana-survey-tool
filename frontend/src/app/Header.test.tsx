@@ -118,7 +118,7 @@ test('initials are the first letters of the first two names', () => {
 
 const ORGS = [
   { tenant_id: 't1', tenant_name: 'Example Members Association', user_name: 'Anna Virtanen', current: true },
-  { tenant_id: 't2', tenant_name: 'Example Sports Club', user_name: 'Mikko Korhonen', current: false },
+  { tenant_id: 't2', tenant_name: 'LUT Students', user_name: 'Mikko Korhonen', current: false },
 ];
 
 function stubDemoGateway(organizations: typeof ORGS, switchStatus = 200) {
@@ -158,7 +158,7 @@ test('the user menu switches between the demo organizations and reloads the app'
   const current = within(menu).getByRole('menuitem', { name: 'Example Members Association' });
   expect(current).toHaveAttribute('aria-current', 'true');
 
-  fireEvent.click(within(menu).getByRole('menuitem', { name: 'Example Sports Club' }));
+  fireEvent.click(within(menu).getByRole('menuitem', { name: 'LUT Students' }));
   await vi.waitFor(() => expect(onSwitched).toHaveBeenCalledTimes(1));
   const put = calls.find((c) => c.init?.method === 'PUT');
   expect(put?.url).toBe('/api/v1/me/organizations');
@@ -172,7 +172,7 @@ test('picking the current organization does nothing, and a failed switch says so
   fireEvent.click(await screen.findByRole('button', { name: 'Account: Anna Virtanen' }));
   fireEvent.click(await screen.findByRole('menuitem', { name: 'Example Members Association' }));
   fireEvent.click(screen.getByRole('button', { name: 'Account: Anna Virtanen' }));
-  fireEvent.click(screen.getByRole('menuitem', { name: 'Example Sports Club' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'LUT Students' }));
   expect(await screen.findByText('We couldn’t switch the organization. Please try again.')).toBeInTheDocument();
   expect(onSwitched).not.toHaveBeenCalled();
 });

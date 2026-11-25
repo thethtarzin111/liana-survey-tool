@@ -40,7 +40,7 @@ def test_routing_preserves_request_and_replaces_identity(monkeypatch):
     assert missing.status_code == 404
 
 
-SPORTS_CLUB = "00000000-0000-4000-8000-000000000002"
+LUT_STUDENTS = "00000000-0000-4000-8000-000000000002"
 
 
 def test_the_demo_organizations_are_listed_with_the_default_one_current():
@@ -48,7 +48,7 @@ def test_the_demo_organizations_are_listed_with_the_default_one_current():
         organizations = client.get("/api/v1/me/organizations").json()
     assert [o["tenant_name"] for o in organizations] == [
         get_settings().dev_tenant_name,
-        "Example Sports Club",
+        "LUT Students",
     ]
     assert [o["current"] for o in organizations] == [True, False]
 
@@ -63,15 +63,15 @@ def test_switching_organization_changes_the_user_for_every_admin_request(monkeyp
     monkeypatch.setattr(local_gateway, "surveys", capture)
     monkeypatch.setattr(local_gateway, "respondent", capture)
     with TestClient(local_gateway.app) as client:
-        switched = client.put("/api/v1/me/organizations", json={"tenant_id": SPORTS_CLUB})
+        switched = client.put("/api/v1/me/organizations", json={"tenant_id": LUT_STUDENTS})
         assert switched.status_code == 200
         assert switched.json()["name"] == "Mikko Korhonen"
         assert "httponly" in switched.headers["set-cookie"].lower()
-        assert client.get("/api/v1/me").json()["tenant_id"] == SPORTS_CLUB
-        assert client.get("/api/v1/surveys").json() == {"tenant": SPORTS_CLUB}
+        assert client.get("/api/v1/me").json()["tenant_id"] == LUT_STUDENTS
+        assert client.get("/api/v1/surveys").json() == {"tenant": LUT_STUDENTS}
         # Identity headers from the browser are still replaced, and links stay public.
         spoofed = client.get("/api/v1/surveys", headers={"X-Tenant-Id": "other"})
-        assert spoofed.json() == {"tenant": SPORTS_CLUB}
+        assert spoofed.json() == {"tenant": LUT_STUDENTS}
         assert client.get("/r/token").json() == {"tenant": ""}
         current = [o["current"] for o in client.get("/api/v1/me/organizations").json()]
         assert current == [False, True]
@@ -96,7 +96,7 @@ def test_a_forged_cookie_for_an_unknown_organization_gets_the_default_user():
 
 
 MEMBERS = "00000000-0000-4000-8000-000000000001"
-LOGINS = f"liana={MEMBERS}, sportsclub={SPORTS_CLUB}"
+LOGINS = f"liana={MEMBERS}, lutstudents={LUT_STUDENTS}"
 
 
 def test_on_the_demo_server_each_login_gets_its_own_organization(monkeypatch):
@@ -113,17 +113,17 @@ def test_on_the_demo_server_each_login_gets_its_own_organization(monkeypatch):
     monkeypatch.setattr(local_gateway, "surveys", capture)
     monkeypatch.setattr(local_gateway, "respondent", capture)
     with TestClient(local_gateway.app) as client:
-        club = {"X-Demo-Login": "sportsclub"}
-        assert client.get("/api/v1/me", headers=club).json()["name"] == "Mikko Korhonen"
-        assert client.get("/api/v1/surveys", headers=club).json() == {
-            "tenant": SPORTS_CLUB,
+        students = {"X-Demo-Login": "lutstudents"}
+        assert client.get("/api/v1/me", headers=students).json()["name"] == "Mikko Korhonen"
+        assert client.get("/api/v1/surveys", headers=students).json() == {
+            "tenant": LUT_STUDENTS,
             "login": "",
         }
         members = client.get("/api/v1/surveys", headers={"X-Demo-Login": "liana"})
         assert members.json()["tenant"] == MEMBERS
         # The login decides, not the cookie from the user menu.
         client.cookies.set("demo_org", MEMBERS)
-        assert client.get("/api/v1/me", headers=club).json()["tenant_id"] == SPORTS_CLUB
+        assert client.get("/api/v1/me", headers=students).json()["tenant_id"] == LUT_STUDENTS
         # Survey links stay public, without a login.
         assert client.get("/r/token").json() == {"tenant": "", "login": ""}
 
@@ -132,7 +132,7 @@ def test_a_demo_login_cannot_switch_organization(monkeypatch):
     monkeypatch.setenv("DEMO_LOGINS", LOGINS)
     with TestClient(local_gateway.app, headers={"X-Demo-Login": "liana"}) as client:
         organizations = client.get("/api/v1/me/organizations").json()
-        switched = client.put("/api/v1/me/organizations", json={"tenant_id": SPORTS_CLUB})
+        switched = client.put("/api/v1/me/organizations", json={"tenant_id": LUT_STUDENTS})
         me = client.get("/api/v1/me").json()
     # One organisation, so the user menu shows no switcher.
     assert [o["tenant_id"] for o in organizations] == [MEMBERS]

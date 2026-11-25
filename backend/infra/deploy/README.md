@@ -20,7 +20,7 @@ organisations, each with its own login:
 | Organisation | Demo user | Username |
 |---|---|---|
 | Example Members Association | Anna Virtanen | `liana` |
-| Example Sports Club | Mikko Korhonen | `sportsclub` |
+| LUT Students | Mikko Korhonen | `lutstudents` |
 
 Caddy checks the password and passes the username to the app in the
 `X-Demo-Login` header. The app maps it to the organisation (`DEMO_LOGINS` in
@@ -77,7 +77,7 @@ sudo SITE_ADDRESS=lianasurvey-demo.swedencentral.cloudapp.azure.com bash setup-s
 It takes a few minutes and ends by printing:
 
 - the three GitHub secrets (`DEMO_HOST`, `DEMO_SSH_KEY`, `DEMO_KNOWN_HOSTS`), and
-- the demo address and the two logins (usernames `liana` and `sportsclub`)
+- the demo address and the two logins (usernames `liana` and `lutstudents`)
   to share.
 
 All secrets stay on the server in `/etc/lianasurvey/` (database passwords,
@@ -105,8 +105,8 @@ work for anyone, without a login.
 | App logs | `sudo journalctl -u lianasurvey -f` |
 | HTTPS / login logs | `sudo journalctl -u caddy -f` |
 | Restart the app | `sudo systemctl restart lianasurvey` |
-| Show the demo passwords | `sudo grep -E '^(DEMO\|CLUB)_PASSWORD=' /etc/lianasurvey/secrets` |
-| Change a demo password | edit `DEMO_PASSWORD` (`liana`) or `CLUB_PASSWORD` (`sportsclub`) in `/etc/lianasurvey/secrets`, then run `setup-server.sh` again |
+| Show the demo passwords | `sudo grep -E '^(DEMO\|STUDENTS)_PASSWORD=' /etc/lianasurvey/secrets` |
+| Change a demo password | edit `DEMO_PASSWORD` (`liana`) or `STUDENTS_PASSWORD` (`lutstudents`) in `/etc/lianasurvey/secrets`, then run `setup-server.sh` again |
 | Which release is live | `readlink /opt/lianasurvey/current` |
 
 To redeploy without a new commit: **Actions > Deploy demo > Run workflow**.
