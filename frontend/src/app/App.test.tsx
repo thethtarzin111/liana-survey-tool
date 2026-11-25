@@ -142,3 +142,17 @@ test('menu button opens the sidebar drawer; navigating or Escape closes it', () 
   expect(nav).not.toHaveClass('open');
   expect(menu).toHaveFocus();
 });
+
+test('without a session (demo server) the app goes to the login page, remembering the page', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ detail: 'Sign in with a demo login' }, { status: 401 })));
+  renderAt('/results?tab=responses');
+  expect(await screen.findByRole('heading', { name: 'Welcome' })).toBeInTheDocument();
+  expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
+});
+
+test('the login page has no header or sidebar', () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({}, { status: 401 })));
+  renderAt('/login');
+  expect(screen.getByRole('heading', { name: 'Welcome' })).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Front page' })).not.toBeInTheDocument();
+});

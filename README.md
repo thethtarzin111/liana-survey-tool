@@ -100,12 +100,22 @@ quick demo, start with `RESPONSE_DIGEST_INTERVAL_SECONDS=60 npm run dev`, tick
 The backend is the mid-term report's architecture: an API gateway in front of
 separate services. See [`docs/architecture.md`](docs/architecture.md).
 
-There is no login screen: everyone is a demo user (see `docs/decisions/0003-dev-auth-stub.md`).
+Locally there is no login: everyone is a demo user (see `docs/decisions/0003-dev-auth-stub.md`).
 The demo data has two organisations, Example Members Association (Anna Virtanen, the
 default) and LUT Students (Mikko Korhonen). **Switch organization (demo)** in the
 user menu changes between them, to show that organisations never see each other's data.
-On the demo server each organisation has its own login instead
-(`backend/infra/deploy/README.md`).
+On the demo server each organisation has its own login on a login page instead
+(`backend/infra/deploy/README.md`). To try the login page locally, start the
+gateway with demo logins (made-up passwords; at least 32 characters for the key):
+
+```sh
+DEMO_LOGINS="00000000-0000-4000-8000-000000000001=members-demo,00000000-0000-4000-8000-000000000002=students-demo" \
+DEMO_SESSION_SECRET=local-session-key-at-least-32-characters \
+npm run dev
+```
+
+Then sign in as `anna.virtanen@example.org` / `members-demo` or
+`mikko.korhonen@example.org` / `students-demo`.
 
 ## Develop
 

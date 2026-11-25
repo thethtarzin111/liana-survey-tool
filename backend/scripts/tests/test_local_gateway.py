@@ -96,41 +96,102 @@ def test_a_forged_cookie_for_an_unknown_organization_gets_the_default_user():
 
 
 MEMBERS = "00000000-0000-4000-8000-000000000001"
-LOGINS = f"liana={MEMBERS}, lutstudents={LUT_STUDENTS}"
+ANNA = "anna.virtanen@example.org"
+MIKKO = "mikko.korhonen@example.org"
+LOGINS = f"{MEMBERS}=members-pw, {LUT_STUDENTS}=students-pw"
+SESSION_SECRET = "s" * 40
+
+
+def demo_server(monkeypatch, logins=LOGINS):
+    monkeypatch.setenv("DEMO_LOGINS", logins)
+    monkeypatch.setenv("DEMO_SESSION_SECRET", SESSION_SECRET)
+
+
+def capture_tenant(monkeypatch):
+    async def capture(scope, receive, send):
+        headers = dict(scope["headers"])
+        await JSONResponse({"tenant": headers.get(b"x-tenant-id", b"").decode()})(
+            scope, receive, send
+        )
+
+    monkeypatch.setattr(local_gateway, "surveys", capture)
+    monkeypatch.setattr(local_gateway, "respondent", capture)
 
 
 def test_on_the_demo_server_each_login_gets_its_own_organization(monkeypatch):
-    async def capture(scope, receive, send):
-        headers = dict(scope["headers"])
-        await JSONResponse(
-            {
-                "tenant": headers.get(b"x-tenant-id", b"").decode(),
-                "login": headers.get(b"x-demo-login", b"").decode(),
-            }
-        )(scope, receive, send)
-
-    monkeypatch.setenv("DEMO_LOGINS", LOGINS)
-    monkeypatch.setattr(local_gateway, "surveys", capture)
-    monkeypatch.setattr(local_gateway, "respondent", capture)
+    demo_server(monkeypatch)
+    capture_tenant(monkeypatch)
     with TestClient(local_gateway.app) as client:
-        students = {"X-Demo-Login": "lutstudents"}
-        assert client.get("/api/v1/me", headers=students).json()["name"] == "Mikko Korhonen"
-        assert client.get("/api/v1/surveys", headers=students).json() == {
-            "tenant": LUT_STUDENTS,
-            "login": "",
-        }
-        members = client.get("/api/v1/surveys", headers={"X-Demo-Login": "liana"})
-        assert members.json()["tenant"] == MEMBERS
-        # The login decides, not the cookie from the user menu.
+        signed = client.post(
+            "/api/v1/auth/login",
+            json={"email": " Mikko.Korhonen@example.org", "password": "students-pw"},
+        )
+        assert signed.status_code == 200
+        assert signed.json()["name"] == "Mikko Korhonen"
+        assert "httponly" in signed.headers["set-cookie"].lower()
+        assert client.get("/api/v1/me").json()["tenant_id"] == LUT_STUDENTS
+        assert client.get("/api/v1/surveys").json() == {"tenant": LUT_STUDENTS}
+        # The session decides, not the cookie from the user menu.
         client.cookies.set("demo_org", MEMBERS)
-        assert client.get("/api/v1/me", headers=students).json()["tenant_id"] == LUT_STUDENTS
-        # Survey links stay public, without a login.
-        assert client.get("/r/token").json() == {"tenant": "", "login": ""}
+        assert client.get("/api/v1/me").json()["tenant_id"] == LUT_STUDENTS
+        # Survey links stay public.
+        assert client.get("/r/token").json() == {"tenant": ""}
+
+        client.post("/api/v1/auth/login", json={"email": ANNA, "password": "members-pw"})
+        assert client.get("/api/v1/surveys").json() == {"tenant": MEMBERS}
+
+
+def test_a_wrong_password_or_unknown_email_does_not_sign_in(monkeypatch):
+    demo_server(monkeypatch)
+    with TestClient(local_gateway.app) as client:
+        wrong = client.post("/api/v1/auth/login", json={"email": ANNA, "password": "students-pw"})
+        unknown = client.post(
+            "/api/v1/auth/login", json={"email": "x@example.org", "password": "members-pw"}
+        )
+        empty = client.post("/api/v1/auth/login", json={"email": ANNA})
+        me = client.get("/api/v1/me")
+    assert wrong.status_code == 401
+    assert unknown.status_code == 401
+    assert "set-cookie" not in wrong.headers
+    assert empty.status_code == 422
+    assert me.status_code == 401
+
+
+def test_sign_out_ends_the_session(monkeypatch):
+    demo_server(monkeypatch)
+    with TestClient(local_gateway.app) as client:
+        client.post("/api/v1/auth/login", json={"email": ANNA, "password": "members-pw"})
+        assert client.get("/api/v1/me").status_code == 200
+        signed_out = client.post("/api/v1/auth/logout")
+        assert signed_out.json() == {"login_required": True}
+        assert client.get("/api/v1/me").status_code == 401
+
+
+def test_a_forged_expired_or_old_session_is_refused(monkeypatch):
+    demo_server(monkeypatch)
+    with TestClient(local_gateway.app) as client:
+        client.post("/api/v1/auth/login", json={"email": ANNA, "password": "members-pw"})
+        session = client.cookies.get("demo_session")
+    tenant, expires, signature = session.split(".")
+    forged = f"{LUT_STUDENTS}.{expires}.{signature}"
+    longer = f"{tenant}.{int(expires) + 1000}.{signature}"
+    for cookie in (forged, longer, "", "nonsense"):
+        with TestClient(local_gateway.app, cookies={"demo_session": cookie}) as client:
+            assert client.get("/api/v1/me").status_code == 401
+    # A new password ends the sessions signed in with the old one.
+    demo_server(monkeypatch, f"{MEMBERS}=new-pw")
+    with TestClient(local_gateway.app, cookies={"demo_session": session}) as client:
+        assert client.get("/api/v1/me").status_code == 401
+    monkeypatch.setattr(local_gateway.time, "time", lambda: int(expires) + 1)
+    demo_server(monkeypatch)
+    with TestClient(local_gateway.app, cookies={"demo_session": session}) as client:
+        assert client.get("/api/v1/me").status_code == 401
 
 
 def test_a_demo_login_cannot_switch_organization(monkeypatch):
-    monkeypatch.setenv("DEMO_LOGINS", LOGINS)
-    with TestClient(local_gateway.app, headers={"X-Demo-Login": "liana"}) as client:
+    demo_server(monkeypatch)
+    with TestClient(local_gateway.app) as client:
+        client.post("/api/v1/auth/login", json={"email": ANNA, "password": "members-pw"})
         organizations = client.get("/api/v1/me/organizations").json()
         switched = client.put("/api/v1/me/organizations", json={"tenant_id": LUT_STUDENTS})
         me = client.get("/api/v1/me").json()
@@ -141,23 +202,41 @@ def test_a_demo_login_cannot_switch_organization(monkeypatch):
     assert me["tenant_id"] == MEMBERS
 
 
-def test_without_a_known_demo_login_the_api_refuses(monkeypatch):
-    monkeypatch.setenv("DEMO_LOGINS", LOGINS)
+def test_without_a_session_only_links_and_health_checks_answer(monkeypatch):
+    demo_server(monkeypatch)
+    capture_tenant(monkeypatch)
     with TestClient(local_gateway.app) as client:
-        missing = client.get("/api/v1/surveys")
-        unknown = client.get("/api/v1/me", headers={"X-Demo-Login": "someone"})
-        health = client.get("/health")
-    assert missing.status_code == 401
-    assert unknown.status_code == 401
-    assert health.status_code == 200
+        assert client.get("/api/v1/surveys").status_code == 401
+        assert client.get("/docs").status_code == 401
+        assert client.get("/openapi.json").status_code == 401
+        assert client.get("/health").status_code == 200
+        assert client.get("/health/ready").status_code == 200
+        assert client.get("/r/token").status_code == 200
 
 
-def test_a_demo_login_for_an_unknown_organization_is_a_setup_error(monkeypatch):
+def test_locally_everyone_stays_signed_in():
+    with TestClient(local_gateway.app) as client:
+        login = client.post("/api/v1/auth/login", json={"email": ANNA, "password": "x"})
+        signed_out = client.post("/api/v1/auth/logout")
+        me = client.get("/api/v1/me")
+    assert login.status_code == 404
+    assert signed_out.json() == {"login_required": False}
+    assert me.json()["tenant_id"] == MEMBERS
+
+
+def test_a_bad_demo_login_setting_is_a_setup_error(monkeypatch):
     import pytest
 
-    monkeypatch.setenv("DEMO_LOGINS", "liana=00000000-0000-4000-8000-000000000999")
+    demo_server(monkeypatch, "00000000-0000-4000-8000-000000000999=pw")
     with pytest.raises(RuntimeError, match="DEMO_LOGINS"):
         local_gateway.demo_logins()
+    demo_server(monkeypatch, f"{MEMBERS}=")
+    with pytest.raises(RuntimeError, match="DEMO_LOGINS"):
+        local_gateway.demo_logins()
+    demo_server(monkeypatch)
+    monkeypatch.setenv("DEMO_SESSION_SECRET", "short")
+    with pytest.raises(RuntimeError, match="DEMO_SESSION_SECRET"):
+        local_gateway.session_key()
 
 
 def test_gateway_rejects_non_dev_auth(monkeypatch):

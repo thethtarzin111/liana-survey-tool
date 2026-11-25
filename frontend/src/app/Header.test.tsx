@@ -86,9 +86,49 @@ test('the user menu shows the initials, name and organisation, with placeholder 
   fireEvent.click(button);
   const items = within(screen.getByRole('menu', { name: 'Account: Anna Virtanen' })).getAllByRole('menuitem');
   expect(items.map((item) => item.textContent)).toEqual(['User account', 'Organization account', 'Sign out']);
-  fireEvent.click(items[2]);
-  expect(await screen.findByText('Sign out is not available yet.')).toBeInTheDocument();
+  fireEvent.click(items[0]);
+  expect(await screen.findByText('User account is not available yet.')).toBeInTheDocument();
   expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+});
+
+/** Answers /me like beforeEach, and the sign-out request with this response. */
+function stubSignOut(logout: () => Response) {
+  const fetchMock = vi.fn(async (url: string) =>
+    url === '/api/v1/auth/logout'
+      ? logout()
+      : Response.json({ user_id: 'u', tenant_id: 't', tenant_name: 'Example Members Association', name: 'Anna Virtanen', email: 'a@example.org' }),
+  );
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+async function clickSignOut() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Account: Anna Virtanen' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Sign out' }));
+}
+
+test('Sign out on the demo server ends the session and goes to the login page', async () => {
+  const fetchMock = stubSignOut(() => Response.json({ login_required: true }));
+  const assign = vi.fn();
+  vi.stubGlobal('location', { ...window.location, assign });
+  renderHeader();
+  await clickSignOut();
+  await vi.waitFor(() => expect(assign).toHaveBeenCalledWith('/login'));
+  expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/logout', expect.objectContaining({ method: 'POST' }));
+});
+
+test('Sign out locally says you stay signed in', async () => {
+  stubSignOut(() => Response.json({ login_required: false }));
+  renderHeader();
+  await clickSignOut();
+  expect(await screen.findByText('Locally you stay signed in. Sign-out works on the demo server.')).toBeInTheDocument();
+});
+
+test('a failed sign-out says so', async () => {
+  stubSignOut(() => new Response('', { status: 500 }));
+  renderHeader();
+  await clickSignOut();
+  expect(await screen.findByText('We couldn’t sign you out. Please try again.')).toBeInTheDocument();
 });
 
 test('Escape closes a menu and focus returns to its button; one menu at a time', async () => {

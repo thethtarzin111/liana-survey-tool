@@ -46,6 +46,10 @@ export const api = {
   demoOrganizations: () => getJson<DemoOrganization[]>('/api/v1/me/organizations'),
   /** Dev auth only: signs this browser in to another demo organisation. */
   switchOrganization: (tenantId: string) => send<CurrentUser>('PUT', '/api/v1/me/organizations', { tenant_id: tenantId }),
+  /** Demo server only: signs in with a demo login. A wrong email or password is a 401. */
+  login: (email: string, password: string) => send<CurrentUser>('POST', '/api/v1/auth/login', { email, password }),
+  /** Ends the session. login_required is false locally, where everyone stays signed in. */
+  logout: () => send<{ login_required: boolean }>('POST', '/api/v1/auth/logout'),
   survey: (id: string) => getJson<Survey>(`/api/v1/surveys/${encodeURIComponent(id)}`),
   createSurvey: async (type: SurveyType): Promise<Survey> => {
     const res = await fetch('/api/v1/surveys', {

@@ -1,14 +1,18 @@
 """Loopback-only development gateway for the native Python service apps.
 
 Also runs the shared demo server (backend/infra/deploy/README.md), bound to
-127.0.0.1 behind Caddy, which adds HTTPS and one login per demo organisation.
-It gives every admin request a demo user, so it is not a production entry point.
-Locally the user menu switches between the demo organisations (a cookie picks
-the demo user). On the demo server the login picks it (DEMO_LOGINS)."""
+127.0.0.1 behind Caddy, which adds HTTPS. It gives every admin request a demo
+user, so it is not a production entry point. Locally the user menu switches
+between the demo organisations (a cookie picks the demo user). On the demo server
+each organisation has a demo login (DEMO_LOGINS): the login page signs in and a
+signed session cookie picks the demo user."""
 
 import asyncio
+import hashlib
+import hmac
 import logging
 import os
+import time
 
 from pydantic import BaseModel, ValidationError
 from starlette.requests import Request
@@ -27,43 +31,132 @@ IDENTITY = {
     b"x-tenant-name",
     b"x-user-name",
     b"x-user-email",
-    b"x-demo-login",
 }
 DEMO_ORG_COOKIE = "demo_org"
-DEMO_LOGIN_HEADER = "x-demo-login"
+SESSION_COOKIE = "demo_session"
 ONE_YEAR = 365 * 24 * 60 * 60
+SESSION_SECONDS = 7 * 24 * 60 * 60
 
 
 class OrganizationChoice(BaseModel):
     tenant_id: str
 
 
-def demo_logins() -> dict[str, CurrentUser] | None:
-    """The demo server's logins, from DEMO_LOGINS="<username>=<tenant id>,...".
-    Caddy checks each password and passes the username in X-Demo-Login.
-    None means there are no logins: locally, the user menu picks the organisation."""
+class LoginForm(BaseModel):
+    email: str
+    password: str
+
+
+class DemoLogin(BaseModel):
+    user: CurrentUser
+    password: str
+
+
+def demo_logins() -> dict[str, DemoLogin] | None:
+    """The demo server's logins by email address, from
+    DEMO_LOGINS="<demo tenant id>=<password>,...". Each login is that organisation's
+    demo user. None means there are no logins: locally, the user menu picks the
+    organisation and everyone stays signed in."""
     setting = os.environ.get("DEMO_LOGINS", "").strip()
     if not setting:
         return None
     users = {str(u.tenant_id): u for u in demo_users()}
     logins = {}
     for entry in setting.split(","):
-        username, _, tenant_id = entry.strip().partition("=")
-        if tenant_id.strip() not in users:
-            raise RuntimeError(f"DEMO_LOGINS: {entry!r} is not <username>=<demo tenant id>")
-        logins[username.strip()] = users[tenant_id.strip()]
+        tenant_id, _, password = entry.strip().partition("=")
+        user = users.get(tenant_id.strip())
+        if user is None or not password:
+            raise RuntimeError(f"DEMO_LOGINS: {entry!r} is not <demo tenant id>=<password>")
+        logins[user.email.lower()] = DemoLogin(user=user, password=password)
     return logins
+
+
+def session_key() -> bytes:
+    key = os.environ.get("DEMO_SESSION_SECRET", "")
+    if len(key) < 32:
+        raise RuntimeError("DEMO_SESSION_SECRET: set at least 32 characters with DEMO_LOGINS")
+    return key.encode()
+
+
+def session_signature(login: DemoLogin, expires: int) -> str:
+    # Signed with the password too, so a new password ends the old sessions.
+    message = f"{login.user.tenant_id}.{expires}.{login.password}".encode()
+    return hmac.new(session_key(), message, hashlib.sha256).hexdigest()
+
+
+def session_cookie(login: DemoLogin) -> str:
+    expires = int(time.time()) + SESSION_SECONDS
+    return f"{login.user.tenant_id}.{expires}.{session_signature(login, expires)}"
+
+
+def session_user(cookie: str, logins: dict[str, DemoLogin]) -> CurrentUser | None:
+    """The demo user of a session cookie, or None if it is forged, expired, for an
+    organisation that no longer has a login, or from before a password change."""
+    tenant_id, _, rest = cookie.partition(".")
+    expires, _, signature = rest.partition(".")
+    if not expires.isdigit() or int(expires) < time.time():
+        return None
+    login = next((x for x in logins.values() if str(x.user.tenant_id) == tenant_id), None)
+    if login is None or not hmac.compare_digest(signature, session_signature(login, int(expires))):
+        return None
+    return login.user
 
 
 def signed_in(request: Request) -> CurrentUser | None:
     """The demo user for this request, or None if the request has no valid login.
-    On the demo server the login decides. Locally the organisation chosen in the
-    user menu decides, and an unknown or missing choice falls back to the default."""
+    On the demo server the session cookie decides. Locally the organisation chosen
+    in the user menu decides, and an unknown or missing choice falls back to the default."""
     logins = demo_logins()
     if logins is not None:
-        return logins.get(request.headers.get(DEMO_LOGIN_HEADER, ""))
+        return session_user(request.cookies.get(SESSION_COOKIE, ""), logins)
     chosen = request.cookies.get(DEMO_ORG_COOKIE)
     return next((u for u in demo_users() if str(u.tenant_id) == chosen), demo_user())
+
+
+def behind_https(request: Request) -> bool:
+    # The demo server is behind Caddy, which adds HTTPS.
+    return request.headers.get("x-forwarded-proto") == "https"
+
+
+async def login(request: Request) -> Response:
+    """POST signs in with a demo login and sets the session cookie."""
+    if request.method != "POST":
+        return JSONResponse({"detail": "Method not allowed"}, 405, headers={"Allow": "POST"})
+    logins = demo_logins()
+    if logins is None:
+        return JSONResponse({"detail": "No demo logins here: you are always signed in"}, 404)
+    try:
+        form = LoginForm.model_validate_json(await request.body())
+    except ValidationError:
+        return JSONResponse({"detail": 'Send {"email": "...", "password": "..."}'}, 422)
+    found = logins.get(form.email.strip().lower())
+    # Compare even for an unknown email, so the answer takes as long either way.
+    expected = found.password if found else "-"
+    matches = hmac.compare_digest(form.password.encode(), expected.encode())
+    if not matches or found is None:
+        return JSONResponse({"detail": "Wrong email address or password"}, 401)
+    response = JSONResponse(found.user.model_dump(mode="json"))
+    response.set_cookie(
+        SESSION_COOKIE,
+        session_cookie(found),
+        max_age=SESSION_SECONDS,
+        httponly=True,
+        samesite="lax",
+        secure=behind_https(request),
+    )
+    return response
+
+
+async def logout(request: Request) -> Response:
+    """POST signs out. login_required tells the app whether to show the login page:
+    locally there are no logins, so everyone stays signed in."""
+    if request.method != "POST":
+        return JSONResponse({"detail": "Method not allowed"}, 405, headers={"Allow": "POST"})
+    response = JSONResponse({"login_required": demo_logins() is not None})
+    response.delete_cookie(
+        SESSION_COOKIE, httponly=True, samesite="lax", secure=behind_https(request)
+    )
+    return response
 
 
 async def organizations(request: Request, current: CurrentUser) -> Response:
@@ -101,8 +194,7 @@ async def organizations(request: Request, current: CurrentUser) -> Response:
         max_age=ONE_YEAR,
         httponly=True,
         samesite="lax",
-        # The demo server is behind Caddy, which adds HTTPS.
-        secure=request.headers.get("x-forwarded-proto") == "https",
+        secure=behind_https(request),
     )
     return response
 
@@ -204,9 +296,16 @@ async def app(scope, receive, send):
         )
         return
     request = Request(scope, receive)
-    public = path == "/r" or path.startswith("/r/")
+    if path == "/api/v1/auth/login":
+        await (await login(request))(scope, receive, send)
+        return
+    if path == "/api/v1/auth/logout":
+        await (await logout(request))(scope, receive, send)
+        return
+    # Survey links and the health checks (deploy.sh) need no login.
+    public = path in {"/r", "/health", "/health/ready"} or path.startswith("/r/")
     user = None if public else signed_in(request)
-    if user is None and path.startswith("/api/"):
+    if user is None and not public:
         await JSONResponse({"detail": "Sign in with a demo login"}, 401)(scope, receive, send)
         return
     if path == "/api/v1/me":
