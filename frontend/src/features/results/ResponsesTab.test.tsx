@@ -193,10 +193,11 @@ test('Export CSV link carries the filters', async () => {
   expect(link).toHaveAttribute('download');
 });
 
-test('the anonymised notice links to Contact requests', async () => {
+test('the anonymised notice says contact requests go to LianaAutomation', async () => {
   renderTab();
   expect(await screen.findByText(/Anonymised\. No names or emails are shown\./)).toBeInTheDocument();
-  expect(screen.getByRole('link', { name: 'Contact requests' })).toHaveAttribute('href', '/contact-requests');
+  expect(screen.getByText(/sent to LianaAutomation/)).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Integrations' })).toHaveAttribute('href', '/integrations');
 });
 
 const responseCalls = () =>

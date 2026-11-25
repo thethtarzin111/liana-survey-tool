@@ -49,7 +49,6 @@ test('sidebar has the prototype items in order', () => {
     'Surveys',
     'Templates',
     'Results',
-    'Contact requests',
     'Integrations',
     'Support',
     'Settings',
@@ -62,9 +61,15 @@ test('front page shows the dashboard', async () => {
   expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
 });
 
-test('a sidebar route renders its page', () => {
+test('a sidebar route renders its page', async () => {
+  renderAt('/integrations');
+  expect(await screen.findByRole('heading', { name: 'Integrations' })).toBeInTheDocument();
+});
+
+test('the Contact requests page is gone', () => {
   renderAt('/contact-requests');
-  expect(screen.getByRole('heading', { name: 'Contact requests' })).toBeInTheDocument();
+  expect(screen.getByText('Page not found.')).toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Contact requests' })).toBeNull();
 });
 
 test('/responses lands on Results with the Responses tab', async () => {
@@ -93,7 +98,7 @@ test('/responses lands on Results with the Responses tab', async () => {
 test('sidebar shows a badge when given a count', () => {
   render(
     <MemoryRouter>
-      <Sidebar badges={{ '/contact-requests': 3 }} />
+      <Sidebar badges={{ '/results': 3 }} />
     </MemoryRouter>,
   );
   expect(screen.getByLabelText('3 new')).toBeInTheDocument();

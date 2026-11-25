@@ -59,7 +59,6 @@ test('a new account sees getting started above an empty dashboard', async () => 
   const yours = region('Your surveys');
   expect(within(yours).getByText('No surveys yet')).toBeInTheDocument();
   expect(within(yours).getByRole('link', { name: 'Browse templates' })).toHaveAttribute('href', '/templates');
-  expect(within(region('Asked to be contacted')).getByText(/Contact me/)).toBeInTheDocument();
 });
 
 test('getting started ticks the steps a user has done until answers arrive', async () => {

@@ -14,9 +14,11 @@ export function CloseTheLoop({ type }: { type: SurveyOverview['type'] }) {
     <Card className="results-card results-loop">
       <div className="results-loop-text">
         <h2 className="results-loop-title">Close the loop</h2>
-        <p className="results-loop-note">{TEXT[type]}</p>
+        <p className="results-loop-note">
+          {TEXT[type]} Readers who tick “Contact me” are sent to LianaAutomation, where you can follow up.
+        </p>
       </div>
-      <ButtonLink variant="secondary" size="sm" to="/contact-requests">Open contact requests</ButtonLink>
+      <ButtonLink variant="secondary" size="sm" to="/integrations">Open Integrations</ButtonLink>
     </Card>
   );
 }
