@@ -79,5 +79,5 @@
   --color-scrim: rgba(53, 58, 64, 0.35);
 
   --sidebar-width: 228px;
-  --header-height: 50px;
+  --header-height: 54.6px;        /* the logo, 30.6px, with 12px above and below */
 }

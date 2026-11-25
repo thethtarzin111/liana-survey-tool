@@ -12,8 +12,8 @@
   border-radius: var(--radius-nav); color: var(--color-brand-dark); text-decoration: none;
 }
 .header-logo:focus-visible { outline: 2px solid var(--color-brand-dark); outline-offset: 2px; }
-/* Liana's top bar logo: 2.2rem high with 1em 1.42857em margins on a 12px base. */
-.logo { display: block; height: 26.4px; width: auto; margin: 12px 17.14px; }
+/* Liana's top bar logo: max-height 2.2rem (14px root) and 1em 1.42857em margins (12px base). */
+.logo { display: block; height: 30.6px; width: auto; margin: 12px 17.14px; }
 .header-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .header-pill {
   display: inline-flex; align-items: center; gap: 5px; min-height: 29px; padding: 0 11.76px;
