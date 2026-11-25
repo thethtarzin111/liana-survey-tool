@@ -95,7 +95,7 @@
 
 .nav-link {
   display: flex; align-items: center; gap: 10px;
-  min-height: 36px; padding: 0 7.84px; border-radius: var(--radius-nav);
+  min-height: 39.25px; padding: 0 7.84px; border-radius: var(--radius-nav);
   font-family: var(--font-body); font-size: 1em; line-height: 1.5; color: var(--color-text); text-decoration: none;
 }
 .nav-link svg { flex: none; }
