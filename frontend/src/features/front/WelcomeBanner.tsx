@@ -36,6 +36,7 @@ export function WelcomeBanner() {
         className="welcome-toggle"
         label={folded ? 'Show the welcome banner' : 'Fold up the welcome banner'}
         icon={folded ? icons.chevronDown : icons.close}
+        iconSize={16}
         aria-expanded={!folded}
         aria-controls="welcome-body"
         onClick={toggle}

@@ -3,14 +3,22 @@
 .front-muted { display: block; margin: 0; color: var(--color-text-muted); font-size: var(--text-hint); }
 
 /* Welcome banner: full width of the main area, so it cancels the .main padding. */
-.welcome-banner { position: relative; margin: -24px -24px 0; background: var(--color-mint); }
+.welcome-banner {
+  position: relative; margin: -24px -24px 0; background: var(--color-mint);
+  border-top-left-radius: var(--radius-card);
+}
+/* Liana's small circular secondary button: 13px text, 0.857em padding, 1px border. */
 .welcome-banner .welcome-toggle[aria-expanded] {
   position: absolute; top: 8px; right: 12px; z-index: 2;
-  border-radius: var(--radius-pill); background: var(--color-surface);
+  width: 37px; height: 37px; margin: 0;
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-pill);
+  background: var(--color-surface); color: var(--color-text); box-shadow: var(--shadow-control);
+  transition: border-color 0.1s, box-shadow 0.1s;
 }
-.welcome-banner .welcome-toggle[aria-expanded]:hover { background: var(--color-mint-light); }
-/* Folded: a plain strip, tall enough for the 44px toggle plus its 8px offsets. */
-.welcome-banner.folded { min-height: 60px; }
+.welcome-banner .welcome-toggle[aria-expanded]:hover,
+.welcome-banner .welcome-toggle[aria-expanded]:focus-visible { background: var(--color-surface); border-color: var(--color-border-hover); }
+/* Folded: a plain strip, tall enough for the toggle plus its 8px offsets. */
+.welcome-banner.folded { min-height: 53px; }
 .welcome-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.35s ease; }
 .welcome-body > div { overflow: hidden; min-height: 0; }
 /* Hidden content leaves the tab order and the accessibility tree once folded. */
