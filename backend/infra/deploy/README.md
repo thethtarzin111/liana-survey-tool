@@ -7,30 +7,32 @@ small Linux VM in the EU. It runs the same way as `npm run dev`:
 - **The app:** `backend/scripts/local_gateway.py`, which runs every API in one
   process, on 127.0.0.1:8000. Answers are saved directly (no RabbitMQ), and
   "new responses" emails are only logged (mock adapter).
-- **Caddy:** HTTPS (Let's Encrypt), the built admin app, and **one login per
-  demo organisation** in front of everything except survey links (`/r/...`) and
-  `/health`.
+- **Caddy:** HTTPS (Let's Encrypt) and the built admin app. The admin app has a
+  **login page with one login per demo organisation**. Survey links (`/r/...`)
+  and `/health` need no login.
 - **GitHub Actions:** after CI passes on `main`, "Deploy demo" builds the admin
   app, copies the release to the VM and installs it (`deploy.sh`).
 
-There is no real login yet: everyone who has a login is that organisation's
-demo user and can change or delete any of its surveys. There are two demo
-organisations, each with its own login:
+There is no real login yet (that comes with LianaAccount): everyone who has a
+login is that organisation's demo user and can change or delete any of its
+surveys. There are two demo organisations, each with its own login on the
+login page (`/login`):
 
-| Organisation | Demo user | Username |
+| Organisation | Demo user | Email address |
 |---|---|---|
-| Example Members Association | Anna Virtanen | `liana` |
-| LUT Students | Mikko Korhonen | `lutstudents` |
+| Example Members Association | Anna Virtanen | `anna.virtanen@example.org` |
+| LUT Students | Mikko Korhonen | `mikko.korhonen@example.org` |
 
-Caddy checks the password and passes the username to the app in the
-`X-Demo-Login` header. The app maps it to the organisation (`DEMO_LOGINS` in
-`/etc/lianasurvey/app.env`). A login cannot switch organisation, so the user
-menu has no switcher here, unlike `npm run dev`. To show that one organisation
-never sees another's surveys or answers, sign in as each in a separate browser,
-or in a normal and a private window.
+The app checks the password (`DEMO_LOGINS` in `/etc/lianasurvey/app.env`) and
+sets a signed, HTTP-only session cookie for 7 days (`DEMO_SESSION_SECRET`).
+"Sign out" in the user menu ends it and goes back to the login page. A login
+cannot switch organisation, so the user menu has no switcher here, unlike
+`npm run dev`. To show that one organisation never sees another's surveys or
+answers, sign out and sign in as the other one. A new password ends the
+sessions signed in with the old one.
 
-The logins are HTTP basic authentication, which has no sign-out. A browser
-keeps the login until it is closed.
+"Continue: Liana Technologies", "Reset password" and "Privacy Policy" on the
+login page are only shown, as in the prototype.
 Use demo data only. Every deploy reloads the demo data, so deleted demo surveys
 come back.
 
@@ -77,13 +79,19 @@ sudo SITE_ADDRESS=lianasurvey-demo.swedencentral.cloudapp.azure.com bash setup-s
 It takes a few minutes and ends by printing:
 
 - the three GitHub secrets (`DEMO_HOST`, `DEMO_SSH_KEY`, `DEMO_KNOWN_HOSTS`), and
-- the demo address and the two logins (usernames `liana` and `lutstudents`)
-  to share.
+- the login page address and the two logins (the email addresses above and
+  their passwords) to share.
 
 All secrets stay on the server in `/etc/lianasurvey/` (database passwords,
-link-signing key, demo passwords). Running the script again keeps them. A
-server set up before the second organisation gets its password the next time
-the script runs.
+link-signing key, demo passwords, session key). Running the script again keeps
+them. A server set up before the second organisation or the login page gets the
+missing password and session key the next time the script runs.
+
+A server set up before the login page used the browser's password prompt. After
+the release with the login page is deployed, run `setup-server.sh` again: it
+removes the prompt from Caddy and gives the app the logins. The passwords stay
+the same; people sign in with the email addresses instead of `liana` and
+`lutstudents`. Until then the admin app does not load.
 
 ## 3. Connect GitHub (once)
 
@@ -123,10 +131,10 @@ work for anyone, without a login.
 | Task | Command (on the server) |
 |---|---|
 | App logs | `sudo journalctl -u lianasurvey -f` |
-| HTTPS / login logs | `sudo journalctl -u caddy -f` |
+| HTTPS logs | `sudo journalctl -u caddy -f` |
 | Restart the app | `sudo systemctl restart lianasurvey` |
 | Show the demo passwords | `sudo grep -E '^(DEMO\|STUDENTS)_PASSWORD=' /etc/lianasurvey/secrets` |
-| Change a demo password | edit `DEMO_PASSWORD` (`liana`) or `STUDENTS_PASSWORD` (`lutstudents`) in `/etc/lianasurvey/secrets`, then run `setup-server.sh` again |
+| Change a demo password | edit `DEMO_PASSWORD` (Anna Virtanen) or `STUDENTS_PASSWORD` (Mikko Korhonen) in `/etc/lianasurvey/secrets`, then run `setup-server.sh` again |
 | Which release is live | `readlink /opt/lianasurvey/current` |
 
 To redeploy without a new commit: **Actions > Deploy demo > Run workflow**.

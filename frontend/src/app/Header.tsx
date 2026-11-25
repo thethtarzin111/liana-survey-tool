@@ -86,11 +86,21 @@ export function Header({
     ...others.map((app, i) => appItem(app, i === 0 ? 'Others' : undefined)),
   ];
 
-  // Login is out of scope (dev-auth stub), so these are placeholders.
+  async function signOut() {
+    try {
+      const { login_required } = await api.logout();
+      if (login_required) window.location.assign('/login');
+      else toast('Locally you stay signed in. Sign-out works on the demo server.');
+    } catch {
+      toast('We couldn’t sign you out. Please try again.');
+    }
+  }
+
+  // Real accounts come with LianaAccount, so these two are placeholders.
   const account: MenuAction[] = [
     { label: 'User account', icon: ICONS.user, onSelect: notYet('User account') },
     { label: 'Organization account', icon: ICONS.organization, onSelect: notYet('Organization account') },
-    { label: 'Sign out', icon: ICONS.signOut, onSelect: notYet('Sign out') },
+    { label: 'Sign out', icon: ICONS.signOut, onSelect: () => void signOut() },
     // The demo has no real login: switching shows that organisations are kept apart.
     ...(organizations.length > 1
       ? organizations.map((organization, i): MenuAction => ({

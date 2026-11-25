@@ -81,4 +81,22 @@
 
   --sidebar-width: 247px;
   --header-height: 54.6px;        /* the logo, 30.6px, with 12px above and below */
+
+  /* Login page, as in the prototype (LianaAccount's login) */
+  --color-login-bg: #e2f2ea;
+  --color-login-curve: #d0eadf;
+  --text-login-title: 26px;
+  --text-login-lead: 15px;
+  --text-login-input: 17px;
+  --text-login-label: 13px;        /* the email label once it floats up */
+  --text-login-button: 18px;
+  --text-login-link: 16px;
+  --text-login-note: 14px;         /* "OR" and errors */
+  --radius-login-card: 16px;
+  --radius-login-input: 10px;
+  --shadow-login-card: 0 4px 12px rgba(40, 90, 70, 0.08), 0 24px 64px rgba(40, 90, 70, 0.22);
+  --shadow-login-input: 0 2px 6px rgba(53, 58, 64, 0.08);
+  --shadow-login-focus: 0 0 0 3px rgba(76, 167, 78, 0.25);
+  --shadow-login-button: 0 2px 4px rgba(53, 58, 64, 0.1), 0 8px 20px rgba(76, 167, 78, 0.3);
+  --shadow-login-sso: 0 2px 4px rgba(53, 58, 64, 0.06), 0 6px 16px rgba(53, 58, 64, 0.1);
 }
