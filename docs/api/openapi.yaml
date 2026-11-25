@@ -45,6 +45,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CurrentUser' }
+        '401': { description: No valid demo login (demo server only). Every /api path answers the same. }
   /api/v1/me/organizations:
     get:
       tags: [auth]
@@ -52,6 +53,8 @@ paths:
       description: |
         The demo has no real login. The user menu lists these organisations to show
         that each one sees only its own data. Real login does not have this endpoint.
+        On the demo server each organisation has its own login, so the list holds
+        only the signed-in organisation and the user menu shows no switcher.
       responses:
         '200':
           description: The demo organisations, the default one first
@@ -80,6 +83,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CurrentUser' }
+        '403': { description: The demo server's logins have one organisation each and cannot switch }
         '422': { description: Not one of the demo organisations }
   /api/v1/surveys:
     get:

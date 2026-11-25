@@ -95,6 +95,71 @@ def test_a_forged_cookie_for_an_unknown_organization_gets_the_default_user():
     assert me["tenant_id"] == str(get_settings().dev_tenant_id)
 
 
+MEMBERS = "00000000-0000-4000-8000-000000000001"
+LOGINS = f"liana={MEMBERS}, sportsclub={SPORTS_CLUB}"
+
+
+def test_on_the_demo_server_each_login_gets_its_own_organization(monkeypatch):
+    async def capture(scope, receive, send):
+        headers = dict(scope["headers"])
+        await JSONResponse(
+            {
+                "tenant": headers.get(b"x-tenant-id", b"").decode(),
+                "login": headers.get(b"x-demo-login", b"").decode(),
+            }
+        )(scope, receive, send)
+
+    monkeypatch.setenv("DEMO_LOGINS", LOGINS)
+    monkeypatch.setattr(local_gateway, "surveys", capture)
+    monkeypatch.setattr(local_gateway, "respondent", capture)
+    with TestClient(local_gateway.app) as client:
+        club = {"X-Demo-Login": "sportsclub"}
+        assert client.get("/api/v1/me", headers=club).json()["name"] == "Mikko Korhonen"
+        assert client.get("/api/v1/surveys", headers=club).json() == {
+            "tenant": SPORTS_CLUB,
+            "login": "",
+        }
+        members = client.get("/api/v1/surveys", headers={"X-Demo-Login": "liana"})
+        assert members.json()["tenant"] == MEMBERS
+        # The login decides, not the cookie from the user menu.
+        client.cookies.set("demo_org", MEMBERS)
+        assert client.get("/api/v1/me", headers=club).json()["tenant_id"] == SPORTS_CLUB
+        # Survey links stay public, without a login.
+        assert client.get("/r/token").json() == {"tenant": "", "login": ""}
+
+
+def test_a_demo_login_cannot_switch_organization(monkeypatch):
+    monkeypatch.setenv("DEMO_LOGINS", LOGINS)
+    with TestClient(local_gateway.app, headers={"X-Demo-Login": "liana"}) as client:
+        organizations = client.get("/api/v1/me/organizations").json()
+        switched = client.put("/api/v1/me/organizations", json={"tenant_id": SPORTS_CLUB})
+        me = client.get("/api/v1/me").json()
+    # One organisation, so the user menu shows no switcher.
+    assert [o["tenant_id"] for o in organizations] == [MEMBERS]
+    assert switched.status_code == 403
+    assert "set-cookie" not in switched.headers
+    assert me["tenant_id"] == MEMBERS
+
+
+def test_without_a_known_demo_login_the_api_refuses(monkeypatch):
+    monkeypatch.setenv("DEMO_LOGINS", LOGINS)
+    with TestClient(local_gateway.app) as client:
+        missing = client.get("/api/v1/surveys")
+        unknown = client.get("/api/v1/me", headers={"X-Demo-Login": "someone"})
+        health = client.get("/health")
+    assert missing.status_code == 401
+    assert unknown.status_code == 401
+    assert health.status_code == 200
+
+
+def test_a_demo_login_for_an_unknown_organization_is_a_setup_error(monkeypatch):
+    import pytest
+
+    monkeypatch.setenv("DEMO_LOGINS", "liana=00000000-0000-4000-8000-000000000999")
+    with pytest.raises(RuntimeError, match="DEMO_LOGINS"):
+        local_gateway.demo_logins()
+
+
 def test_gateway_rejects_non_dev_auth(monkeypatch):
     monkeypatch.setattr(get_settings(), "auth_mode", "production")
     with TestClient(local_gateway.app) as client:

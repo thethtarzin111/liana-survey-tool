@@ -1,9 +1,10 @@
 """Loopback-only development gateway for the native Python service apps.
 
 Also runs the shared demo server (backend/infra/deploy/README.md), bound to
-127.0.0.1 behind Caddy, which adds HTTPS and a shared password. It gives every
-admin request a demo user, so it is not a production entry point. The user
-menu can switch between the demo organisations (a cookie picks the demo user)."""
+127.0.0.1 behind Caddy, which adds HTTPS and one login per demo organisation.
+It gives every admin request a demo user, so it is not a production entry point.
+Locally the user menu switches between the demo organisations (a cookie picks
+the demo user). On the demo server the login picks it (DEMO_LOGINS)."""
 
 import asyncio
 import logging
@@ -20,8 +21,16 @@ from liana_survey_shared.web.auth import CurrentUser, demo_user, demo_users
 from respondent_service.main import app as respondent
 from survey_manager.main import app as surveys
 
-IDENTITY = {b"x-tenant-id", b"x-user-id", b"x-tenant-name", b"x-user-name", b"x-user-email"}
+IDENTITY = {
+    b"x-tenant-id",
+    b"x-user-id",
+    b"x-tenant-name",
+    b"x-user-name",
+    b"x-user-email",
+    b"x-demo-login",
+}
 DEMO_ORG_COOKIE = "demo_org"
+DEMO_LOGIN_HEADER = "x-demo-login"
 ONE_YEAR = 365 * 24 * 60 * 60
 
 
@@ -29,16 +38,39 @@ class OrganizationChoice(BaseModel):
     tenant_id: str
 
 
-def signed_in(request: Request) -> CurrentUser:
-    """The demo user of the organisation chosen in the user menu, or the default one.
-    An unknown or missing choice falls back to the default."""
+def demo_logins() -> dict[str, CurrentUser] | None:
+    """The demo server's logins, from DEMO_LOGINS="<username>=<tenant id>,...".
+    Caddy checks each password and passes the username in X-Demo-Login.
+    None means there are no logins: locally, the user menu picks the organisation."""
+    setting = os.environ.get("DEMO_LOGINS", "").strip()
+    if not setting:
+        return None
+    users = {str(u.tenant_id): u for u in demo_users()}
+    logins = {}
+    for entry in setting.split(","):
+        username, _, tenant_id = entry.strip().partition("=")
+        if tenant_id.strip() not in users:
+            raise RuntimeError(f"DEMO_LOGINS: {entry!r} is not <username>=<demo tenant id>")
+        logins[username.strip()] = users[tenant_id.strip()]
+    return logins
+
+
+def signed_in(request: Request) -> CurrentUser | None:
+    """The demo user for this request, or None if the request has no valid login.
+    On the demo server the login decides. Locally the organisation chosen in the
+    user menu decides, and an unknown or missing choice falls back to the default."""
+    logins = demo_logins()
+    if logins is not None:
+        return logins.get(request.headers.get(DEMO_LOGIN_HEADER, ""))
     chosen = request.cookies.get(DEMO_ORG_COOKIE)
     return next((u for u in demo_users() if str(u.tenant_id) == chosen), demo_user())
 
 
-async def organizations(request: Request) -> Response:
-    """GET lists the demo organisations. PUT switches to one, for this browser."""
-    current = signed_in(request)
+async def organizations(request: Request, current: CurrentUser) -> Response:
+    """GET lists the demo organisations. PUT switches to one, for this browser.
+    With demo logins, each login has one organisation and cannot switch."""
+    logins = demo_logins()
+    choices = [current] if logins is not None else demo_users()
     if request.method == "GET":
         return JSONResponse(
             [
@@ -48,11 +80,13 @@ async def organizations(request: Request) -> Response:
                     "user_name": u.name,
                     "current": u.tenant_id == current.tenant_id,
                 }
-                for u in demo_users()
+                for u in choices
             ]
         )
     if request.method != "PUT":
         return JSONResponse({"detail": "Method not allowed"}, 405, headers={"Allow": "GET, PUT"})
+    if logins is not None:
+        return JSONResponse({"detail": "Sign in with the other organisation's login"}, 403)
     try:
         choice = OrganizationChoice.model_validate_json(await request.body())
     except ValidationError:
@@ -166,11 +200,16 @@ async def app(scope, receive, send):
         )
         return
     request = Request(scope, receive)
+    public = path == "/r" or path.startswith("/r/")
+    user = None if public else signed_in(request)
+    if user is None and path.startswith("/api/"):
+        await JSONResponse({"detail": "Sign in with a demo login"}, 401)(scope, receive, send)
+        return
     if path == "/api/v1/me":
-        await JSONResponse(signed_in(request).model_dump(mode="json"))(scope, receive, send)
+        await JSONResponse(user.model_dump(mode="json"))(scope, receive, send)
         return
     if path == "/api/v1/me/organizations":
-        await (await organizations(request))(scope, receive, send)
+        await (await organizations(request, user))(scope, receive, send)
         return
     if path == "/health":
         await JSONResponse({"status": "ok", "service": "local-gateway"})(scope, receive, send)
@@ -192,8 +231,7 @@ async def app(scope, receive, send):
         return
     # Never trust identity headers supplied by the browser, including public requests.
     headers = [(key, value) for key, value in scope["headers"] if key.lower() not in IDENTITY]
-    if not (path == "/r" or path.startswith("/r/")):
-        user = signed_in(request)
+    if user is not None:
         headers.extend(
             (key, str(value).encode("utf-8"))
             for key, value in (
