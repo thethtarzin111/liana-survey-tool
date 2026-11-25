@@ -3,8 +3,10 @@
 LianaAutomation matches contacts by email. An event from a newsletter answer is
 stored with the reader's LianaMailer contact id (domain.CONTACT_IDENTITY); this
 looks the address up (LianaMailer API, through the ContactDirectory port) and puts
-it in the identity. Addresses are kept for a day in lianamailer_contacts, so a
-second tap does not call LianaMailer again.
+it in the identity of the payload that is sent. That payload is never stored: the
+sync log keeps the contact id and a shortened address (contact_hint). Addresses are
+kept for a day in lianamailer_contacts, so a second tap does not call LianaMailer
+again.
 
 The API is called outside any database transaction, as calls to Liana are.
 """
@@ -53,6 +55,13 @@ def with_email(
     asked to be contacted (repo.save_contact_email), for Results -> Responses.
     Raises NotSent or LookupFailed; their message is the sync log's reason."""
     identity = payload.get("identity") or {}
+    on_response = identity.get(domain.RESPONSE_IDENTITY)
+    if on_response:
+        with db() as conn:
+            email = repo.response_email(conn, on_response)
+        if not email:
+            raise NotSent("Not sent: the reader left no email address.")
+        return {**payload, "identity": {"email": email}}
     contact_id = identity.get(domain.CONTACT_IDENTITY)
     if not contact_id:
         return payload

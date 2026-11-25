@@ -332,7 +332,11 @@ def test_an_identified_answer_is_sent_once(connect, response):
     assert (row["verb"], row["status"], row["attempts"]) == ("survey_answered", "sent", 1)
     # Liana's answer is kept for the sync log's Details.
     assert row["liana_response"] == 'HTTP 200 {"succeed": true}'
-    assert row["payload"]["identity"] == {"email": "contact.4084399@example.com"}
+    # The address went to Liana but is not kept in the sync log: the row has the
+    # contact id and a shortened address (from review).
+    assert row["payload"]["identity"] == {"lianamailer_id": "4084399"}
+    assert row["contact_hint"] == "co…@example.com"
+    assert "contact.4084399@example.com" not in str(row)
 
 
 @needs_db
@@ -513,14 +517,28 @@ def test_a_contact_request_keeps_the_address_on_the_response(connect, response):
 
 
 @needs_db
-def test_a_request_from_the_public_page_uses_the_typed_address(connect):
+def test_a_request_from_the_public_page_uses_the_typed_address(connect, response):
     connect()
+    _, response_id = response
+    with tenant_connection(DEMO_TENANT) as conn:
+        conn.execute(
+            """update responses set contact_requested = true,
+                      contact_email = 'anna@example.org' where id = %s""",
+            (response_id,),
+        )
     fake, directory = FakeClient(), FakeDirectory()
     adapter = LianaAutomationContactEvents(KEY, directory=directory, build=fake)
-    adapter.send_contact_requested(a_request(contact_ref=None, contact_email="anna@example.org"))
+    adapter.send_contact_requested(
+        a_request(contact_ref=None, contact_email="anna@example.org", response_id=response_id)
+    )
     [body] = fake.imports
     assert body["data"][0]["identity"] == {"email": "anna@example.org"}
     assert directory.lookups == []
+    # The sync log points at the response; the address itself stays only there.
+    [row], _ = _log()
+    assert row["payload"]["identity"] == {"survey_response_id": str(response_id)}
+    assert "anna@example.org" not in str(row)
+    assert row["contact_hint"] == "an…@example.org"
 
 
 @needs_db

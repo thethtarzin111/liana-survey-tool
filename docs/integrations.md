@@ -175,9 +175,15 @@ same shape as the wizard's test event without its test-only items:
   changed answer updates the row and is sent again.
 - Not tested yet, or no channel: failed with the reason, and Retry.
 
+**The address is not kept in the sync log.** A row keeps its payload with the contact
+id (`lianamailer_id`), or for a public-page request a reference to the response that
+holds the typed address (`survey_response_id`). The address is put in only for the
+call to LianaAutomation. The Contact column shows a shortened form (`contact_hint`,
+"te…@example.com").
+
 **"Sent" means LianaAutomation accepted it.** The connector logs LianaAutomation's
-whole answer (HTTP status and body) and keeps it on the row (`liana_response`, the
-sync log's Details). The API docs the team has do not describe the answer of
+whole answer (HTTP status and body, email addresses replaced by `[email]`) and keeps
+it on the row (`liana_response`, the sync log's Details). The API docs the team has do not describe the answer of
 `/import`, so a 200 is checked too: a false `succeed`/`success`/`ok`, an `error` or
 `errors` field, a count of `failed`/`rejected`/`invalid` items, or a per-item result
 with an error makes the row failed, with Retry.

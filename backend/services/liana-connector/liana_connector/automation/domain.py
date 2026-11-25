@@ -101,12 +101,22 @@ CONTACT_REQUEST_VERB = "survey_contact_request"
 CONTACT_IDENTITY = "lianamailer_id"
 
 
-def contact_identity(contact_ref: str | None, contact_email: str | None) -> dict[str, str]:
-    """The identity of a contact request: the typed address (public page), else the
-    contact id to look up."""
-    if contact_email:
-        return {"email": contact_email}
-    return {CONTACT_IDENTITY: contact_ref or ""}
+#: A request from the public page: the address the reader typed is on their response
+#: (responses.contact_email) and is read from there when the event is sent, so the sync
+#: log never keeps it.
+RESPONSE_IDENTITY = "survey_response_id"
+
+
+def contact_identity(
+    contact_ref: str | None, contact_email: str | None, response_id: Any = None
+) -> dict[str, str]:
+    """The stored identity of a contact request: the contact id to look up, or the
+    response that holds the typed address (public page)."""
+    if contact_ref:
+        return {CONTACT_IDENTITY: contact_ref}
+    if response_id is not None:
+        return {RESPONSE_IDENTITY: str(response_id)}
+    return {"email": contact_email or ""}
 
 
 def contact_request_event(
@@ -248,7 +258,7 @@ def _text(value: Any) -> str:
 
 
 def contact_of(payload: dict[str, Any]) -> str | None:
-    """The contact in a stored event (email, or the contact id), for the sync log."""
+    """The contact in an event (email, or the contact id), for the sync log."""
     identity = payload.get("identity") or {}
     return identity.get("email") or identity.get(CONTACT_IDENTITY)
 

@@ -69,7 +69,8 @@ def _connection(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _event(row: dict[str, Any]) -> dict[str, Any]:
-    return {**row, "contact": domain.masked_email(domain.contact_of(row["payload"]))}
+    contact = row.get("contact_hint") or domain.masked_email(domain.contact_of(row["payload"]))
+    return {**row, "contact": contact}
 
 
 def _saved(db: TenantDB) -> dict[str, Any]:
@@ -219,10 +220,12 @@ def _send(
             status = "skipped" if isinstance(problem, contacts.NotSent) else "failed"
             with db() as conn:
                 return _event(repo.mark_event(conn, event["id"], status, str(problem)))
-        if payload is not event["payload"]:
-            with db() as conn:
-                repo.set_payload(conn, event["id"], payload)
-            event = {**event, "payload": payload}
+        # Sent with the address; the row keeps the contact id and a shortened address.
+        with db() as conn:
+            repo.set_contact_hint(
+                conn, event["id"], domain.masked_email(domain.contact_of(payload))
+            )
+        event = {**event, "payload": payload}
     status, error, answer = "sent", None, None
     try:
         answer = client.import_events(domain.import_body(row["channel_id"], [event["payload"]]))

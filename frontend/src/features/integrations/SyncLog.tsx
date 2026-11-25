@@ -82,7 +82,7 @@ export function SyncLog({ reload, onChange }: { reload: number; onChange: () => 
           ) : null}
           <details className="sync-details">
             <summary>Details</summary>
-            <p className="sync-details-label">Sent to LianaAutomation</p>
+            <p className="sync-details-label">Event (the email address is added when it is sent)</p>
             <pre>{JSON.stringify(e.payload, null, 2)}</pre>
             <p className="sync-details-label">LianaAutomation’s answer</p>
             <pre>{e.liana_response ?? 'No answer yet.'}</pre>

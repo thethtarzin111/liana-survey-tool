@@ -308,7 +308,9 @@ def test_retry_looks_the_contacts_address_up_before_sending(api):
     app.dependency_overrides[routes.contact_directory] = Directory
     sent = api.post(f"{URL}/events/{_waiting_answer('4084399')}/retry").json()
     assert sent["status"] == "sent"
-    assert sent["payload"]["identity"] == {"email": "contact.4084399@example.com"}
+    # Sent with the address; the sync log keeps the contact id and a shortened address.
+    assert sent["payload"]["identity"] == {"lianamailer_id": "4084399"}
+    assert "contact.4084399@example.com" not in str(sent)
     assert sent["contact"] == "co…@example.com"
     assert sent["liana_response"].startswith("HTTP 200 ")
 

@@ -292,3 +292,10 @@ def test_a_refused_call_keeps_lianas_answer():
     with pytest.raises(PermanentError) as refused:
         client(FakeLiana(answers=[400])).import_events({"channel": "1", "data": []})
     assert refused.value.response == 'HTTP 400 {"error":"x"}'
+
+
+def test_email_addresses_in_lianas_answer_are_hidden_before_it_is_kept_or_logged():
+    body = {"succeed": True, "imported": [{"email": "test.anna@example.com", "id": 7}]}
+    answer = client(FakeLiana(body=body)).import_events({"channel": "1", "data": []})
+    assert "test.anna@example.com" not in answer
+    assert '"email":"[email]"' in answer

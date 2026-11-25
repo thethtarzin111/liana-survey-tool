@@ -1013,8 +1013,8 @@ components:
         status: { type: string, enum: [pending, sent, retrying, failed, skipped], description: 'sent: LianaAutomation accepted it. skipped: deliberately not sent (an anonymous answer, or a contact LianaMailer does not know); last_error says why' }
         attempts: { type: integer }
         last_error: { type: [string, 'null'] }
-        payload: { type: object, description: The data item sent (or to be sent) to POST /import, for Details }
-        liana_response: { type: [string, 'null'], description: 'LianaAutomation''s answer to the last try: HTTP status and body (shortened), for Details' }
+        payload: { type: object, description: 'The data item for POST /import as stored, for Details: the contact is the LianaMailer contact id (or the response holding a typed address); the email address is added only when it is sent, never stored' }
+        liana_response: { type: [string, 'null'], description: 'LianaAutomation''s answer to the last try: HTTP status and body (shortened, email addresses hidden), for Details' }
         created_at: { type: string, format: date-time }
         sent_at: { type: [string, 'null'], format: date-time }
     ResponsesPage:

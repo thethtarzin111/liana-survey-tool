@@ -31,13 +31,17 @@ alter table lianamailer_contacts force row level security;
 create policy tenant_isolation on lianamailer_contacts
   using (tenant_id = app_tenant_id()) with check (tenant_id = app_tenant_id());
 
--- The sync log keeps LianaAutomation's answer to each send (status and body), for
--- its Details view.
-alter table integration_events add column liana_response text;
+-- The sync log keeps LianaAutomation's answer to each send (status and body, email
+-- addresses hidden), for its Details view, and the contact shortened ("te…@example.com")
+-- for its Contact column. The payload keeps the LianaMailer contact id: the address is
+-- added only when the event is sent, and never stored here.
+alter table integration_events
+  add column liana_response text,
+  add column contact_hint   text;
 
 -- migrate:down
 
-alter table integration_events drop column liana_response;
+alter table integration_events drop column contact_hint, drop column liana_response;
 drop table lianamailer_contacts;
 delete from contact_requests where contact_ref is null;
 alter table contact_requests alter column contact_ref set not null;

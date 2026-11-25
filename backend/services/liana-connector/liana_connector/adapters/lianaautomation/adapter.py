@@ -90,7 +90,9 @@ class LianaAutomationContactEvents:
                 return  # a redelivered message: Liana has it already
             if logged is None:
                 payload = domain.contact_request_event(
-                    domain.contact_identity(event.contact_ref, event.contact_email),
+                    domain.contact_identity(
+                        event.contact_ref, event.contact_email, event.response_id
+                    ),
                     event.survey_id,
                     event.contact_request_id,
                     event.created_at,
@@ -125,21 +127,10 @@ class LianaAutomationContactEvents:
                 event.campaign,
                 event.contact_ref,
             )
-        problem = None if not_sent else domain.not_ready(connection)
-        status = "skipped" if not_sent else "failed" if problem else "pending"
-        reason = not_sent or problem
-        if status == "pending":
-            # Before the row is written, so the same answer gives the same payload
-            # (with the address) and is recognised instead of sent again.
-            try:
-                payload = contacts.with_email(
-                    payload, self.directory, lambda: self._db(event.tenant_id)
-                )
-            except contacts.NotSent as error:
-                status, reason = "skipped", str(error)
-            except contacts.LookupFailed as error:
-                status, reason = "failed", str(error)
-        with self._db(event.tenant_id) as conn:
+            problem = None if not_sent else domain.not_ready(connection)
+            status = "skipped" if not_sent else "failed" if problem else "pending"
+            # Stored with the contact id, so the same answer gives the same payload and
+            # is recognised instead of sent again.
             logged = repo.log_answer_event(
                 conn,
                 event.tenant_id,
@@ -147,11 +138,13 @@ class LianaAutomationContactEvents:
                 domain.ANSWER_VERB,
                 payload,
                 status,
-                reason,
+                not_sent or problem,
             )
         if logged is None or status != "pending":
             return  # nothing new to send, not sent on purpose, or waiting for Retry
-        self._deliver(event.tenant_id, connection, logged)
+        logged = self._with_email(event.tenant_id, logged, None)
+        if logged is not None:
+            self._deliver(event.tenant_id, connection, logged)
 
     def give_up(self, event: AnswerRecorded | ContactRequested, reason: str) -> None:
         """The connector's last attempt failed too: the retrying row becomes failed, so
@@ -164,8 +157,9 @@ class LianaAutomationContactEvents:
                 repo.give_up_event(conn, error, response_id=event.response_id)
 
     def _with_email(self, tenant_id: UUID, logged: dict, response_id: UUID | None) -> dict | None:
-        """The row with the contact's address in its payload, or None when it must not
-        be sent now (the row then says why: skipped or failed)."""
+        """The row with the contact's address in its payload, to send; or None when it
+        must not be sent now (the row then says why: skipped or failed). The address
+        is not stored on the row: only its shortened form, for the sync log."""
         try:
             payload = contacts.with_email(
                 logged["payload"], self.directory, lambda: self._db(tenant_id), response_id
@@ -175,9 +169,10 @@ class LianaAutomationContactEvents:
             with self._db(tenant_id) as conn:
                 repo.mark_event(conn, logged["id"], status, str(error))
             return None
-        if payload is not logged["payload"]:
-            with self._db(tenant_id) as conn:
-                repo.set_payload(conn, logged["id"], payload)
+        with self._db(tenant_id) as conn:
+            repo.set_contact_hint(
+                conn, logged["id"], domain.masked_email(domain.contact_of(payload))
+            )
         return {**logged, "payload": payload}
 
     def _deliver(self, tenant_id: UUID, connection: dict, logged: dict) -> None:

@@ -89,7 +89,7 @@ def delete(conn: psycopg.Connection) -> bool:
 
 
 _EVENT = """id, response_id, verb, payload, test, status, attempts, last_error, liana_response,
-            created_at, sent_at"""
+            contact_hint, created_at, sent_at"""
 
 
 def add_event(
@@ -231,11 +231,9 @@ def mark_event(
     ).fetchone()
 
 
-def set_payload(conn: psycopg.Connection, event_id: UUID, payload: dict) -> None:
-    """The payload with the contact's email address, once LianaMailer gave it."""
-    conn.execute(
-        "update integration_events set payload = %s where id = %s", (Jsonb(payload), event_id)
-    )
+def set_contact_hint(conn: psycopg.Connection, event_id: UUID, hint: str | None) -> None:
+    """The contact, shortened ("te…@example.com"), for the sync log. Never the address."""
+    conn.execute("update integration_events set contact_hint = %s where id = %s", (hint, event_id))
 
 
 # --- LianaMailer contact ids and email addresses ---------------------------------
@@ -261,6 +259,15 @@ def cache_email(conn: psycopg.Connection, contact_id: str, email: str, max_age: 
              set email = excluded.email, fetched_at = now()""",
         (contact_id, email),
     )
+
+
+def response_email(conn: psycopg.Connection, response_id: str) -> str | None:
+    """The address a reader who asked to be contacted left on their response."""
+    row = conn.execute(
+        "select contact_email from responses where id = %s and contact_requested",
+        (response_id,),
+    ).fetchone()
+    return row["contact_email"] if row else None
 
 
 def save_contact_email(conn: psycopg.Connection, response_id: UUID, email: str) -> None:

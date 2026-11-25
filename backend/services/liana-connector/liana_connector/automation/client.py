@@ -15,6 +15,7 @@ Every failure becomes one of four errors, which decide what the caller does:
 
 import itertools
 import logging
+import re
 import time
 from typing import Any, Protocol
 
@@ -234,9 +235,13 @@ class LianaClient:
         return answer
 
 
+_EMAIL = re.compile(r"[^\s@\"'<>(),;:]+@[^\s@\"'<>(),;:]+\.[^\s@\"'<>(),;:]+")
+
+
 def _summary(res: httpx.Response) -> str:
-    """Liana's answer for the sync log and the server log: status and body (shortened)."""
-    return f"HTTP {res.status_code} {res.text[:2000]}".rstrip()
+    """Liana's answer for the sync log and the server log: status and body (shortened),
+    with any email address in it hidden."""
+    return f"HTTP {res.status_code} {_EMAIL.sub('[email]', res.text[:2000])}".rstrip()
 
 
 # --- Demo -------------------------------------------------------------------------
