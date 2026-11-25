@@ -13,7 +13,16 @@ const EYE_OFF = 'M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 
 /** Where to go after signing in: a page of this app, never another site. */
 export function nextPath(search: string): string {
   const next = new URLSearchParams(search).get('next') ?? '';
-  return next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/login') ? next : '/';
+  // Parse it as the browser will: "//x", "/\x" and "https://x" all leave the app.
+  const app = 'https://app.invalid';
+  let url: URL;
+  try {
+    url = new URL(next, app);
+  } catch {
+    return '/';
+  }
+  if (!next.startsWith('/') || url.origin !== app || url.pathname.startsWith('/login')) return '/';
+  return url.pathname + url.search + url.hash;
 }
 
 /**

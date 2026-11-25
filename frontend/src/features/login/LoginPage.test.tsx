@@ -124,6 +124,13 @@ test('after signing in it only goes to pages of this app', () => {
   expect(nextPath('?next=%2Fsurveys')).toBe('/surveys');
   expect(nextPath('?next=https%3A%2F%2Fevil.example')).toBe('/');
   expect(nextPath('?next=%2F%2Fevil.example')).toBe('/');
+  // Browsers read a backslash as a slash.
+  expect(nextPath('?next=%2F%5Cevil.example')).toBe('/');
+  expect(nextPath('?next=%2F%5C%5Cevil.example')).toBe('/');
+  expect(nextPath('?next=%2F%09%2Fevil.example')).toBe('/');
+  expect(nextPath('?next=javascript%3Aalert(1)')).toBe('/');
+  expect(nextPath('?next=%2Flogin%3Fnext%3D%2F')).toBe('/');
+  expect(nextPath('?next=%2Fresults%3Ftab%3Dresponses%23top')).toBe('/results?tab=responses#top');
   expect(nextPath('?next=%2Flogin')).toBe('/');
   expect(nextPath('')).toBe('/');
 });
