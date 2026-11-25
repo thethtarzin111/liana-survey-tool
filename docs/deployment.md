@@ -15,8 +15,8 @@ See the root README for independent frontend/backend commands.
 
 A shared demo for the Liana team and other students runs on one small EU VM
 (Azure for Students), deployed by the "Deploy demo" workflow after CI passes on
-`main`. It runs the local gateway with demo data behind HTTPS and one shared
-password; survey links stay public. Setup and day-to-day use:
+`main`. It runs the local gateway with demo data behind HTTPS, with one login
+per demo organisation; survey links stay public. Setup and day-to-day use:
 `backend/infra/deploy/README.md`. It is a demo, not production: there is no real
 login yet.
 

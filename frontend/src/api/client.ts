@@ -8,6 +8,14 @@ export type CurrentUser = {
   email: string;
 };
 
+/** A demo organisation the dev-auth gateway can switch to. */
+export type DemoOrganization = {
+  tenant_id: string;
+  tenant_name: string;
+  user_name: string;
+  current: boolean;
+};
+
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -34,6 +42,10 @@ export async function getJson<T>(path: string): Promise<T> {
 
 export const api = {
   me: () => getJson<CurrentUser>('/api/v1/me'),
+  /** Dev auth only: the demo organisations. Real login has no such list. */
+  demoOrganizations: () => getJson<DemoOrganization[]>('/api/v1/me/organizations'),
+  /** Dev auth only: signs this browser in to another demo organisation. */
+  switchOrganization: (tenantId: string) => send<CurrentUser>('PUT', '/api/v1/me/organizations', { tenant_id: tenantId }),
   survey: (id: string) => getJson<Survey>(`/api/v1/surveys/${encodeURIComponent(id)}`),
   createSurvey: async (type: SurveyType): Promise<Survey> => {
     const res = await fetch('/api/v1/surveys', {
