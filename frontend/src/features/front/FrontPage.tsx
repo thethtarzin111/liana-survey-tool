@@ -38,7 +38,6 @@ const NEWS: Article[] = [
   { title: 'Introducing LianaSurvey: surveys that work with your other Liana tools', date: 'Sat 14/11/2026' },
   { title: 'New: share surveys with a QR code or embed them on your website', date: 'Tue 10/11/2026' },
   { title: 'Survey templates now in Finnish, Swedish and English', date: 'Wed 04/11/2026' },
-  { title: 'Contact requests: see who asked for a reply in one place', date: 'Mon 02/11/2026' },
 ];
 const INSPIRATION: Article[] = [
   { title: 'How to write a good NPS question', date: 'Thu 12/11/2026', icon: icons.star, tone: 'brand' },
@@ -119,7 +118,7 @@ function GettingStarted({ surveys }: { surveys: SurveyListItem[] }) {
           'Paste the snippet into a LianaMailer message, or share the link or QR code.',
           <ButtonLink to="/integrations" size="sm">See sharing options</ButtonLink>)}
         {step(false, 3, 'Watch the answers come in',
-          'Results, comments and contact requests show up here as soon as people answer.')}
+          'Results and comments show up here as soon as people answer.')}
       </ol>
     </Card>
   );
@@ -188,8 +187,6 @@ export function FrontPage() {
   const live = surveys.filter((survey) => survey.status === 'live').length;
   const responses = surveys.reduce((sum, survey) => sum + survey.answers, 0);
   const nps = answered.find((survey) => survey.type === 'nps' && survey.headline);
-  // The real follow-up list arrives with the Contact requests page.
-  const waiting: number = 0;
 
   const stats = [
     { label: 'Live surveys', icon: icons.list, value: String(live), note: '', cta: 'View surveys', to: '/surveys?status=live' },
@@ -290,21 +287,6 @@ export function FrontPage() {
               text="Results show up here as soon as respondents start answering your surveys."
             />
           )}
-        </Card>
-        <Card aria-labelledby="contacted-title" className="front-contact">
-          <CardHeader id="contacted-title" title="Asked to be contacted" />
-          <div className="front-contact-body">
-            <p className="front-contact-count">
-              <strong>{waiting}</strong>
-              <span>{waiting === 1 ? 'respondent is' : 'respondents are'} waiting for a reply</span>
-            </p>
-            {waiting === 0 ? (
-              <p className="front-muted">
-                When respondents tick “Contact me”, they show up here so you can reply.
-              </p>
-            ) : null}
-            <ButtonLink variant="primary" size="sm" to="/contact-requests">Open contact requests</ButtonLink>
-          </div>
         </Card>
       </div>
 

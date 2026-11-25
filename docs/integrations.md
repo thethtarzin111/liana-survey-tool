@@ -105,7 +105,8 @@ After saving, the worker publishes to `survey.liana-events`:
   (null when anonymous), `type` = `answer.recorded`. Never the answers' texts.
 - `ContactRequested` when the reader ticked "Contact me" and the answer has a
   contact. The contact request is created in the same transaction, once per
-  response (Contact requests page).
+  response. LianaAutomation is where the customer follows up; the survey tool
+  has no list of contact requests.
 
 With `LIANA_ADAPTER=lianaautomation` and the organisation's "Survey answers"
 switch on, the connector turns `AnswerRecorded` into one sync log row per response:
