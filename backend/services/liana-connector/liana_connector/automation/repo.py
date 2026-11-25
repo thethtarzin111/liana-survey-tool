@@ -147,6 +147,34 @@ def log_answer_event(
     ).fetchone()
 
 
+def give_up_event(
+    conn: psycopg.Connection,
+    error: str,
+    *,
+    contact_request_id: UUID | None = None,
+    response_id: UUID | None = None,
+) -> dict[str, Any] | None:
+    """Move a "Contact me" request's or an answer's retrying row to failed, once the
+    connector stops retrying it. None when the row is not retrying (sent meanwhile,
+    or already failed)."""
+    return conn.execute(
+        f"""update integration_events set status = 'failed', last_error = %(error)s
+            where provider = %(provider)s and status = 'retrying'
+              and ((%(request)s::text is not null and verb = 'survey_contact_request'
+                    and payload -> 'events' -> 0 -> 'items' ->> 'contact_request_id'
+                        = %(request)s)
+                or (%(response)s::uuid is not null and response_id = %(response)s
+                    and verb = 'survey_answered'))
+            returning {_EVENT}""",
+        {
+            "error": error,
+            "provider": PROVIDER,
+            "request": str(contact_request_id) if contact_request_id else None,
+            "response": response_id,
+        },
+    ).fetchone()
+
+
 def get_event(conn: psycopg.Connection, event_id: UUID) -> dict[str, Any] | None:
     return conn.execute(
         f"select {_EVENT} from integration_events where id = %s and provider = %s",

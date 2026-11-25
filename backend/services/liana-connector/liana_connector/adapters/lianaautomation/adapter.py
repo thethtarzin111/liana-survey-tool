@@ -10,7 +10,8 @@ what was sent and can press Retry after fixing a broken connection.
     an anonymous answer, or an unknown contact            -> "skipped" row with the reason
     connection not tested, or no channel                  -> failed in the sync log, Retry
     TemporaryError (5xx, timeout)                         -> retrying; raised so the
-                                                             connector tries again later
+                                                             connector tries again later,
+                                                             failed after its last attempt
     other LianaError (bad data, wrong host, credentials) -> failed; raised as
                                                              DeliveryFailed (dead letter)
 
@@ -113,6 +114,16 @@ class LianaAutomationContactEvents:
         if logged is None or status != "pending":
             return  # nothing new to send, not sent on purpose, or waiting for Retry
         self._deliver(event.tenant_id, connection, logged)
+
+    def give_up(self, event: AnswerRecorded | ContactRequested, reason: str) -> None:
+        """The connector's last attempt failed too: the retrying row becomes failed, so
+        the sync log shows Retry instead of waiting for a retry that never comes."""
+        error = f"Gave up after several tries. Last error: {reason}"
+        with self._db(event.tenant_id) as conn:
+            if isinstance(event, ContactRequested):
+                repo.give_up_event(conn, error, contact_request_id=event.contact_request_id)
+            else:
+                repo.give_up_event(conn, error, response_id=event.response_id)
 
     def _deliver(self, tenant_id: UUID, connection: dict, logged: dict) -> None:
         """Send one pending sync log row and record the outcome."""
