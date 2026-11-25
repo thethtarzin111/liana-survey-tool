@@ -40,7 +40,7 @@
 .welcome-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
 .welcome-art {
   position: relative; flex: 0 1 420px; min-width: 0; padding: 28px 28px 40px;
-  background: var(--color-mint-border); border-radius: var(--radius-card);
+  background: var(--color-mint-border); border-radius: var(--radius-card); box-shadow: var(--shadow-pop);
 }
 .welcome-mail {
   display: flex; flex-direction: column; gap: 9px; padding: 16px;
@@ -67,7 +67,7 @@
 .welcome-rating span.on { background: var(--color-brand-dark); border-color: var(--color-brand-dark); color: var(--color-on-brand); }
 .welcome-result {
   position: absolute; right: -10px; bottom: -16px; padding: 10px 16px; display: flex; flex-direction: column; gap: 1px;
-  background: var(--color-surface); border-radius: var(--radius-nav); box-shadow: var(--shadow-option-hover);
+  background: var(--color-surface); border-radius: var(--radius-nav); box-shadow: var(--shadow-pop);
 }
 .welcome-result span { font-size: var(--text-xs); color: var(--color-text-muted); }
 .welcome-result strong { font: 600 var(--text-title-input) var(--font-heading); }
